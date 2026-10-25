@@ -31,14 +31,26 @@ def metric_query(case: IncidentCase, service: str | None = None,
     after = df[df["time"] >= case.inject_time]
     if before.empty or after.empty:
         raise ValueError(f"{case.case_id}: no data on one side of inject_time")
+    series = [c for c in df.columns if c != "time"]
+    services = sorted({c.rpartition("_")[0] for c in series})
+    metrics = sorted({c.rpartition("_")[2] for c in series})
+
+    def _match(want: str | None, have: str) -> bool:
+        # tolerant: "latency" matches "latency-50"; "frontendservice" matches "frontend"
+        if not want:
+            return True
+        w, h = want.lower(), have.lower()
+        return w in h or h in w
+
+    if service and not any(_match(service, s) for s in services):
+        raise ValueError(f"unknown service {service!r}; metric services are {services}")
+    if metric and not any(_match(metric, m) for m in metrics):
+        raise ValueError(f"unknown metric {metric!r}; available metrics are {metrics}")
+
     out = []
-    for col in df.columns:
-        if col == "time":
-            continue
+    for col in series:
         svc, _, met = col.rpartition("_")
-        if service and svc != service:
-            continue
-        if metric and met != metric:
+        if not (_match(service, svc) and _match(metric, met)):
             continue
         b, a = before[col].astype(float), after[col].astype(float)
         b_mean, a_mean, b_std = b.mean(), a.mean(), b.std()

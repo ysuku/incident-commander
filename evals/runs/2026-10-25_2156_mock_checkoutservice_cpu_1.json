@@ -1,0 +1,135 @@
+{
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "top deviation checkoutservice_cpu; checkoutservice_cpu z=226.43 (4164.9%); checkoutservice_mem z=7.7 (38.5%); checkoutservice_socket z=4.36 (21.8%); frontend_latency-50 z=-0.68 (-3.4%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu"
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "11945 traces after alert; worst: frontendservice -> currencyservice -> productcatalogservice 2396.4ms errors=1; frontendservice -> currencyservice -> productcatalogservice 2129.4ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 1795.9ms errors=1",
+      "source_ref": "traces.csv:traceID=777bc5b5f907d040d455a90a9328ae92"
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "services on errored trace paths",
+      "why": "errors are downstream symptoms; their own resources are normal (E1)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Raise cpu limit for checkoutservice after confirming app behavior",
+    "destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 0.0,
+        "prompt_tokens": null,
+        "completion_tokens": null,
+        "finish_reason": "stop",
+        "mock": true
+      },
+      "thought": "Start with cheap, computed metric deviations.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "top": 5
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.67
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 0.0,
+        "prompt_tokens": null,
+        "completion_tokens": null,
+        "finish_reason": "stop",
+        "mock": true
+      },
+      "thought": "Corroborate with a second telemetry kind.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "limit": 3
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.99
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 0.0,
+        "prompt_tokens": null,
+        "completion_tokens": null,
+        "finish_reason": "stop",
+        "mock": true
+      },
+      "thought": "Metrics and traces both implicate the same service.",
+      "action": {
+        "finish": {
+          "root_cause_service": "checkoutservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "services on errored trace paths",
+              "why": "errors are downstream symptoms; their own resources are normal (E1)"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Raise cpu limit for checkoutservice after confirming app behavior",
+            "destructive": true
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "top deviation checkoutservice_cpu; checkoutservice_cpu z=226.43 (4164.9%); checkoutservice_mem z=7.7 (38.5%); checkoutservice_socket z=4.36 (21.8%); frontend_latency-50 z=-0.68 (-3.4%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu"
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "11945 traces after alert; worst: frontendservice -> currencyservice -> productcatalogservice 2396.4ms errors=1; frontendservice -> currencyservice -> productcatalogservice 2129.4ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 1795.9ms errors=1",
+      "source_ref": "traces.csv:traceID=777bc5b5f907d040d455a90a9328ae92"
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 0.0,
+    "tool_seconds": 1.7,
+    "prompt_tokens": 0,
+    "completion_tokens": 0,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 1.7
+  }
+}
