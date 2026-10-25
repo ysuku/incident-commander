@@ -41,3 +41,35 @@ research-agent starter stays in `src/research_agent/` as the Module 1 baseline f
 
 **Next:** implement loaders against the real RCAEval layout, then log_search + metric_query,
 then the ReAct loop.
+
+## Data layout findings + loaders (Oct 25)
+RE2-OB verified on disk: `RE2-OB/<service>_<fault>/<run>/` — **ground truth is the folder
+name**, so loaders carry it on `IncidentCase` for scoring only; nothing building agent
+context may read it. Per case: `inject_time.txt`, `logs.csv` (~23MB), `traces.csv` (~70MB),
+`simple_metrics.csv` (wide, per-service), `logts.csv` + `cluster_info.json` (log-template
+time series), `tracets_lat/err.csv` (per-operation latency/error series). The log/trace
+sizes confirm the core design point: no context window holds a case, so tools summarize.
+- `loaders.py` implemented and tested against real data; big files load lazily via helpers.
+- **Held-out guard in code:** `train-ticket` raises unless `IC_ALLOW_HELDOUT=1`, so the
+  unseen-system result can't be contaminated by accident.
+- CLI `list` works. Next: `log_search` + `metric_query` on the extracted case, then the
+  plain/CoT baselines, then the ReAct loop.
+
+## Module 3 — Retrieval layer for runbook_lookup (Oct 25)
+**Decision:** retrieval IS required, for the long-term memory only. Telemetry (logs, metrics,
+traces) stays on structured tools; runbooks/postmortems are text and need semantic lookup.
+
+**Added:** `retrieval.py` (chunking, Chroma index, MMR, distance threshold), wired into
+`tools.runbook_lookup`; `tests/test_retrieval.py` (logic tests with a hashing stand-in embedder);
+`scripts/retrieval_demo.py` (worked example + 6-query smoke check with the real MiniLM embedder).
+- Chunking: per-runbook "symptom" (title+Meaning+Impact) and "action" (title+Diagnosis+Mitigation)
+  chunks, split on the runbooks' own headings, title repeated in every chunk. Scoped corpus:
+  59 runbooks -> 130 chunks (median 337 chars, max 1231).
+- Scope: kubernetes + node runbooks only (59 of 105 runbooks); monitoring-stack runbooks
+  (alertmanager, etcd, prometheus...) are distractors for workload faults.
+- K=4 after fetching 12; cosine-distance cut-off 0.65 (STARTING value, calibrate on dev cases);
+  MMR lambda 0.6. Empty result = "no runbook match", never a guess.
+- Runbook hits are reference, not evidence: a root cause still needs two telemetry types.
+**Caveat:** the sandbox used for development could not download MiniLM, so retrieval quality
+numbers come only from running `scripts/retrieval_demo.py` locally -> `evals/retrieval_demo_output.txt`.
+**Not yet:** postmortem summaries and confirmed past incidents are not indexed (data/postmortems empty).

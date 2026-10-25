@@ -35,7 +35,23 @@ def service_map(case: IncidentCase) -> dict:
     raise NotImplementedError
 
 
-def runbook_lookup(symptom: str, k: int = 5) -> list[dict]:
-    """Retrieve runbooks / past incidents matching a symptom. Keyword match in
-    M2; Chroma + MMR in Module 3. TODO(M2/M3)."""
-    raise NotImplementedError
+def runbook_lookup(symptom: str, k: int = 4) -> list[dict]:
+    """Semantic search over public runbooks (Chroma + MiniLM, MMR, distance cut-off).
+
+    `symptom` should be written from OBSERVED telemetry ("checkoutservice CPU at
+    its limit, latency rising"), not copied from the raw alert.
+    Returns up to k [{source_ref, alert, kind, distance, text}] or [] when nothing
+    is close enough -- the agent must then say "no runbook match" rather than guess.
+    Runbook hits are REFERENCE, not evidence: they may suggest candidates and known
+    fixes, but a root-cause claim still needs two independent telemetry types.
+    """
+    from .retrieval import DEFAULT_COMPONENTS, RunbookIndex, load_chunks
+    global _RUNBOOK_INDEX
+    if _RUNBOOK_INDEX is None:
+        _RUNBOOK_INDEX = RunbookIndex()
+        if _RUNBOOK_INDEX.col.count() == 0:
+            _RUNBOOK_INDEX.build(load_chunks())
+    return _RUNBOOK_INDEX.search(symptom, k=k, components=DEFAULT_COMPONENTS)
+
+
+_RUNBOOK_INDEX = None
