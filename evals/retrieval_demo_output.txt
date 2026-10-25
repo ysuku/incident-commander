@@ -1,0 +1,78 @@
+Indexed 228 chunks from 105 runbooks (130 chunks / 59 runbooks in default scope)
+
+=== Part 1: worked example (checkoutservice_cpu) ===
+query: service container CPU usage pinned at its limit, request latency rising, timeouts upstream
+
+ A. plain top-4, whole corpus, no threshold:
+   0.435  runbooks/kubernetes/CPUThrottlingHigh.md#action
+   0.488  runbooks/kubernetes/KubeContainerWaiting.md#symptom
+   0.496  runbooks/kubernetes/KubeCPUQuotaOvercommit.md#symptom
+   0.504  runbooks/kubernetes/KubeCPUQuotaOvercommit.md#action
+ B. scoped to kubernetes+node:
+   0.435  runbooks/kubernetes/CPUThrottlingHigh.md#action
+   0.488  runbooks/kubernetes/KubeContainerWaiting.md#symptom
+   0.496  runbooks/kubernetes/KubeCPUQuotaOvercommit.md#symptom
+   0.504  runbooks/kubernetes/KubeCPUQuotaOvercommit.md#action
+ C. scoped + threshold 0.65 + MMR(lambda=0.6):  <- what runbook_lookup returns
+   0.435  runbooks/kubernetes/CPUThrottlingHigh.md#action
+   0.555  runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom
+   0.488  runbooks/kubernetes/KubeContainerWaiting.md#symptom
+   0.545  runbooks/node/NodeNetworkTransmitErrs.md#action
+
+ top hit text (what the model actually receives):
+
+   CPUThrottlingHigh (action): - Check if application is performing normally
+   - Check if CPU resource requests are adjusted accordingly to the app usage
+   - Check kernel version in the node
+   
+   **Notice**:
+   User shouldn't increase CPU limits unless the application is behaving
+   erratically (another alert firing).
+   
+   For this particular reason, the alert is inhibited by default in
+   kube-prometheus and can be sent only if another alert in the same namespace
+   is firing.
+   
+   **When mixed with other alerts**:
+   
+   Give specific container in the pod more CPU limits. Requests can stay the same.
+   
+   In specific cases kubernetes node has too old kernel which is known to have
+   issues with assigning CPU resources to the process 
+
+=== Part 2: tiny dev check (6 queries) ===
+
+[cpu] service container CPU usage pinned at its limit, request latency rising, timeouts upstream
+ A whole corpus, top-4          OK   CPUThrottlingHigh(0.435), KubeContainerWaiting(0.488), KubeCPUQuotaOvercommit(0.496), KubeCPUQuotaOvercommit(0.504)
+ B scoped, top-4                OK   CPUThrottlingHigh(0.435), KubeContainerWaiting(0.488), KubeCPUQuotaOvercommit(0.496), KubeCPUQuotaOvercommit(0.504)
+ C scoped + threshold + MMR     OK   CPUThrottlingHigh(0.435), NodeHighNumberConntrackEntriesUsed(0.555), KubeContainerWaiting(0.488), NodeNetworkTransmitErrs(0.545)
+
+[mem] service memory usage climbing to its limit, container restarts, out of memory kills
+ A whole corpus, top-4          OK   KubeMemoryQuotaOvercommit(0.503), KubeDaemonSetMisScheduled(0.523), KubeMemoryOvercommit(0.537), NodeHighNumberConntrackEntriesUsed(0.539)
+ B scoped, top-4                OK   KubeMemoryQuotaOvercommit(0.503), KubeDaemonSetMisScheduled(0.523), KubeMemoryOvercommit(0.537), NodeHighNumberConntrackEntriesUsed(0.539)
+ C scoped + threshold + MMR     OK   KubeMemoryQuotaOvercommit(0.503), NodeHighNumberConntrackEntriesUsed(0.54), KubeDaemonSetMisScheduled(0.523), NodeFilesystemSpaceFillingUp(0.581)
+
+[disk] disk space on the node filling up, writes failing, filesystem almost full
+ A whole corpus, top-4          OK   NodeFilesystemSpaceFillingUp(0.401), NodeFilesystemAlmostOutOfSpace(0.404), NodeFilesystemFilesFillingUp(0.414), NodeFilesystemAlmostOutOfFiles(0.472)
+ B scoped, top-4                OK   NodeFilesystemSpaceFillingUp(0.401), NodeFilesystemAlmostOutOfSpace(0.404), NodeFilesystemFilesFillingUp(0.414), NodeFilesystemAlmostOutOfFiles(0.472)
+ C scoped + threshold + MMR     OK   NodeFilesystemSpaceFillingUp(0.401), NodeFilesystemAlmostOutOfSpace(0.497), NodeFilesystemAlmostOutOfSpace(0.404), NodeRAIDDegraded(0.573)
+
+[socket] service running out of open sockets and file descriptors, connection errors, conntrack table full
+ A whole corpus, top-4          OK   NodeHighNumberConntrackEntriesUsed(0.409), NodeFileDescriptorLimit(0.488), NodeFileDescriptorLimit(0.508), NodeHighNumberConntrackEntriesUsed(0.535)
+ B scoped, top-4                OK   NodeHighNumberConntrackEntriesUsed(0.409), NodeFileDescriptorLimit(0.488), NodeFileDescriptorLimit(0.508), NodeHighNumberConntrackEntriesUsed(0.535)
+ C scoped + threshold + MMR     OK   NodeHighNumberConntrackEntriesUsed(0.409), NodeFileDescriptorLimit(0.488), KubeDaemonSetMisScheduled(0.58), NodeNetworkTransmitErrs(0.57)
+
+[loss] packet loss and network receive errors between pods on a node, retransmissions
+ A whole corpus, top-4          MISS  KubeCPUOvercommit(0.421), NodeHighNumberConntrackEntriesUsed(0.428), KubeStatefulSetGenerationMismatch(0.439), KubeCPUQuotaOvercommit(0.439)
+ B scoped, top-4                MISS  KubeCPUOvercommit(0.421), NodeHighNumberConntrackEntriesUsed(0.428), KubeStatefulSetGenerationMismatch(0.439), KubeCPUQuotaOvercommit(0.439)
+ C scoped + threshold + MMR     OK   KubeCPUOvercommit(0.421), NodeNetworkReceiveErrs(0.468), NodeNetworkTransmitErrs(0.471), NodeHighNumberConntrackEntriesUsed(0.428)
+
+[delay] added network latency between two services, p99 latency up, no errors, CPU and memory normal
+ A whole corpus, top-4          MISS  NodeNetworkTransmitErrs(0.645), NodeClockNotSynchronising(0.646), NodeNetworkTransmitErrs(0.647), NodeNetworkReceiveErrs(0.65)
+ B scoped, top-4                MISS  NodeNetworkTransmitErrs(0.645), NodeClockNotSynchronising(0.646), NodeNetworkTransmitErrs(0.647), NodeNetworkReceiveErrs(0.65)
+ C scoped + threshold + MMR     MISS  NodeNetworkTransmitErrs(0.645), NodeClockNotSynchronising(0.646), NodeNetworkTransmitErrs(0.647), NodeNetworkReceiveErrs(0.65)
+
+Summary (OK out of 6; distractor hits = chunks from monitoring-stack runbooks):
+ A whole corpus, top-4          4/6   distractor hits: 0
+ B scoped, top-4                4/6   distractor hits: 0
+ C scoped + threshold + MMR     5/6   distractor hits: 0

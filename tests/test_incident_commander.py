@@ -57,3 +57,44 @@ def test_load_helpers_return_frames():
     assert len(lat) and len(err)
     logs = loaders.load_logs(c, columns=["timestamp", "container_name", "message", "level"])
     assert {"container_name", "message"} <= set(logs.columns)
+
+
+@needs_data
+def test_metric_query_ranks_injected_fault_first():
+    c = loaders.load_case("checkoutservice_cpu/1")
+    from incident_commander import tools
+    top = tools.metric_query(c, top=3)["top_deviations"]
+    assert top[0]["series"] == "checkoutservice_cpu"
+    assert all(abs(d["z"]) < 1e6 for d in top), "z-scores must stay numerically sane"
+    assert all("source_ref" in d for d in top)
+
+
+@needs_data
+def test_log_search_filters_and_cites():
+    c = loaders.load_case("checkoutservice_cpu/1")
+    from incident_commander import tools
+    res = tools.log_search(c, query="timeout", limit=5)
+    assert res["total_matches"] >= 0
+    for line in res["sample_after_alert"]:
+        assert line["source_ref"].startswith("logs.csv#L")
+    assert tools.log_search(c, level="error")["total_matches"] == 0  # CPU fault: no error logs
+
+
+@needs_data
+def test_trace_lookup_summarizes_not_dumps():
+    c = loaders.load_case("checkoutservice_cpu/1")
+    from incident_commander import tools
+    res = tools.trace_lookup(c, limit=3)
+    assert len(res["traces"]) <= 3
+    for t in res["traces"]:
+        assert " -> " in t["path"] and t["source_ref"].startswith("traces.csv")
+        assert len(t["error_spans"]) <= 5
+
+
+@needs_data
+def test_service_map_has_expected_edges():
+    c = loaders.load_case("checkoutservice_cpu/1")
+    from incident_commander import tools
+    edges = tools.service_map(c)["edges"]
+    assert "paymentservice" in edges.get("checkoutservice", [])
+    assert "checkoutservice" in edges.get("frontendservice", [])

@@ -73,3 +73,17 @@ traces) stays on structured tools; runbooks/postmortems are text and need semant
 **Caveat:** the sandbox used for development could not download MiniLM, so retrieval quality
 numbers come only from running `scripts/retrieval_demo.py` locally -> `evals/retrieval_demo_output.txt`.
 **Not yet:** postmortem summaries and confirmed past incidents are not indexed (data/postmortems empty).
+
+## Telemetry tools implemented (Oct 25)
+`metric_query`, `log_search`, `trace_lookup`, `service_map` implemented in pure pandas and
+verified on checkoutservice_cpu/1. All five 2.1 tools now real. Findings worth keeping:
+- metric_query (before/after-alert z-scores) ranks the injected fault first on the worked
+  case: checkoutservice_cpu z=226 (+4,165%). Lesson: a near-constant baseline makes raw
+  z-scores explode (socket series hit z=1.9e9), so the denominator is floored at 5% of the
+  baseline mean.
+- This case has ZERO error-level logs — a CPU fault makes services slow, not crashy. Logs
+  alone cannot diagnose it, which empirically validates the two-independent-telemetry rule.
+- Top failing traces route through currency/productcatalog — a misleading clue for a naive
+  reader; good demo moment.
+Still open from 2.1: evidence scratchpad, ReAct loop, citation check, model client,
+baselines, MCP server wrapper.
