@@ -171,3 +171,24 @@ How it got through:
 gate must check that the evidence supports the claim. (2) Without ground-truth labels this run
 would have been scored a success. Evaluating against labels is what caught it. (3) Model size
 traded speed for judgment: 27B escalated honestly, 4B answered fast and wrong.
+
+## After the fixes: first correct real-model diagnosis (Oct 25, evening)
+Same case (checkoutservice_cpu/1, truth checkoutservice/cpu), runs saved in `evals/runs/`:
+
+| Model | Code | Outcome | Steps | Time |
+|---|---|---|---|---|
+| Qwen3.6-27B | pre-fix | escalated (misled by false "no deviations") | 8 | ~60 min |
+| Qwen3-4B | pre-fix | WRONG: redis/cpu, passed the old gate | 7 | 2.4 min |
+| Qwen3-4B | post-fix (x2) | escalated; identical both runs | 6 | ~17 min |
+| Qwen3.6-27B | post-fix | **correct**, cites metrics + traces | 4 | 7.5 min |
+
+- 27B followed the new "unfiltered metric_query first" hint: z=226 on step 1, logs empty
+  (expected for CPU), traces for corroboration, finish accepted by the evidence-checked gate.
+- 4B also saw the spike but named "online-boutique" (the SYSTEM name, which leads the alert text)
+  as the root-cause service. The gate rejected it. Then 3 replies in a row hit the 8192-token
+  limit (27,577 output tokens): the small model couldn't recover from the rejection.
+- Both 4B reruns produced identical token counts: temperature 0 makes runs deterministic, so
+  bugs reproduce exactly. Variance in results has to come from the case set, not from reruns.
+Next: (1) the alert text names the system separately and lists valid service names;
+(2) try the 4B with reasoning ("thinking") off; (3) eval runner over the 30-case dev set.
+At ~7.5 min/case the 27B needs ~4 hours for 30 cases, so it is an overnight run.
