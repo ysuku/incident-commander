@@ -1,0 +1,351 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "12182 traces after alert; worst: frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2584.0ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2269.1ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2150.6ms errors=1",
+      "source_ref": "traces.csv:traceID=08aaa10046586a1a32092508303e9c97",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "emailservice",
+        "frontendservice",
+        "paymentservice",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "676 matching lines; by svc/level {'emailservice/INFO': 676}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L89055",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "logs",
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: injected network delay",
+      "why": "Injected delay raises latency but would not drive a +5867.8% (z=629.73) CPU jump in the same service. Latency z=7219 is consistent with requests queuing behind a saturated CPU (E1, E5)."
+    },
+    {
+      "candidate": "emailservice: memory pressure / GC stalls",
+      "why": "Memory deviation (z=84.05, +420%) is an order of magnitude weaker than the CPU deviation (z=629.73) (E1). Memory growth is plausibly a side effect of request backlog."
+    },
+    {
+      "candidate": "other services on the slow path (checkoutservice, paymentservice, currencyservice, etc.)",
+      "why": "The all-services metric ranking shows every top deviation belongs to emailservice (E1). The slow traces all pass through emailservice (E3), but they only show full paths, not per-span latency, so the traces fit an emailservice cause without isolating it. E2 shows only routine INFO lines, all from emailservice."
+    }
+  ],
+  "proposed_fix": {
+    "description": "First, scale out emailservice replicas and raise its CPU limit to relieve checkout latency. Then profile the emailservice pod (e.g., top or py-spy) to find and stop the runaway CPU consumer. Restarting the pod or killing the process is a separate destructive step that needs approval.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 7,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 593,
+        "completion_tokens": 73,
+        "max_tokens": 16000,
+        "answer_chars": 201,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00383,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric query to rank every service and metric by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.0,
+        "prompt_tokens": 720,
+        "completion_tokens": 273,
+        "max_tokens": 16000,
+        "answer_chars": 552,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00834,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows emailservice deviating far more than any other service, with CPU at z=629.73 alongside huge latency, so I need a second, independent telemetry kind (logs) to confirm the culprit and the fault type.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 4.0,
+        "prompt_tokens": 954,
+        "completion_tokens": 331,
+        "max_tokens": 16000,
+        "answer_chars": 523,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01044,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) clearly implicate emailservice, but E2 only shows routine INFO logs, so I need traces to independently confirm emailservice is where the latency sits on request paths.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.56
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 7.3,
+        "prompt_tokens": 1194,
+        "completion_tokens": 585,
+        "max_tokens": 16000,
+        "answer_chars": 616,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01648,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) clearly single out emailservice, but E2 is only routine INFO lines and E3's worst paths span seven services, so I need traces focused on failures to see whether latency and errors concentrate at the emailservice span.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.56
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 5.6,
+        "prompt_tokens": 1458,
+        "completion_tokens": 504,
+        "max_tokens": 16000,
+        "answer_chars": 648,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01591,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows only the top four emailservice deviations, so pulling every emailservice metric should separate CPU saturation from injected delay or memory pressure, since E2 is just routine INFO lines and E3/E4 do not isolate emailservice's own span time.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 7.0,
+        "prompt_tokens": 1601,
+        "completion_tokens": 637,
+        "max_tokens": 16000,
+        "answer_chars": 750,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01914,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E5) clearly implicate emailservice, but the logs (E2) are only routine INFO lines and the traces (E3/E4) list whole paths without isolating a slow span, so I need a second telemetry kind that points at emailservice itself; searching its WARN/ERROR logs is the cheapest discriminating check.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "ERROR",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 13.7,
+        "prompt_tokens": 1648,
+        "completion_tokens": 1368,
+        "max_tokens": 16000,
+        "answer_chars": 1619,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.03395,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E5) and traces (E3) both point at emailservice, and its 58x CPU jump points to a CPU hog rather than injected delay; the trace and log support is weaker than the metrics.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E5",
+            "E3",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: injected network delay",
+              "why": "Injected delay raises latency but would not drive a +5867.8% (z=629.73) CPU jump in the same service. Latency z=7219 is consistent with requests queuing behind a saturated CPU (E1, E5)."
+            },
+            {
+              "candidate": "emailservice: memory pressure / GC stalls",
+              "why": "Memory deviation (z=84.05, +420%) is an order of magnitude weaker than the CPU deviation (z=629.73) (E1). Memory growth is plausibly a side effect of request backlog."
+            },
+            {
+              "candidate": "other services on the slow path (checkoutservice, paymentservice, currencyservice, etc.)",
+              "why": "The all-services metric ranking shows every top deviation belongs to emailservice (E1). The slow traces all pass through emailservice (E3), but they only show full paths, not per-span latency, so the traces fit an emailservice cause without isolating it. E2 shows only routine INFO lines, all from emailservice."
+            }
+          ],
+          "proposed_fix": {
+            "description": "First, scale out emailservice replicas and raise its CPU limit to relieve checkout latency. Then profile the emailservice pod (e.g., top or py-spy) to find and stop the runaway CPU consumer. Restarting the pod or killing the process is a separate destructive step that needs approval.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "676 matching lines; by svc/level {'emailservice/INFO': 676}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L89055",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "12182 traces after alert; worst: frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2584.0ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2269.1ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2150.6ms errors=1",
+      "source_ref": "traces.csv:traceID=08aaa10046586a1a32092508303e9c97",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "emailservice",
+        "frontendservice",
+        "paymentservice",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "traces",
+      "summary": "12182 traces after alert; worst: frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2584.0ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2269.1ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2150.6ms errors=1",
+      "source_ref": "traces.csv:traceID=08aaa10046586a1a32092508303e9c97",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "emailservice",
+        "frontendservice",
+        "paymentservice",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 7,
+    "model_seconds": 42.5,
+    "tool_seconds": 1.3,
+    "prompt_tokens": 8168,
+    "completion_tokens": 3771,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 43.9,
+    "cost_usd": 0.10809200000000002
+  }
+}

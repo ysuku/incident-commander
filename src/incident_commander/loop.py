@@ -28,10 +28,10 @@ MAX_PARSE_FAILURES = 2
 SYSTEM_PROMPT = """You are Incident Commander, diagnosing one recorded microservice incident.
 Work ONLY from the evidence board you are shown. Never invent log lines, metrics, or services.
 Each turn, respond with ONE JSON object and nothing else:
-  {"thought": "...", "candidates": ["svc: hypothesis", ...],
+  {"rationale": "<one sentence: why this action>", "candidates": ["svc: hypothesis", ...],
    "action": {"tool": "<name>", "args": {...}}}
 or, when the evidence is sufficient:
-  {"thought": "...", "action": {"finish": {
+  {"rationale": "<one sentence>", "action": {"finish": {
      "root_cause_service": "...", "fault_type": "cpu|mem|disk|socket|delay|loss",
      "supporting_evidence": ["E1", ...],
      "alternatives_rejected": [{"candidate": "...", "why": "... (cite Ex)"}],
@@ -200,7 +200,9 @@ def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient)
                 return done(_escalate(pad, trace, "model output unparseable"))
             continue
 
-        entry["thought"] = msg.get("thought", "")
+        # "rationale" since Oct 28 (Claude's classifier refused a per-step "thought"
+        # as reasoning extraction); older runs and the mock still send "thought"
+        entry["thought"] = str(msg.get("rationale") or msg.get("thought") or "")
         entry["action"] = action
         if isinstance(msg.get("candidates"), list):
             pad.candidates = [str(c) for c in msg["candidates"]][:4]

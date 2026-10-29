@@ -223,3 +223,41 @@ mapping, MCP results equal direct calls, non-object args, real stdio subprocess)
 Not adopted from the lab: resources, prompts, sampling, roots, auth. The tools are
 model-controlled, and the only client is local, so none of these are needed yet.
 
+## First dev-set eval on Claude Opus 5.5 (Oct 28)
+New: `AnthropicClient` (`model.py`, native SDK, adaptive thinking, effort `IC_EFFORT=medium`,
+server-side refusal fallback, per-call cost) and the eval runner (`evaluate.py`,
+`cli eval`): scores each case against the folder label as correct / service_only / wrong /
+escalated / error, saves each brief as it finishes (resumable), stops at `--max-usd`.
+Repetitions 2 and 3 of RE2-OB are now extracted: 90 dev cases (this run used rep 1 only).
+
+**Run 1, harness bug.** 38 of 203 model calls were refused by a safety classifier
+(category `reasoning_extraction`), 27 of them on step 1. The prompt asked for a per-step
+`"thought"` field, which reads as asking the model to dump its hidden reasoning. Each
+refusal burned a step; 4 cases escalated purely from repeated refusals. Result 5 correct /
+7 service_only / 1 wrong / 17 escalated, not a fair number.
+**Fix:** the field is now `"rationale"`, one sentence on why this action (the loop still
+accepts `"thought"`, so old runs and the mock parse). Run 2: zero refusals.
+
+**Run 2 (`evals/results/2026-10-28_opus-5-5_r1_v2/`), 30 cases, $2.74, 19 min:**
+
+| Outcome | n | share |
+|---|---|---|
+| correct (service + fault) | 6 | 20% |
+| service_only | 10 | 33% |
+| wrong service | 1 | 3% |
+| escalated (all: step budget) | 13 | 43% |
+
+- Right service in 16/30 (53%), and wrong only once: when it commits, it is almost never
+  pointing at the wrong service. Compare Qwen3-4B pre-fix, which was confident and wrong.
+- Fault type is the weak part: mem->cpu/delay/loss, disk->mem, loss/socket->delay.
+  Data limits explain some of it: simple_metrics has no network metric (loss looks like
+  delay) and diskio exists for only 4 of 11 services.
+- Opus is stricter than the gate: on checkoutservice_cpu/1 the gate would accept E1+E2,
+  but the model judged the traces did not isolate checkoutservice and kept looking.
+  `trace_lookup` has no service filter, so CPU/mem faults (no error logs) rarely get a
+  clean second kind of evidence. That is the main driver of budget escalations.
+- About 37s and $0.09 per case, against ~7.5 min for Qwen3.6-27B: the whole dev set
+  (90 cases) costs about $8 per configuration.
+Next: (1) `trace_lookup(service=...)`: per-service span latency/error before vs after;
+(2) a fault-signal guide (which telemetry each fault type moves) via the runbook layer;
+(3) rerun on reps 1-3 (90 cases) after each change.

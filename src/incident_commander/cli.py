@@ -3,6 +3,7 @@
   python -m incident_commander.cli list --system online-boutique
   python -m incident_commander.cli baseline --kind plain --case <id>
   python -m incident_commander.cli diagnose --case <id>        (agent; M2+)
+  python -m incident_commander.cli eval --model claude-opus-5-5 --runs 1 --max-usd 20
 """
 import argparse
 from datetime import datetime, timezone
@@ -18,6 +19,55 @@ def cmd_list(args) -> None:
         print(f"  {c.case_id:40s} injected {t}Z")
 
 
+def make_model(name: str):
+    """(model, short name). 'mock'; 'claude-*' -> Anthropic API; 'env' or any
+    other id -> the OpenAI-compatible client (.env OPENAI_MODEL for 'env')."""
+    if name == "mock":
+        from .model import MockModel
+        return MockModel(), "mock"
+    if name.startswith("claude-"):
+        from .model import AnthropicClient
+        return AnthropicClient(name), name
+    from .model import OpenRouterClient
+    model = OpenRouterClient(None if name == "env" else name)
+    return model, model.model.split("/")[-1]
+
+
+def _log_to(path) -> None:
+    import logging
+    import sys
+    logger = logging.getLogger("incident_commander")
+    logger.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s %(message)s", datefmt="%H:%M:%S")
+    for handler in (logging.StreamHandler(sys.stderr), logging.FileHandler(path, encoding="utf-8")):
+        handler.setFormatter(fmt)
+        logger.addHandler(handler)
+
+
+def cmd_eval(args) -> None:
+    """Run the agent over the dev set and score it against the labels."""
+    from fnmatch import fnmatch
+
+    from . import evaluate
+    from .config import REPO_ROOT
+
+    cases = [c for c in loaders.list_cases(args.system)
+             if (not args.runs or c.run in args.runs.split(","))
+             and (not args.cases or fnmatch(c.case_id, args.cases))]
+    if args.limit:
+        cases = cases[: args.limit]
+    _, model_name = make_model(args.model)
+    out = (REPO_ROOT / "evals" / "results" / (args.out or f"{datetime.now():%Y-%m-%d}_{model_name}"))
+    out.mkdir(parents=True, exist_ok=True)
+    _log_to(out / "eval.log")
+    import logging
+    logging.getLogger("incident_commander").info(
+        "EVAL model=%s | %d cases | out=%s | cap=%s", model_name, len(cases),
+        out.relative_to(REPO_ROOT), f"${args.max_usd}" if args.max_usd else "none")
+    evaluate.run_eval(cases, lambda: make_model(args.model)[0], out, args.max_usd)
+    print((out / "summary.md").read_text())
+
+
 def cmd_diagnose(args) -> None:
     """Run the agent on one case. The step-by-step log streams to the terminal
     (stderr) and the brief prints as JSON (stdout). Both are also saved under
@@ -25,40 +75,26 @@ def cmd_diagnose(args) -> None:
     import json
     import logging
     import os
-    import sys
-    from datetime import datetime
 
     from . import loop
     from .config import REPO_ROOT
 
     case = loaders.load_case(args.case, args.system)
-    if args.model == "mock":
-        from .model import MockModel
-        model, model_name = MockModel(), "mock"
-    else:
-        from .model import OpenRouterClient
-        model = OpenRouterClient(None if args.model == "env" else args.model)
-        model_name = model.model.split("/")[-1]
+    model, model_name = make_model(args.model)
 
     stem = f"{datetime.now():%Y-%m-%d_%H%M}_{model_name}_{case.case_id.replace('/', '_')}"
     run_dir = REPO_ROOT / "evals" / "runs"
     run_dir.mkdir(parents=True, exist_ok=True)
 
-    logger = logging.getLogger("incident_commander")
-    logger.setLevel(logging.INFO)
-    fmt = logging.Formatter("%(asctime)s %(message)s", datefmt="%H:%M:%S")
-    for handler in (logging.StreamHandler(sys.stderr),
-                    logging.FileHandler(run_dir / f"{stem}.log", encoding="utf-8")):
-        handler.setFormatter(fmt)
-        logger.addHandler(handler)
-    logger.info("model=%s | max_tokens=%s", model_name,
+    _log_to(run_dir / f"{stem}.log")
+    logging.getLogger("incident_commander").info("model=%s | max_tokens=%s", model_name,
                 "n/a" if model_name == "mock" else os.environ.get("IC_MAX_TOKENS", "4096"))
 
     brief = loop.diagnose(case, model)
     out = json.dumps(brief, indent=2, default=str)
     (run_dir / f"{stem}.json").write_text(out, encoding="utf-8")
     print(out)
-    logger.info("saved evals/runs/%s.json and .log", stem)
+    logging.getLogger("incident_commander").info("saved evals/runs/%s.json and .log", stem)
 
 
 def main() -> None:
@@ -78,8 +114,19 @@ def main() -> None:
     dp.add_argument("--case", required=True)
     dp.add_argument("--system", default="online-boutique")
     dp.add_argument("--model", default="env",
-                    help="'mock' (keyless demo), or 'env' to use .env OPENAI_MODEL")
+                    help="'mock' (keyless demo), 'claude-opus-5-5' etc. (Anthropic API), "
+                         "or 'env' to use .env OPENAI_MODEL")
     dp.set_defaults(fn=cmd_diagnose)
+
+    ep = sub.add_parser("eval", help="Run the agent over many cases and score them")
+    ep.add_argument("--model", default="env", help="same choices as diagnose --model")
+    ep.add_argument("--system", default="online-boutique")
+    ep.add_argument("--runs", help="comma list of repetitions to include, e.g. '1' or '1,2,3'")
+    ep.add_argument("--cases", help="glob on case id, e.g. 'checkout*'")
+    ep.add_argument("--limit", type=int, help="first N cases only (smoke test)")
+    ep.add_argument("--max-usd", type=float, help="stop starting new cases past this spend")
+    ep.add_argument("--out", help="results folder name under evals/results/ (reuse to resume)")
+    ep.set_defaults(fn=cmd_eval)
 
     args = p.parse_args()
     fn = getattr(args, "fn", None)

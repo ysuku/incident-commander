@@ -48,6 +48,71 @@ class OpenRouterClient:
         return msg.content or ""
 
 
+# USD per 1M tokens (input, output); Anthropic first-party rates, Oct 2026.
+CLAUDE_PRICES = {
+    "claude-opus-5-5": (4.00, 20.00),
+    "claude-sonnet-5-5": (2.00, 10.00),
+    "claude-haiku-5-5": (0.10, 0.50),
+}
+
+
+class AnthropicClient:
+    """Native Anthropic Messages API client with the same complete()/last_call
+    interface as OpenRouterClient, so the loop does not care which one it has.
+
+    Thinking is adaptive and always on for Opus 5.5 (it cannot be disabled), so
+    depth is set with effort (IC_EFFORT, default medium). No temperature: current
+    models reject sampling params. The loop sends a fresh system+user pair each
+    step, so no thinking blocks are ever replayed.
+    """
+
+    def __init__(self, model: str | None = None):
+        import anthropic
+        from dotenv import load_dotenv
+        load_dotenv()
+        self.model = model or "claude-opus-5-5"
+        self.effort = os.environ.get("IC_EFFORT", "medium")
+        self.client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
+        self.calls = 0
+        self.cost_usd = 0.0
+        self.last_call: dict = {}
+
+    def complete(self, messages: list[dict]) -> str:
+        self.calls += 1
+        # own setting: IC_MAX_TOKENS in .env is tuned for the local Qwen runs
+        max_tokens = int(os.environ.get("IC_CLAUDE_MAX_TOKENS", "16000"))
+        system = "\n\n".join(m["content"] for m in messages if m["role"] == "system")
+        turns = [m for m in messages if m["role"] != "system"]
+        t0 = time.monotonic()
+        r = self.client.beta.messages.create(
+            model=self.model, max_tokens=max_tokens, system=system, messages=turns,
+            thinking={"type": "adaptive"}, output_config={"effort": self.effort},
+            betas=["server-side-fallback-2026-07-01"], fallbacks="default")
+        text = "".join(b.text for b in r.content if b.type == "text")
+        u = r.usage
+        # price by the model that actually served (a refusal fallback may differ)
+        p_in, p_out = CLAUDE_PRICES.get(r.model, CLAUDE_PRICES.get(self.model, (0.0, 0.0)))
+        cost = (u.input_tokens * p_in + u.output_tokens * p_out) / 1e6
+        self.cost_usd += cost
+        self.last_call = {
+            "seconds": round(time.monotonic() - t0, 1),
+            "prompt_tokens": u.input_tokens,
+            "completion_tokens": u.output_tokens,  # includes thinking
+            "max_tokens": max_tokens,
+            "answer_chars": len(text),
+            "effort": self.effort,
+            "served_by": r.model,
+            "cost_usd": round(cost, 5),
+            # map to the loop's vocabulary: "length" = cut off at max_tokens
+            "finish_reason": {"max_tokens": "length", "end_turn": "stop"}.get(r.stop_reason, r.stop_reason),
+        }
+        if r.stop_reason == "refusal" and r.stop_details:
+            # a safety-classifier decline (seen once on step 1); keep why, for the log
+            self.last_call["refusal"] = {"category": r.stop_details.category,
+                                         "explanation": r.stop_details.explanation}
+        return text
+
+
 class MockModel:
     """Deterministic stand-in: investigates metrics, then traces, then finishes
     on the top metric deviation. Parses the scratchpad text it is shown, exactly

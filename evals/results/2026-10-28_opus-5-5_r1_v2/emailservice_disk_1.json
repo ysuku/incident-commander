@@ -1,0 +1,301 @@
+{
+  "status": "escalated",
+  "reason": "step budget (8) exhausted",
+  "candidates": [
+    "emailservice: CPU hog (cpu z=525, +6238%, latency-90 +362%, E1/E4)",
+    "emailservice: disk I/O stress (diskio z\u22489.6e18, likely a near-zero-baseline artifact, E1)",
+    "checkoutservice: upstream fault, with emailservice latency only a downstream symptom (no checkoutservice deviation in E1)",
+    "currencyservice/productcatalogservice: slow paths in E3/E6 but no metric deviation in E1"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "605 matching lines; by svc/level {'emailservice/INFO': 605}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L84974",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "11729 traces after alert; worst: frontendservice -> currencyservice -> productcatalogservice 2008.5ms errors=1; frontendservice -> currencyservice -> productcatalogservice 1796.4ms errors=1; frontendservice -> currencyservice -> productcatalogservice 1702.7ms errors=1",
+      "source_ref": "traces.csv:traceID=8064d58354e65c185dae124366604499",
+      "implicates": [
+        "currencyservice",
+        "frontendservice",
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "11729 traces after alert; worst: frontendservice -> currencyservice -> productcatalogservice 2008.5ms errors=1; frontendservice -> currencyservice -> productcatalogservice 1796.4ms errors=1; frontendservice -> currencyservice -> productcatalogservice 1702.7ms errors=1",
+      "source_ref": "traces.csv:traceID=8064d58354e65c185dae124366604499",
+      "implicates": [
+        "currencyservice",
+        "frontendservice",
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "605 matching lines; by svc/level {'checkoutservice/info': 605}; [checkoutservice/info] order confirmation email sent to \"someone@example.com\"; [checkoutservice/info] order confirmation email sent to \"someone@example.com\"",
+      "source_ref": "logs.csv#L84975",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "traces",
+      "summary": "11729 traces after alert; worst: frontendservice -> currencyservice -> productcatalogservice 2008.5ms errors=1; frontendservice -> currencyservice -> productcatalogservice 1796.4ms errors=1; frontendservice -> currencyservice -> productcatalogservice 1702.7ms errors=1",
+      "source_ref": "traces.csv:traceID=8064d58354e65c185dae124366604499",
+      "implicates": [
+        "currencyservice",
+        "frontendservice",
+        "productcatalogservice"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 593,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 204,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00387,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric_query to rank every service and metric by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.9,
+        "prompt_tokens": 717,
+        "completion_tokens": 289,
+        "max_tokens": 16000,
+        "answer_chars": 525,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00865,
+        "finish_reason": "stop"
+      },
+      "thought": "E1's metrics point at emailservice with disk and CPU deviations, so I need an independent telemetry kind (logs) to confirm the service and tell the disk and CPU fault types apart.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 4.0,
+        "prompt_tokens": 955,
+        "completion_tokens": 335,
+        "max_tokens": 16000,
+        "answer_chars": 517,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01052,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) implicate emailservice, but E2 is only routine INFO lines, so traces must show whether emailservice spans hold the latency or are a downstream symptom of checkoutservice.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.54
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 8.3,
+        "prompt_tokens": 1106,
+        "completion_tokens": 771,
+        "max_tokens": 16000,
+        "answer_chars": 667,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01984,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out emailservice, but the INFO-only logs (E2) and the traces (E3) do not yet point at it, so I first need emailservice's full metric profile to tell disk stress apart from CPU load before seeking a second telemetry kind.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 6.4,
+        "prompt_tokens": 1287,
+        "completion_tokens": 595,
+        "max_tokens": 16000,
+        "answer_chars": 684,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01705,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E4) point at emailservice, but E2 holds only routine INFO lines and E3 traces point elsewhere, so I need a second independent telemetry kind that implicates emailservice, starting with its error or warning logs.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "query": "error",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 6.8,
+        "prompt_tokens": 1334,
+        "completion_tokens": 624,
+        "max_tokens": 16000,
+        "answer_chars": 754,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01782,
+        "finish_reason": "stop"
+      },
+      "thought": "Only metrics (E1/E4) clearly implicate emailservice, while E2 shows routine INFO lines and the worst traces in E3 show currency/productcatalog paths, so I need trace evidence for emailservice spans before I can finish.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": false,
+          "limit": 30
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.65
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 6.0,
+        "prompt_tokens": 1497,
+        "completion_tokens": 645,
+        "max_tokens": 16000,
+        "answer_chars": 742,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01889,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E4) point at emailservice, but E2 only shows routine INFO lines and the traces (E3/E6) point at currencyservice/productcatalogservice, so I need an independent log signal; checkoutservice logs about failed or slow email sends would give it.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "email",
+          "service": "checkoutservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 7.0,
+        "prompt_tokens": 1589,
+        "completion_tokens": 698,
+        "max_tokens": 16000,
+        "answer_chars": 761,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02032,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E4) clearly implicate emailservice, but the logs (E2/E7) are only routine INFO lines and the worst traces (E3/E6) involve currencyservice/productcatalogservice, so I need a broader trace sample to see whether emailservice spans are slow before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": false,
+          "limit": 50
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E8",
+      "tool_seconds": 0.76
+    }
+  ],
+  "proposed_fix": null,
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 44.2,
+    "tool_seconds": 2.2,
+    "prompt_tokens": 9078,
+    "completion_tokens": 4032,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 46.4,
+    "cost_usd": 0.116952
+  }
+}
