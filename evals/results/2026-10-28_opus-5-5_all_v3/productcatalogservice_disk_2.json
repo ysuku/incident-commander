@@ -1,0 +1,168 @@
+{
+  "root_cause": {
+    "service": "productcatalogservice",
+    "fault_type": "mem"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_mem z=216.47 (1082.3%); productcatalogservice_cpu z=35.01 (380.7%); productcatalogservice_socket z=14.83 (74.2%); adservice_diskio z=6.6 (199.2%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_mem",
+      "implicates": [
+        "adservice",
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.93x), errors 0.0->0.0; inbound calls self-time p50 2.45->5.96ms (2.44x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "productcatalogservice: CPU saturation",
+      "why": "CPU z=35.01 is far below mem z=216.47 (1082% rise) in E1, so the CPU rise is more likely a side effect of memory pressure such as GC churn than the primary fault (E1)."
+    },
+    {
+      "candidate": "adservice: disk I/O pressure",
+      "why": "adservice_diskio z=6.6 is weak next to the productcatalogservice deviations (E1), and the latency change is seen on calls into productcatalogservice (E2)."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Do a rolling restart of productcatalogservice pods to free leaked memory. Temporarily raise its memory limit or add replicas. Then profile the heap and check recent deploys or config changes for the leak source, and roll back if one is found.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 632,
+        "completion_tokens": 74,
+        "max_tokens": 16000,
+        "answer_chars": 204,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00401,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric query to rank every service and metric by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 759,
+        "completion_tokens": 270,
+        "max_tokens": 16000,
+        "answer_chars": 551,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00844,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out productcatalogservice (memory z=216, far above anything else), so I need a second, independent telemetry kind; caller-observed traces will show whether its latency or errors actually changed after the alert.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.62
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 7.6,
+        "prompt_tokens": 1020,
+        "completion_tokens": 677,
+        "max_tokens": 16000,
+        "answer_chars": 1111,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01762,
+        "finish_reason": "stop"
+      },
+      "thought": "Two independent telemetry kinds point at productcatalogservice: metrics show a dominant memory deviation (E1) and traces show its inbound latency rising 2.44x (E2), which is enough to finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "productcatalogservice",
+          "fault_type": "mem",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "productcatalogservice: CPU saturation",
+              "why": "CPU z=35.01 is far below mem z=216.47 (1082% rise) in E1, so the CPU rise is more likely a side effect of memory pressure such as GC churn than the primary fault (E1)."
+            },
+            {
+              "candidate": "adservice: disk I/O pressure",
+              "why": "adservice_diskio z=6.6 is weak next to the productcatalogservice deviations (E1), and the latency change is seen on calls into productcatalogservice (E2)."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Do a rolling restart of productcatalogservice pods to free leaked memory. Temporarily raise its memory limit or add replicas. Then profile the heap and check recent deploys or config changes for the leak source, and roll back if one is found.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_mem z=216.47 (1082.3%); productcatalogservice_cpu z=35.01 (380.7%); productcatalogservice_socket z=14.83 (74.2%); adservice_diskio z=6.6 (199.2%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_mem",
+      "implicates": [
+        "adservice",
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.93x), errors 0.0->0.0; inbound calls self-time p50 2.45->5.96ms (2.44x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 12.8,
+    "tool_seconds": 0.6,
+    "prompt_tokens": 2411,
+    "completion_tokens": 1021,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 13.5,
+    "cost_usd": 0.030064
+  }
+}

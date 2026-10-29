@@ -1,0 +1,168 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=6836.89 (34184.5%); emailservice_latency-50 z=1123.75 (5618.8%); emailservice_cpu z=543.47 (5938.5%); checkoutservice_latency-90 z=88.58 (694.2%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.2->0.24ms (1.16x), errors 0.0->0.0; inbound calls self-time p50 3.78->84.73ms (22.42x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: injected network delay",
+      "why": "Network delay would not explain the large emailservice_cpu jump (z=543.47, +5938.5%), which comes alongside its latency spike (E1)."
+    },
+    {
+      "candidate": "checkoutservice: downstream victim",
+      "why": "Checkoutservice's latency deviation (z=88.58) is far smaller than emailservice's (z=6836.89) (E1), and inbound calls to emailservice slowed 22.42x (E2), so checkoutservice is a victim, not the source."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Find and stop the CPU-hogging workload in emailservice. Temporarily raise emailservice CPU limits or add replicas so that checkout email calls recover. Then confirm that emailservice CPU and latency return to baseline.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 632,
+        "completion_tokens": 84,
+        "max_tokens": 16000,
+        "answer_chars": 233,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00421,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric_query that ranks every service and metric by before/after-alert deviation and shows where to look.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 764,
+        "completion_tokens": 234,
+        "max_tokens": 16000,
+        "answer_chars": 513,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00774,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) point strongly at emailservice with huge latency and CPU deviations, so I need an independent second telemetry kind; traces for emailservice will show its own latency and caller-observed latency before and after the alert.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.58
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 54.5,
+        "prompt_tokens": 978,
+        "completion_tokens": 833,
+        "max_tokens": 16000,
+        "answer_chars": 1188,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02057,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) show the largest deviation in emailservice latency together with a large CPU spike, and traces (E2) show inbound calls to emailservice slowed 22x; that is two independent telemetry kinds pointing at emailservice, and the CPU spike favors CPU exhaustion over injected delay.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: injected network delay",
+              "why": "Network delay would not explain the large emailservice_cpu jump (z=543.47, +5938.5%), which comes alongside its latency spike (E1)."
+            },
+            {
+              "candidate": "checkoutservice: downstream victim",
+              "why": "Checkoutservice's latency deviation (z=88.58) is far smaller than emailservice's (z=6836.89) (E1), and inbound calls to emailservice slowed 22.42x (E2), so checkoutservice is a victim, not the source."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Find and stop the CPU-hogging workload in emailservice. Temporarily raise emailservice CPU limits or add replicas so that checkout email calls recover. Then confirm that emailservice CPU and latency return to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=6836.89 (34184.5%); emailservice_latency-50 z=1123.75 (5618.8%); emailservice_cpu z=543.47 (5938.5%); checkoutservice_latency-90 z=88.58 (694.2%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.2->0.24ms (1.16x), errors 0.0->0.0; inbound calls self-time p50 3.78->84.73ms (22.42x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 58.9,
+    "tool_seconds": 0.6,
+    "prompt_tokens": 2374,
+    "completion_tokens": 1151,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 59.5,
+    "cost_usd": 0.032516
+  }
+}

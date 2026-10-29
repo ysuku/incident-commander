@@ -1,0 +1,223 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "mem"
+  },
+  "confidence": "medium",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=3175.22 (15876.1%); recommendationservice_latency-50 z=154.6 (773.0%); recommendationservice_mem z=114.84 (574.2%); frontend_latency-90 z=82.1 (563.9%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.03->3.01ms (2.94x), errors 0.0->0.0; inbound calls self-time p50 3.82->42.63ms (11.15x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.01->0.01ms (0.85x), errors 0.0->0.0; inbound calls self-time p50 2.67->2.92ms (1.1x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": []
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "recommendationservice: injected delay",
+      "why": "A pure delay injection would not explain the large memory deviation (recommendationservice_mem z=114.84, +574%) that comes with the latency spike (E1). Logs were not checked, so this is the less likely reading rather than ruled out."
+    },
+    {
+      "candidate": "productcatalogservice: downstream slowness",
+      "why": "productcatalogservice shows no significant latency or error change (own p50 0.85x, inbound 1.1x) (E3). Meanwhile recommendationservice's own self-time rose 2.94x (E2), so the slowness starts there."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Do a rolling restart of the recommendationservice pods to clear memory pressure, and raise or verify the memory limits. Then take a heap profile to find and patch the leak or excessive allocation. Watch recommendationservice memory and p90 latency to confirm recovery.",
+    "model_labeled_destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 632,
+        "completion_tokens": 73,
+        "max_tokens": 16000,
+        "answer_chars": 201,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00399,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric query to rank every service and metric by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 765,
+        "completion_tokens": 236,
+        "max_tokens": 16000,
+        "answer_chars": 556,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00778,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 points strongly at recommendationservice (extreme latency plus a memory deviation), so I need a second telemetry kind; caller-observed traces will show whether the latency starts there or is inherited from downstream.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.6
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 5.2,
+        "prompt_tokens": 991,
+        "completion_tokens": 445,
+        "max_tokens": 16000,
+        "answer_chars": 646,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01286,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 and E2 both implicate recommendationservice, so check productcatalogservice's own and caller-observed latency to rule out a downstream source before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.63
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 9.2,
+        "prompt_tokens": 1126,
+        "completion_tokens": 861,
+        "max_tokens": 16000,
+        "answer_chars": 1228,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02172,
+        "finish_reason": "stop"
+      },
+      "outcome": "unparseable",
+      "detail": "Extra data: line 1 column 1228 (char 1227); raw started: {\"rationale\": \"Metrics (E1) and traces (E2) independently point at recommendationservice. The 574% memory deviation alongside the latency spike fits memory pres"
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 7.5,
+        "prompt_tokens": 1240,
+        "completion_tokens": 688,
+        "max_tokens": 16000,
+        "answer_chars": 1263,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01872,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) independently implicate recommendationservice, and the 574% memory deviation alongside the latency spike fits memory pressure better than a pure delay injection.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "mem",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "recommendationservice: injected delay",
+              "why": "A pure delay injection would not explain the large memory deviation (recommendationservice_mem z=114.84, +574%) that comes with the latency spike (E1). Logs were not checked, so this is the less likely reading rather than ruled out."
+            },
+            {
+              "candidate": "productcatalogservice: downstream slowness",
+              "why": "productcatalogservice shows no significant latency or error change (own p50 0.85x, inbound 1.1x) (E3). Meanwhile recommendationservice's own self-time rose 2.94x (E2), so the slowness starts there."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Do a rolling restart of the recommendationservice pods to clear memory pressure, and raise or verify the memory limits. Then take a heap profile to find and patch the leak or excessive allocation. Watch recommendationservice memory and p90 latency to confirm recovery.",
+            "destructive": true
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=3175.22 (15876.1%); recommendationservice_latency-50 z=154.6 (773.0%); recommendationservice_mem z=114.84 (574.2%); frontend_latency-90 z=82.1 (563.9%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.03->3.01ms (2.94x), errors 0.0->0.0; inbound calls self-time p50 3.82->42.63ms (11.15x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.01->0.01ms (0.85x), errors 0.0->0.0; inbound calls self-time p50 2.67->2.92ms (1.1x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 27.4,
+    "tool_seconds": 1.2,
+    "prompt_tokens": 4754,
+    "completion_tokens": 2303,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 28.8,
+    "cost_usd": 0.065076
+  }
+}

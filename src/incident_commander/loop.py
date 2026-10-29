@@ -72,20 +72,41 @@ def _summarize(name: str, result, args: dict | None = None) -> tuple[str, str, s
         return "logs", f"{n} matching lines; by svc/level {by}; {lines or 'no sample'}", ref, svcs
     if name == "trace_lookup" and "service" in result:
         svc = result["service"]
-        parts, sig = [], False
-        for label, side in (("own spans", result["overall"]), ("inbound calls", result.get("inbound"))):
-            if not side or not side["n_after"]:
-                continue
-            r = side["p50_ratio"]
-            rise = (side["err_rate_after"] or 0) - (side["err_rate_before"] or 0)
-            sig |= (r or 0) >= TRACE_RATIO_SIGNIFICANT or rise >= ERR_RISE_SIGNIFICANT
-            parts.append(f"{label} self-time p50 {side['self_p50_ms_before']}->{side['self_p50_ms_after']}ms"
-                         f" ({r}x), errors {side['err_rate_before']}->{side['err_rate_after']}")
-        verdict = ("SIGNIFICANT change" if sig else
+        moved = lambda s: bool(s and s["n_after"]) and (
+            (s["p50_ratio"] or 0) >= TRACE_RATIO_SIGNIFICANT
+            or (s["err_rate_after"] or 0) - (s["err_rate_before"] or 0) >= ERR_RISE_SIGNIFICANT)
+        slow_to = lambda callees: [c["callee"] for c in callees
+                                   if (c["p50_ratio"] or 0) >= TRACE_RATIO_SIGNIFICANT]
+        parts, implicated = [], []
+        own, inbound = result["overall"], result.get("inbound")
+        for label, side in (("own spans", own), ("inbound calls", inbound)):
+            if side and side["n_after"]:
+                parts.append(f"{label} self-time p50 {side['self_p50_ms_before']}->{side['self_p50_ms_after']}ms"
+                             f" ({side['p50_ratio']}x), errors {side['err_rate_before']}->{side['err_rate_after']}")
+        if moved(own):
+            implicated = [svc]
+        if moved(inbound):
+            # a slow caller that is also slow to >=2 other callees: the delay is on its side
+            slow = [c for c in result.get("inbound_by_caller", []) if moved(c)]
+            upstream = {c["caller"]: slow_to(c["caller_other_callees"]) for c in slow}
+            upstream = {k: v for k, v in upstream.items() if len(v) >= 2}
+            if slow and len(upstream) == len(slow):
+                parts += [f"BUT the inbound slowdown is only on calls from {k}, which is also slow to "
+                          f"{', '.join(v)}: likely {k}'s own network, not {svc}" for k, v in upstream.items()]
+                implicated += [k for k in upstream if k not in implicated]
+            elif svc not in implicated:
+                implicated.append(svc)
+        out_slow = slow_to(result.get("outbound", []))
+        if len(out_slow) >= 2:
+            parts.append(f"outbound calls slowed to {len(out_slow)} callees ({', '.join(out_slow)}): "
+                         f"delay on {svc}'s own network")
+            if svc not in implicated:
+                implicated.append(svc)
+        verdict = ("SIGNIFICANT change" if implicated else
                    f"NO significant change (<{TRACE_RATIO_SIGNIFICANT:g}x latency, "
                    f"<{ERR_RISE_SIGNIFICANT:g} error rise)")
         return ("traces", f"traces for {svc}: {verdict}; " + "; ".join(parts or ["no spans after alert"]),
-                result["source_ref"], [svc] if sig else [])
+                result["source_ref"], implicated)
     if name == "trace_lookup":
         ts = result["traces"]
         if not ts:

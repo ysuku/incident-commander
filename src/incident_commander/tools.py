@@ -162,22 +162,31 @@ def _service_spans(case: IncidentCase, df, service: str, limit: int) -> dict:
     or loss injected on a pod, or a server span that was never exported, shows
     up there and not in the service's own spans. Calibrated on rep 1 of RE2-OB:
     max(own, inbound) p50 ratio ranks the true service first in most cases.
+    Inbound is also split by caller, with each caller's calls to its OTHER
+    callees: delay injected on a caller's network slows every callee it calls
+    (checkoutservice_delay made email, shipping and currency all look 50x slower
+    from checkout's side, flat from frontend's). "outbound" is the same view of
+    this service's own calls, by callee.
     Returns overall/inbound/per-operation median self time and error rate.
     """
-    names = sorted(df["serviceName"].dropna().unique())
+    child_us = df[df["parentSpanID"].notna()].groupby("parentSpanID")["duration"].sum()
+    # client spans name their target: "hipstershop.EmailService/Send..." -> emailservice
+    callee = (df["operationName"].str.extract(r"hipstershop\.(\w+?)Service/", expand=False)
+              .str.lower() + "service")
+    df = df.assign(self_us=(df["duration"] - df["spanID"].map(child_us).fillna(0)).clip(lower=0),
+                   after=df["startTimeMillis"] >= case.inject_time * 1000,
+                   err=df["statusCode"] != 0, callee=callee)
+    calls = df[df["callee"].notna() & (df["callee"] != df["serviceName"])]
+    # some services (shipping, cart, ad) export no spans of their own; they still
+    # appear as callees, so their inbound view is all there is
+    names = sorted(set(df["serviceName"].dropna()) | set(calls["callee"]))
     want = service.lower()
     match = [n for n in names if n.lower() == want] or [n for n in names if want in n.lower()]
     if len(match) != 1:
         raise ValueError(f"unknown service {service!r}; trace services are {names}")
     svc = match[0]
-    child_us = df[df["parentSpanID"].notna()].groupby("parentSpanID")["duration"].sum()
-    df = df.assign(self_us=(df["duration"] - df["spanID"].map(child_us).fillna(0)).clip(lower=0),
-                   after=df["startTimeMillis"] >= case.inject_time * 1000,
-                   err=df["statusCode"] != 0)
     own = df[df["serviceName"] == svc]
-    target = svc.lower().removesuffix("service") + "service/"
-    inbound = df[(df["serviceName"] != svc)
-                 & df["operationName"].str.lower().str.contains(target, regex=False, na=False)]
+    inbound = calls[calls["callee"] == svc.lower()]
 
     def side(g) -> dict:
         b, a = g[~g["after"]], g[g["after"]]
@@ -190,11 +199,18 @@ def _service_spans(case: IncidentCase, df, service: str, limit: int) -> dict:
                 "err_rate_before": round(float(b["err"].mean()), 4) if len(b) else None,
                 "err_rate_after": round(float(a["err"].mean()), 4) if len(a) else None}
 
+    def by_callee(caller: str, skip: str = "") -> list[dict]:
+        g = calls[(calls["serviceName"] == caller) & (calls["callee"] != skip)]
+        return [{"callee": c, "p50_ratio": side(h)["p50_ratio"]} for c, h in g.groupby("callee")]
+
     ops = [{"op": op, **side(g)} for op, g in own.groupby("operationName")]
     ops.sort(key=lambda o: -(o["p50_ratio"] or 0))
+    by_caller = [{"caller": c, **side(g), "caller_other_callees": by_callee(c, skip=svc.lower())}
+                 for c, g in inbound.groupby("serviceName")]
     return {"service": svc, "overall": side(own),
-            "inbound": side(inbound) if len(inbound) else None, "operations": ops[:limit],
-            "source_ref": f"traces.csv:serviceName={svc}"}
+            "inbound": side(inbound) if len(inbound) else None,
+            "inbound_by_caller": by_caller, "outbound": by_callee(svc),
+            "operations": ops[:limit], "source_ref": f"traces.csv:serviceName={svc}"}
 
 
 def service_map(case: IncidentCase) -> dict:

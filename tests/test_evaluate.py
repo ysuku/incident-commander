@@ -107,3 +107,36 @@ def test_service_spans_unknown_service_lists_names():
     c = IncidentCase("x_cpu/1", "online-boutique", "1", 1000, Path("."), "x", "cpu")
     with pytest.raises(ValueError, match="trace services are"):
         tools._service_spans(c, _spans(100, 300), "redis", 5)
+
+
+def _fanout(slow_caller: str):
+    """checkoutservice calls email + shipping + currency; frontend calls shipping.
+    After the alert every call from `slow_caller` gains 2ms on the wire."""
+    import pandas as pd
+    edges = [("checkoutservice", "Email"), ("checkoutservice", "Shipping"),
+             ("checkoutservice", "Currency"), ("frontendservice", "Shipping")]
+    rows = []
+    for i in range(8):
+        late = i >= 4
+        for j, (caller, callee) in enumerate(edges):
+            extra = 2000 if late and caller == slow_caller else 0
+            rows.append({"traceID": f"t{i}", "spanID": f"{i}-{j}", "serviceName": caller,
+                         "operationName": f"hipstershop.{callee}Service/Call",
+                         "startTimeMillis": (2000 if late else 0) * 1000 + i,
+                         "duration": 300 + extra, "statusCode": 0, "parentSpanID": None})
+    return pd.DataFrame(rows)
+
+
+def test_caller_side_delay_is_pinned_on_the_caller():
+    """Regression (Oct 28 eval): checkoutservice_delay was blamed on emailservice,
+    whose only caller is checkout. Checkout was slow to every callee, so it is checkout."""
+    from incident_commander import tools
+    c = IncidentCase("checkoutservice_delay/2", "online-boutique", "2", 1000, Path("."),
+                     "checkoutservice", "delay")
+    df = _fanout("checkoutservice")
+    r = tools._service_spans(c, df, "emailservice", 5)   # no own spans: inbound-only service
+    _, summary, _, implicated = loop._summarize("trace_lookup", r, {})
+    assert implicated == ["checkoutservice"] and "likely checkoutservice's own network" in summary
+    r = tools._service_spans(c, df, "checkoutservice", 5)
+    _, summary, _, implicated = loop._summarize("trace_lookup", r, {})
+    assert implicated == ["checkoutservice"] and "outbound calls slowed to 3 callees" in summary

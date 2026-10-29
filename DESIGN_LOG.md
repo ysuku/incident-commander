@@ -261,3 +261,43 @@ accepts `"thought"`, so old runs and the mock parse). Run 2: zero refusals.
 Next: (1) `trace_lookup(service=...)`: per-service span latency/error before vs after;
 (2) a fault-signal guide (which telemetry each fault type moves) via the runbook layer;
 (3) rerun on reps 1-3 (90 cases) after each change.
+
+## Per-service traces: 90-case eval and a caller-side fix (Oct 28)
+`trace_lookup(service=...)` (commit 9353e69): the service's own self time and its
+callers' "inbound" time, before vs after the alert; implicates only on >=2x p50 or
+>=0.05 error-rate rise.
+
+**Run 3 (`evals/results/2026-10-28_opus-5-5_all_v3/`), 90 cases (reps 1-3), $5.85, 42 min:**
+
+| Outcome | all 90 | rep 1 | rep 1 in run 2 |
+|---|---|---|---|
+| correct | 27 (30%) | 12 | 6 |
+| service_only | 33 (37%) | 11 | 10 |
+| wrong service | 2 (2%) | 0 | 1 |
+| escalated (all: step budget) | 28 (31%) | 7 | 13 |
+
+- Rep 1 doubled correct (6 -> 12) and halved escalations (13 -> 7); right service in
+  60/90 (67%). The new filter was used in all 90 cases. Reps 2 and 3 score lower than
+  rep 1 (7 and 8 correct), so the rep-1-only number from run 2 was optimistic.
+- Delay is solved (13/15 correct). The weak faults are cpu (8/15 escalated) and socket
+  (10/15 escalated): offline, traces fail to implicate the true service in 28 of 90
+  cases, all cpu/disk/socket/some loss on checkout, email and productcatalog. Those must
+  be diagnosed from metrics alone, and the gate wants two kinds.
+- Fault type is still the main error (33 service_only): loss->delay 7, mem->cpu 4,
+  mem->delay 4, disk->mem 4.
+
+**Both wrong answers were the same blind spot:** `checkoutservice_delay/2` and `/3`
+were blamed on emailservice. The delay was on checkout's network, and checkout is
+emailservice's only caller, so email's inbound time rose 55x. Split by caller, it is
+plain: checkout's calls to all six callees slowed ~200ms; frontend's calls to the
+same services stayed flat. **Fix:** `trace_lookup(service=...)` now also returns
+inbound by caller (with that caller's calls to its other callees) and outbound by
+callee. A callee is not implicated when the only slow callers are also slow to >=2
+other callees; those callers are implicated instead ("likely checkoutservice's own
+network"). A service slow to >=2 callees is implicated ("delay on its own network").
+Also: services that export no spans of their own (shipping, cart, ad) used to be
+"unknown"; they now get the inbound-only view. Checked offline on all 90 cases: the
+true service is implicated in the same 62 as before (no regression), and the
+checkout-delay cases now point at checkout. Regression test:
+`test_caller_side_delay_is_pinned_on_the_caller`.
+Next: the fault-signal guide, then one 90-case rerun for both changes.

@@ -1,0 +1,219 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.2->0.25ms (1.25x), errors 0.0->0.0; inbound calls self-time p50 3.31->34.49ms (10.41x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: injected network delay",
+      "why": "Network delay does not drive CPU up 5867.8% (z=629.73, E1/E3). The flat own-span self-time with 10.41x caller-observed latency (E2) fits requests queuing on a saturated CPU before their spans start."
+    },
+    {
+      "candidate": "emailservice: memory pressure",
+      "why": "The memory deviation (z=84.05, 420%) is an order of magnitude weaker than the CPU deviation (z=629.73) in E1, which makes it secondary."
+    },
+    {
+      "candidate": "other services",
+      "why": "The all-services metric scan in E1 ranks only emailservice metrics as significant."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Find and stop the CPU-hogging process or workload in the emailservice pod. Temporarily raise its CPU limits or scale out emailservice replicas, then watch whether latency-90 returns to baseline.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 632,
+        "completion_tokens": 73,
+        "max_tokens": 16000,
+        "answer_chars": 201,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00399,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric query to rank every service and metric by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 759,
+        "completion_tokens": 206,
+        "max_tokens": 16000,
+        "answer_chars": 411,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00716,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 metrics single out emailservice, with extreme latency and a large CPU deviation, so traces are needed as a second, independent telemetry kind to confirm it.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.59
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 6.7,
+        "prompt_tokens": 959,
+        "completion_tokens": 548,
+        "max_tokens": 16000,
+        "answer_chars": 637,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0148,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both implicate emailservice, but they disagree on fault type: CPU rose sharply while the service's own span time barely moved and only caller-observed latency rose 10x, so I will pull emailservice's full metric breakdown to separate cpu saturation from injected delay.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 8.6,
+        "prompt_tokens": 1150,
+        "completion_tokens": 790,
+        "max_tokens": 16000,
+        "answer_chars": 1214,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0204,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E3) and traces (E2) both independently point at emailservice. A 58x CPU rise fits CPU saturation, which an injected network delay would not produce, so I am finishing with cpu as the fault type.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: injected network delay",
+              "why": "Network delay does not drive CPU up 5867.8% (z=629.73, E1/E3). The flat own-span self-time with 10.41x caller-observed latency (E2) fits requests queuing on a saturated CPU before their spans start."
+            },
+            {
+              "candidate": "emailservice: memory pressure",
+              "why": "The memory deviation (z=84.05, 420%) is an order of magnitude weaker than the CPU deviation (z=629.73) in E1, which makes it secondary."
+            },
+            {
+              "candidate": "other services",
+              "why": "The all-services metric scan in E1 ranks only emailservice metrics as significant."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Find and stop the CPU-hogging process or workload in the emailservice pod. Temporarily raise its CPU limits or scale out emailservice replicas, then watch whether latency-90 returns to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.2->0.25ms (1.25x), errors 0.0->0.0; inbound calls self-time p50 3.31->34.49ms (10.41x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 20.4,
+    "tool_seconds": 0.6,
+    "prompt_tokens": 3500,
+    "completion_tokens": 1617,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 21.0,
+    "cost_usd": 0.046340000000000006
+  }
+}

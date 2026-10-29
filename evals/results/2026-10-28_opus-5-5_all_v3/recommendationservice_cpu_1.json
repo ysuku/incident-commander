@@ -1,0 +1,168 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%); frontend_latency-50 z=5.89 (29.5%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.04->2.57ms (2.48x), errors 0.0->0.0; inbound calls self-time p50 3.88->5.43ms (1.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "recommendationservice: injected delay",
+      "why": "An injected network or sleep delay would not raise CPU 655% (z=67.44); CPU rising together with latency points to CPU saturation (E1)."
+    },
+    {
+      "candidate": "frontend: secondary victim",
+      "why": "Frontend latency-50 deviation is small (29.5%, z=5.89) next to recommendationservice's 779-867% (E1). Recommendationservice's own self-time rose 2.48x and caller-observed (inbound) self-time also rose, so the slowdown starts in recommendationservice (E2)."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Find and stop the CPU-hogging process in the recommendationservice pod, or restart or scale out the pod. Raise the CPU limit or add replicas until latency returns to baseline.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.7,
+        "prompt_tokens": 632,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 209,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00407,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric query that ranks every service and metric by before/after-alert deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.03
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.5,
+        "prompt_tokens": 764,
+        "completion_tokens": 230,
+        "max_tokens": 16000,
+        "answer_chars": 500,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00766,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out recommendationservice (latency and CPU), so a second, independent telemetry kind is needed; caller-observed traces can confirm whether its slowness reaches frontend.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.59
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 7.3,
+        "prompt_tokens": 987,
+        "completion_tokens": 592,
+        "max_tokens": 16000,
+        "answer_chars": 1097,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01579,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) independently point at recommendationservice, and its large CPU rise alongside the latency spike indicates CPU saturation rather than injected delay.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "recommendationservice: injected delay",
+              "why": "An injected network or sleep delay would not raise CPU 655% (z=67.44); CPU rising together with latency points to CPU saturation (E1)."
+            },
+            {
+              "candidate": "frontend: secondary victim",
+              "why": "Frontend latency-50 deviation is small (29.5%, z=5.89) next to recommendationservice's 779-867% (E1). Recommendationservice's own self-time rose 2.48x and caller-observed (inbound) self-time also rose, so the slowdown starts in recommendationservice (E2)."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Find and stop the CPU-hogging process in the recommendationservice pod, or restart or scale out the pod. Raise the CPU limit or add replicas until latency returns to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%); frontend_latency-50 z=5.89 (29.5%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.04->2.57ms (2.48x), errors 0.0->0.0; inbound calls self-time p50 3.88->5.43ms (1.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 13.5,
+    "tool_seconds": 0.6,
+    "prompt_tokens": 2383,
+    "completion_tokens": 899,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 14.1,
+    "cost_usd": 0.027511999999999998
+  }
+}

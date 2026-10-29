@@ -1,0 +1,174 @@
+{
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; currencyservice_latency-50 z=318.36 (1591.8%); currencyservice_socket z=68.18 (340.9%); checkoutservice_latency-90 z=54.21 (271.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.12ms (0.88x), errors 0.0->0.0; inbound calls self-time p50 5.11->88.98ms (17.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "checkoutservice: delay fault",
+      "why": "Its latency-90 deviation (z=54.21) is far smaller than currencyservice's latency-50 (z=318.36) and socket (z=68.18) deviations, which fits checkout inheriting slowness from its currency calls (E1). Inbound calls to currencyservice slowed 17.4x (E2)."
+    },
+    {
+      "candidate": "frontend: origin of errors",
+      "why": "The frontend-external error spike sits at the top of the call chain. The upstream anomaly is localized to currencyservice socket and latency (E1), and caller-observed latency into currencyservice jumped 5.11->88.98ms while its own processing was unchanged (E2)."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Check currencyservice socket and connection state (connection-pool and file-descriptor limits, network policy or sidecar issues). Scale out currencyservice replicas to absorb the load, and fix the socket or connection misconfiguration. Do a rolling restart only if inspection confirms leaked connections.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 632,
+        "completion_tokens": 82,
+        "max_tokens": 16000,
+        "answer_chars": 223,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00417,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so run an unfiltered metric query to rank every service and metric by deviation and find where the anomaly is concentrated.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 4.2,
+        "prompt_tokens": 752,
+        "completion_tokens": 259,
+        "max_tokens": 16000,
+        "answer_chars": 540,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00819,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out currencyservice (latency-50 up ~16x, socket up 3.4x), so caller-observed traces for it would give an independent second telemetry kind.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.65
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 9.0,
+        "prompt_tokens": 998,
+        "completion_tokens": 875,
+        "max_tokens": 16000,
+        "answer_chars": 1407,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02149,
+        "finish_reason": "stop"
+      },
+      "thought": "Two independent telemetry kinds point at currencyservice: E1 shows the top latency and socket deviations there, and E2 shows callers waiting 17.4x longer while its own self-time stays flat, which fits a socket-level fault rather than a compute delay.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "checkoutservice: delay fault",
+              "why": "Its latency-90 deviation (z=54.21) is far smaller than currencyservice's latency-50 (z=318.36) and socket (z=68.18) deviations, which fits checkout inheriting slowness from its currency calls (E1). Inbound calls to currencyservice slowed 17.4x (E2)."
+            },
+            {
+              "candidate": "frontend: origin of errors",
+              "why": "The frontend-external error spike sits at the top of the call chain. The upstream anomaly is localized to currencyservice socket and latency (E1), and caller-observed latency into currencyservice jumped 5.11->88.98ms while its own processing was unchanged (E2)."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Check currencyservice socket and connection state (connection-pool and file-descriptor limits, network policy or sidecar issues). Scale out currencyservice replicas to absorb the load, and fix the socket or connection misconfiguration. Do a rolling restart only if inspection confirms leaked connections.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; currencyservice_latency-50 z=318.36 (1591.8%); currencyservice_socket z=68.18 (340.9%); checkoutservice_latency-90 z=54.21 (271.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.12ms (0.88x), errors 0.0->0.0; inbound calls self-time p50 5.11->88.98ms (17.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 15.1,
+    "tool_seconds": 0.7,
+    "prompt_tokens": 2382,
+    "completion_tokens": 1216,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 15.9,
+    "cost_usd": 0.033848
+  }
+}

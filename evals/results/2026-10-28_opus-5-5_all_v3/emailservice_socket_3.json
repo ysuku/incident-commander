@@ -1,0 +1,284 @@
+{
+  "status": "escalated",
+  "reason": "step budget (8) exhausted",
+  "candidates": [
+    "emailservice: CPU saturation (cpu fault) - E1 cpu z=205 and latency-90 z=119, but E2 traces and E3 logs do not confirm it yet",
+    "productcatalogservice: possible delay/loss fault - it sits on the ~1s error paths in E5, if those errors are new after the alert",
+    "currencyservice: possible delay/loss fault - it is also on the E5 error paths",
+    "emailservice: socket fault - E1 socket z=41, likely a side effect of the CPU spike"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=205.37 (1829.8%); emailservice_latency-90 z=118.88 (594.4%); emailservice_latency-50 z=92.61 (463.1%); emailservice_socket z=41.08 (205.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.19->0.19ms (0.99x), errors 0.0->0.0; inbound calls self-time p50 3.62->3.82ms (1.06x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "673 matching lines; by svc/level {'emailservice/INFO': 673}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L88847",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "traces",
+      "summary": "12322 traces after alert; worst: frontendservice -> productcatalogservice -> currencyservice -> recommendationservice 1031.5ms errors=1; frontendservice -> currencyservice -> productcatalogservice 1021.0ms errors=1; frontendservice -> productcatalogservice -> currencyservice -> recommendationservice 1010.5ms errors=1",
+      "source_ref": "traces.csv:traceID=3fd2feb960223cf9a3b89248be357f34",
+      "implicates": [
+        "currencyservice",
+        "frontendservice",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 4.01->4.06ms (1.01x), errors 0.0->0.0; inbound calls self-time p50 3.11->3.15ms (1.01x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.21->1.22ms (1.01x), errors 0.0->0.0; inbound calls self-time p50 3.48->3.46ms (0.99x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.01->0.01ms (1.0x), errors 0.0->0.0; inbound calls self-time p50 2.5->2.47ms (0.99x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 632,
+        "completion_tokens": 88,
+        "max_tokens": 16000,
+        "answer_chars": 229,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00429,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric query to rank all services and metrics by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.4,
+        "prompt_tokens": 795,
+        "completion_tokens": 234,
+        "max_tokens": 16000,
+        "answer_chars": 498,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00786,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows a massive CPU spike on emailservice with its latency up; I need an independent second kind of telemetry, so I'll check traces for emailservice's own and caller-observed latency.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.58
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 991,
+        "completion_tokens": 234,
+        "max_tokens": 16000,
+        "answer_chars": 488,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00864,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) strongly implicate emailservice CPU but traces (E2) show no change, so emailservice logs are the next independent signal to confirm or refute it.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 5.5,
+        "prompt_tokens": 1107,
+        "completion_tokens": 427,
+        "max_tokens": 16000,
+        "answer_chars": 789,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01297,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 points strongly at emailservice CPU, but E2 traces show no change and E3 has only routine INFO lines, so I need corroborating telemetry; an error-level log search across all services will show whether emailservice or another service logged faults.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "level": "ERROR",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 7.7,
+        "prompt_tokens": 1147,
+        "completion_tokens": 665,
+        "max_tokens": 16000,
+        "answer_chars": 841,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01789,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 points strongly at emailservice CPU, but E2 shows no trace-level change and E3 has only routine INFO logs, so I need the worst request paths across all services to find independent corroboration or a different culprit.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.57
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 7.4,
+        "prompt_tokens": 1346,
+        "completion_tokens": 708,
+        "max_tokens": 16000,
+        "answer_chars": 766,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01954,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows a huge emailservice CPU spike, but E2 traces show no change and E3 logs are only INFO, so I am checking emailservice's direct caller checkoutservice to see whether any trace evidence shows the slowdown upstream.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.58
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 8.1,
+        "prompt_tokens": 1538,
+        "completion_tokens": 730,
+        "max_tokens": 16000,
+        "answer_chars": 863,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02075,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 points hard at emailservice CPU, but E2 traces show no change and E3 logs are only routine INFO lines, so I still lack a second telemetry kind; checking recommendationservice, the deepest hop in the slow error traces in E5, will show whether that path really degraded after the alert or is just baseline noise.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.59
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 8.0,
+        "prompt_tokens": 1676,
+        "completion_tokens": 739,
+        "max_tokens": 16000,
+        "answer_chars": 864,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02148,
+        "finish_reason": "stop"
+      },
+      "thought": "Emailservice has strong metric anomalies, but its traces (E2) are flat and its logs (E3) are INFO only, so I need to check whether the ~1s error paths through productcatalogservice in E5 are new after the alert before settling on a root cause.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E8",
+      "tool_seconds": 0.63
+    }
+  ],
+  "proposed_fix": null,
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 44.8,
+    "tool_seconds": 3.1,
+    "prompt_tokens": 9232,
+    "completion_tokens": 3825,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 47.9,
+    "cost_usd": 0.113428
+  }
+}

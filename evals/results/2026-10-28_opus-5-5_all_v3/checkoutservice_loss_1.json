@@ -1,0 +1,233 @@
+{
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "delay"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=36054091.54; frontend-external_error z=36054091.54; checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "checkoutservice",
+        "emailservice",
+        "frontend",
+        "frontend-external",
+        "paymentservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.98->126.32ms (31.72x), errors 0.0->0.0025; inbound calls self-time p50 2.83->3.43ms (1.21x), errors 0.0->0.1014",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%); checkoutservice_socket z=6.69 (33.4%); checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-50",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "checkoutservice: cpu fault",
+      "why": "CPU is not among checkoutservice's significant deviations. Only latency (z=117.63), socket (z=6.69) and mem (z=6.26) appear (E3), so this is latency without CPU saturation."
+    },
+    {
+      "candidate": "downstream services: delay propagating",
+      "why": "checkoutservice's own self-time p50 rose 3.98->126.32ms (31.72x) (E2). That means the time is spent inside checkoutservice, not waiting on its callees."
+    },
+    {
+      "candidate": "frontend: error source",
+      "why": "The frontend error spike (E1) matches inbound errors to checkoutservice rising 0.0->0.1014 (E2). This fits frontend being a caller hit by checkoutservice slowness, not the origin."
+    },
+    {
+      "candidate": "checkoutservice: socket or mem fault",
+      "why": "The socket (33.4%) and mem (31.3%) deviations are small next to latency-50 (1761.2%) and latency-90 (1943.2%) (E3), so they are more likely side effects of slow requests piling up."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Inspect the checkoutservice pods for injected network latency (for example a tc netem qdisc) or a recent config or deploy change that adds delay, and remove or roll it back. Then confirm checkoutservice p50 and p90 latency and the frontend error rate return to baseline. A pod restart of checkoutservice is a fallback if the cause cannot be found quickly.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 632,
+        "completion_tokens": 71,
+        "max_tokens": 16000,
+        "answer_chars": 191,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00395,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so an unfiltered metric query ranks every service and metric and shows where to look first.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.0,
+        "prompt_tokens": 745,
+        "completion_tokens": 295,
+        "max_tokens": 16000,
+        "answer_chars": 545,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00888,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows checkoutservice latency up roughly 18-19x alongside frontend errors, so tracing checkoutservice will show whether the delay comes from checkout itself or from one of its downstream calls.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.6
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 3.9,
+        "prompt_tokens": 986,
+        "completion_tokens": 306,
+        "max_tokens": 16000,
+        "answer_chars": 550,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01006,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at checkoutservice, but its fault type is still open; its per-metric deviations should show whether CPU or memory moved along with latency, which separates delay from cpu.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 9.3,
+        "prompt_tokens": 1128,
+        "completion_tokens": 907,
+        "max_tokens": 16000,
+        "answer_chars": 1709,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02265,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E3) and traces (E2) independently point at checkoutservice: its own self-time rose 31.72x and its latency deviated far more than any of its resource metrics, which fits a delay fault.",
+      "action": {
+        "finish": {
+          "root_cause_service": "checkoutservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "checkoutservice: cpu fault",
+              "why": "CPU is not among checkoutservice's significant deviations. Only latency (z=117.63), socket (z=6.69) and mem (z=6.26) appear (E3), so this is latency without CPU saturation."
+            },
+            {
+              "candidate": "downstream services: delay propagating",
+              "why": "checkoutservice's own self-time p50 rose 3.98->126.32ms (31.72x) (E2). That means the time is spent inside checkoutservice, not waiting on its callees."
+            },
+            {
+              "candidate": "frontend: error source",
+              "why": "The frontend error spike (E1) matches inbound errors to checkoutservice rising 0.0->0.1014 (E2). This fits frontend being a caller hit by checkoutservice slowness, not the origin."
+            },
+            {
+              "candidate": "checkoutservice: socket or mem fault",
+              "why": "The socket (33.4%) and mem (31.3%) deviations are small next to latency-50 (1761.2%) and latency-90 (1943.2%) (E3), so they are more likely side effects of slow requests piling up."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Inspect the checkoutservice pods for injected network latency (for example a tc netem qdisc) or a recent config or deploy change that adds delay, and remove or roll it back. Then confirm checkoutservice p50 and p90 latency and the frontend error rate return to baseline. A pod restart of checkoutservice is a fallback if the cause cannot be found quickly.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=36054091.54; frontend-external_error z=36054091.54; checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "checkoutservice",
+        "emailservice",
+        "frontend",
+        "frontend-external",
+        "paymentservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.98->126.32ms (31.72x), errors 0.0->0.0025; inbound calls self-time p50 2.83->3.43ms (1.21x), errors 0.0->0.1014",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%); checkoutservice_socket z=6.69 (33.4%); checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-50",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 18.5,
+    "tool_seconds": 0.6,
+    "prompt_tokens": 3491,
+    "completion_tokens": 1579,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 19.2,
+    "cost_usd": 0.045544
+  }
+}
