@@ -192,3 +192,34 @@ Same case (checkoutservice_cpu/1, truth checkoutservice/cpu), runs saved in `eva
 Next: (1) the alert text names the system separately and lists valid service names;
 (2) try the 4B with reasoning ("thinking") off; (3) eval runner over the 30-case dev set.
 At ~7.5 min/case the 27B needs ~4 hours for 30 cases, so it is an overnight run.
+
+## MCP server: the tools now sit behind FastMCP (Oct 27)
+Closes the last open 2.1 item ("MCP server wrapper"). `mcp_server.py`:
+- `build_server(case)` registers the five tools on a FastMCP server bound to one recorded
+  case. A client can only reach the incident it was given; the held-out guard in
+  `load_case` still applies.
+- **The server owns the tool contract.** Input schemas come from the typed signatures;
+  each tool has a short model-facing description (`DESCRIPTIONS`). The prompt's tool list
+  is rendered from `list_tools`, replacing the hand-written block in `SYSTEM_PROMPT`.
+  This was the drift risk raised in Lab 1.2 ("a weak description makes a weak tool"):
+  there is now one source. The rendered text keeps the old prompt's signatures and wording
+  (only line breaks moved), so earlier runs stay comparable.
+- `ToolClient`: the loop is sync, MCP is async. One client session stays open on a
+  background event loop (anyio blocking portal) for the whole run. `diagnose()` opens it
+  by default; tests can pass their own.
+- Errors: unknown names, bad types and missing params come back as MCP `isError`
+  results. The client raises them as `ToolError` (a ValueError), so the loop's existing
+  bad_args note path is unchanged. Pydantic now rejects bad types (e.g. limit="SIX")
+  before the tool runs. Non-object `args` (a JSON list) used to crash the loop and is
+  now a bad_args note.
+- Same server over stdio (`python -m incident_commander.mcp_server --case <id>`) for
+  MCP Inspector / Claude Desktop / Claude Code. (`mcp dev <file>` does not apply: it needs a
+  module-level server, and ours is built per case.)
+- SDK choice: the official `mcp` package's FastMCP (as used in Lab 1.2), pinned
+  `>=1.12,<2` because 2.x renames FastMCP. Verified on mcp 1.30.0.
+Tests: `tests/test_mcp_server.py` (schemas and descriptions, rendered prompt, error
+mapping, MCP results equal direct calls, non-object args, real stdio subprocess).
+37 tests pass.
+Not adopted from the lab: resources, prompts, sampling, roots, auth. The tools are
+model-controlled, and the only client is local, so none of these are needed yet.
+

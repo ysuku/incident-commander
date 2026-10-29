@@ -14,9 +14,10 @@ behind it (every claim cites a log line, metric, trace, or document), the
 alternatives considered and rejected, and a proposed fix with any risky action
 held for explicit approval.
 
-> Status: **scaffold.** Design is set through Checkpoint 2.1 (ReAct loop, five
-> read-only tools behind one MCP server, evidence scratchpad); implementation
-> lands module by module — see [DESIGN_LOG.md](DESIGN_LOG.md).
+> Status: **working agent, under evaluation.** The Checkpoint 2.1 design is
+> implemented: ReAct loop, five read-only tools behind one MCP server, evidence
+> scratchpad and citation gate, runbook retrieval. Baselines and the dev-set eval
+> runner are next — see [DESIGN_LOG.md](DESIGN_LOG.md).
 
 ## Project structure
 ```text
@@ -24,6 +25,11 @@ src/incident_commander/   the capstone system
   config.py               paths; dev system vs held-out test system
   loaders.py              RCAEval case loading (the only code touching raw files)
   tools.py                the five read-only diagnostic tools
+  mcp_server.py           FastMCP server wrapping them (one server per incident) + sync client
+  loop.py                 ReAct loop, citation gate, escalation
+  scratchpad.py           evidence board (short-term memory)
+  model.py                OpenRouter/OpenAI-compatible client + keyless MockModel
+  retrieval.py            runbook chunking, Chroma index, MMR
   baselines.py            plain-prompt and chain-of-thought baselines
   cli.py                  list / baseline / diagnose entry points
 src/research_agent/       Module 1 course starter, kept as the design-evolution baseline
@@ -49,8 +55,22 @@ python scripts/download_data.py --runbooks
 python -m incident_commander.cli list --system online-boutique
 python -m incident_commander.cli baseline --kind plain --case <id>
 python -m incident_commander.cli diagnose --case <id>
+python -m incident_commander.cli diagnose --case <id> --model mock   # keyless demo
 python -m pytest -q
 ```
+
+## MCP server
+The agent reaches its tools only through MCP: `loop.diagnose` opens an in-process
+client session to a server bound to the case, and the tool list in its prompt is
+rendered from that server's schemas. The same server runs over stdio for any MCP
+host, so you can inspect or use the tools outside the agent:
+```bash
+python -m incident_commander.mcp_server --case checkoutservice_cpu/1      # stdio
+npx @modelcontextprotocol/inspector .venv/bin/python -m incident_commander.mcp_server --case checkoutservice_cpu/1  # browse/call tools
+claude mcp add incident-commander -- "$PWD/.venv/bin/python" -m incident_commander.mcp_server --case checkoutservice_cpu/1
+```
+Each server serves one recorded incident, read-only. The held-out guard applies:
+Train Ticket cases refuse to load unless `IC_ALLOW_HELDOUT=1`.
 
 ## Data policy
 Only public, synthetic, or anonymized data. Nothing proprietary, nothing from

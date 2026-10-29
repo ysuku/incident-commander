@@ -7,6 +7,8 @@ Design rules, enforced in CODE, not left to the model:
 - when the step budget runs out, the agent escalates with findings instead of
   guessing (status: "escalated").
 - the model sees only the scratchpad rendering; raw telemetry never enters context.
+- tools are reached only through the MCP server (mcp_server.py); the tool list in
+  the prompt is rendered from the server's schemas, so the two cannot drift.
 """
 import json
 import logging
@@ -14,8 +16,8 @@ import re
 import time
 from datetime import datetime, timezone
 
-from . import tools
 from .loaders import IncidentCase
+from .mcp_server import ToolClient, build_server
 from .scratchpad import TELEMETRY_KINDS, Scratchpad
 
 MAX_STEPS = 8
@@ -34,10 +36,7 @@ or, when the evidence is sufficient:
      "supporting_evidence": ["E1", ...],
      "alternatives_rejected": [{"candidate": "...", "why": "... (cite Ex)"}],
      "proposed_fix": {"description": "...", "destructive": true|false}}}}
-Tools: metric_query(service?, metric?, top?) - before/after-alert deviations, computed in code; call it with NO filters first: it ranks every service and metric;
-log_search(query?, service?, level?, limit?) - counts + cited lines;
-trace_lookup(failing_only?, limit?) - worst request paths; service_map() - who calls whom;
-runbook_lookup(symptom, k?) - reference docs; hits suggest fixes but are NOT root-cause evidence.
+Tools: {tools}
 A root cause needs two independent telemetry kinds (metrics/logs/traces) that EACH point at the claimed service. Finish is rejected otherwise."""
 
 
@@ -132,23 +131,26 @@ def _short(args: dict) -> str:
     return ", ".join(f"{k}={v!r}" for k, v in args.items())
 
 
-def diagnose(case: IncidentCase, model, max_steps: int = MAX_STEPS) -> dict:
+def diagnose(case: IncidentCase, model, max_steps: int = MAX_STEPS,
+             toolbox: ToolClient | None = None) -> dict:
     """Run the loop on one case. Returns the incident brief (dict).
 
     Every step is recorded in brief["investigation"] (including failed steps) with
     the model call's time/token stats and an `outcome`, and is logged in plain
     language to the "incident_commander" logger. brief["usage"] holds run totals.
+    Tools go through `toolbox`; by default a fresh MCP server for this case.
     """
+    if toolbox is not None:
+        return _investigate(case, model, max_steps, toolbox)
+    with ToolClient(build_server(case)) as toolbox:
+        return _investigate(case, model, max_steps, toolbox)
+
+
+def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient) -> dict:
     alert_utc = datetime.fromtimestamp(case.inject_time, tz=timezone.utc)
     pad = Scratchpad(alert=f"{case.system}: latency/availability alert at "
                            f"{alert_utc:%Y-%m-%d %H:%M}Z. Find root-cause service and fault type.")
-    registry = {
-        "metric_query": lambda **a: tools.metric_query(case, **a),
-        "log_search": lambda **a: tools.log_search(case, **a),
-        "trace_lookup": lambda **a: tools.trace_lookup(case, **a),
-        "service_map": lambda **a: tools.service_map(case),
-        "runbook_lookup": lambda **a: tools.runbook_lookup(**a),
-    }
+    system = SYSTEM_PROMPT.replace("{tools}", toolbox.describe())
     trace, parse_failures, seen_calls = [], 0, {}
     totals = {"model_calls": 0, "model_seconds": 0.0, "tool_seconds": 0.0,
               "prompt_tokens": 0, "completion_tokens": 0, "replies_hit_token_limit": 0}
@@ -168,7 +170,7 @@ def diagnose(case: IncidentCase, model, max_steps: int = MAX_STEPS) -> dict:
         return brief
 
     for step in range(1, max_steps + 1):
-        raw = model.complete([{"role": "system", "content": SYSTEM_PROMPT},
+        raw = model.complete([{"role": "system", "content": system},
                               {"role": "user", "content": pad.render()}])
         call = dict(getattr(model, "last_call", {}) or {})
         totals["model_calls"] += 1
@@ -221,10 +223,15 @@ def diagnose(case: IncidentCase, model, max_steps: int = MAX_STEPS) -> dict:
 
         name = action.get("tool")
         args = action.get("args") or {}
-        if name not in registry:
+        if name not in toolbox.names:
             pad.notes.append(f"step {step}: unknown tool {name!r}")
             entry.update(outcome="unknown_tool", detail=str(name))
             log.info("   -> UNKNOWN TOOL %r", name)
+            continue
+        if not isinstance(args, dict):
+            pad.notes.append(f"step {step}: bad args for {name}: args must be a JSON object")
+            entry.update(outcome="bad_args", detail=f"args was {type(args).__name__}")
+            log.info("   -> %s BAD ARGS: not an object (%r)", name, args)
             continue
         key = (name, json.dumps(args, sort_keys=True))
         if key in seen_calls:
@@ -236,7 +243,7 @@ def diagnose(case: IncidentCase, model, max_steps: int = MAX_STEPS) -> dict:
             continue
         t_tool = time.monotonic()
         try:
-            result = registry[name](**args)
+            result = toolbox.call(name, args)
         except (TypeError, ValueError) as e:
             pad.notes.append(f"step {step}: bad args for {name}: {e}")
             entry.update(outcome="bad_args", detail=str(e))

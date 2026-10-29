@@ -11,8 +11,9 @@ Rules that apply to every tool:
 Naming note: logs name services by container ("frontend"); traces use
 "frontendservice". Tools return names as the underlying telemetry spells them.
 
-These run behind one MCP server (FastMCP) from Module 2 onward; the functions
-here are the implementations the server wraps.
+These run behind one MCP server (mcp_server.py, FastMCP); the functions here are
+the implementations it wraps. What the model reads about each tool (name, schema,
+one-line description) lives in the server, not in these docstrings.
 """
 from .loaders import (IncidentCase, load_logs, load_simple_metrics,
                       load_traces)
