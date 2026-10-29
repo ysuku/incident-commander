@@ -60,3 +60,50 @@ def test_crash_is_recorded_not_raised(tmp_path, monkeypatch):
     rows = evaluate.run_eval([case()], Priced, tmp_path)
     assert rows[0]["outcome"] == "error" and "API down" in rows[0]["reason"]
 
+
+# --- per-service trace signal (trace_lookup(service=...)) ---------------------
+def _spans(after_server_us, after_client_us):
+    """frontend client span -> currencyservice server span, 4 calls before, 4 after."""
+    import pandas as pd
+    rows = []
+    for i in range(8):
+        late = i >= 4
+        t = (2000 if late else 0) * 1000 + i
+        srv = after_server_us if late else 100
+        cli = after_client_us if late else 300
+        rows += [{"traceID": f"t{i}", "spanID": f"c{i}", "serviceName": "frontendservice",
+                  "operationName": "hipstershop.CurrencyService/Convert", "startTimeMillis": t,
+                  "duration": cli, "statusCode": 0, "parentSpanID": None},
+                 {"traceID": f"t{i}", "spanID": f"s{i}", "serviceName": "currencyservice",
+                  "operationName": "grpc.hipstershop.CurrencyService/Convert", "startTimeMillis": t,
+                  "duration": srv, "statusCode": 0, "parentSpanID": f"c{i}"}]
+    return pd.DataFrame(rows)
+
+
+def test_service_spans_inbound_catches_network_delay():
+    from incident_commander import tools
+    c = IncidentCase("currencyservice_delay/1", "online-boutique", "1", 1000, Path("."),
+                     "currencyservice", "delay")
+    # server work unchanged, but callers wait 10x longer: delay is on the wire
+    r = tools._service_spans(c, _spans(after_server_us=100, after_client_us=2100), "currency", 5)
+    assert r["service"] == "currencyservice"
+    assert r["overall"]["p50_ratio"] == 1.0
+    assert r["inbound"]["p50_ratio"] == 10.0          # client self time 0.2ms -> 2.0ms
+    kind, summary, _, implicated = loop._summarize("trace_lookup", r, {"service": "currency"})
+    assert kind == "traces" and "SIGNIFICANT" in summary and implicated == ["currencyservice"]
+
+
+def test_service_spans_no_change_is_said_plainly():
+    from incident_commander import tools
+    c = IncidentCase("x_cpu/1", "online-boutique", "1", 1000, Path("."), "x", "cpu")
+    r = tools._service_spans(c, _spans(after_server_us=110, after_client_us=320), "currencyservice", 5)
+    _, summary, _, implicated = loop._summarize("trace_lookup", r, {"service": "currencyservice"})
+    assert "NO significant change" in summary and implicated == []
+
+
+def test_service_spans_unknown_service_lists_names():
+    import pytest
+    from incident_commander import tools
+    c = IncidentCase("x_cpu/1", "online-boutique", "1", 1000, Path("."), "x", "cpu")
+    with pytest.raises(ValueError, match="trace services are"):
+        tools._service_spans(c, _spans(100, 300), "redis", 5)

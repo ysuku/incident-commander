@@ -22,6 +22,8 @@ from .scratchpad import TELEMETRY_KINDS, Scratchpad
 
 MAX_STEPS = 8
 Z_SIGNIFICANT = 3.0  # "3-sigma": a deviation smaller than this is treated as noise
+TRACE_RATIO_SIGNIFICANT = 2.0  # per-service p50 self time; calibrated on RE2-OB rep 1
+ERR_RISE_SIGNIFICANT = 0.05    # error-rate rise (absolute) on a service's spans
 log = logging.getLogger("incident_commander")
 MAX_PARSE_FAILURES = 2
 
@@ -68,6 +70,22 @@ def _summarize(name: str, result, args: dict | None = None) -> tuple[str, str, s
         ref = first[0]["source_ref"] if first else "logs.csv"
         svcs = sorted({k.split("/")[0] for k, c in by.items() if c > 0})
         return "logs", f"{n} matching lines; by svc/level {by}; {lines or 'no sample'}", ref, svcs
+    if name == "trace_lookup" and "service" in result:
+        svc = result["service"]
+        parts, sig = [], False
+        for label, side in (("own spans", result["overall"]), ("inbound calls", result.get("inbound"))):
+            if not side or not side["n_after"]:
+                continue
+            r = side["p50_ratio"]
+            rise = (side["err_rate_after"] or 0) - (side["err_rate_before"] or 0)
+            sig |= (r or 0) >= TRACE_RATIO_SIGNIFICANT or rise >= ERR_RISE_SIGNIFICANT
+            parts.append(f"{label} self-time p50 {side['self_p50_ms_before']}->{side['self_p50_ms_after']}ms"
+                         f" ({r}x), errors {side['err_rate_before']}->{side['err_rate_after']}")
+        verdict = ("SIGNIFICANT change" if sig else
+                   f"NO significant change (<{TRACE_RATIO_SIGNIFICANT:g}x latency, "
+                   f"<{ERR_RISE_SIGNIFICANT:g} error rise)")
+        return ("traces", f"traces for {svc}: {verdict}; " + "; ".join(parts or ["no spans after alert"]),
+                result["source_ref"], [svc] if sig else [])
     if name == "trace_lookup":
         ts = result["traces"]
         if not ts:

@@ -107,16 +107,21 @@ def log_search(case: IncidentCase, query: str = "", service: str | None = None,
     }
 
 
-def trace_lookup(case: IncidentCase, failing_only: bool = True, limit: int = 10) -> dict:
+def trace_lookup(case: IncidentCase, failing_only: bool = True, limit: int = 10,
+                 service: str | None = None) -> dict:
     """Summarized request paths from the span table, never raw span dumps.
 
-    Picks the `limit` worst traces after the alert (errored first when
-    failing_only, else slowest) and returns each as a service path with total
-    duration and the error spans marked.
+    Without `service`: picks the `limit` worst traces after the alert (errored
+    first when failing_only, else slowest) and returns each as a service path
+    with total duration and the error spans marked.
+    With `service`: that service's own spans before vs after the alert (see
+    _service_spans). This is the per-service trace signal CPU/mem faults need.
     """
     df = load_traces(case, columns=["traceID", "spanID", "serviceName",
                                     "operationName", "startTimeMillis",
                                     "duration", "statusCode", "parentSpanID"])
+    if service:
+        return _service_spans(case, df, service, limit)
     df = df[df["startTimeMillis"] >= case.inject_time * 1000]
     if df.empty:
         return {"note": "no traces after alert time", "traces": []}
@@ -143,6 +148,53 @@ def trace_lookup(case: IncidentCase, failing_only: bool = True, limit: int = 10)
         })
     return {"failing_only": failing_only and (stats["errors"] > 0).any(),
             "n_traces_after_alert": int(len(stats)), "traces": traces}
+
+
+def _service_spans(case: IncidentCase, df, service: str, limit: int) -> dict:
+    """One service's spans, before vs after the alert, in code.
+
+    Uses SELF time (span duration minus its direct children's durations, floored
+    at 0), not raw duration: a caller's raw duration grows whenever anything
+    downstream is slow, so raw duration would implicate every caller of the
+    faulty service. Self time stays with the service doing the slow work.
+    Also "inbound": self time of the CALLERS' client spans that target this
+    service (op names like "hipstershop.CurrencyService/Convert"). Network delay
+    or loss injected on a pod, or a server span that was never exported, shows
+    up there and not in the service's own spans. Calibrated on rep 1 of RE2-OB:
+    max(own, inbound) p50 ratio ranks the true service first in most cases.
+    Returns overall/inbound/per-operation median self time and error rate.
+    """
+    names = sorted(df["serviceName"].dropna().unique())
+    want = service.lower()
+    match = [n for n in names if n.lower() == want] or [n for n in names if want in n.lower()]
+    if len(match) != 1:
+        raise ValueError(f"unknown service {service!r}; trace services are {names}")
+    svc = match[0]
+    child_us = df[df["parentSpanID"].notna()].groupby("parentSpanID")["duration"].sum()
+    df = df.assign(self_us=(df["duration"] - df["spanID"].map(child_us).fillna(0)).clip(lower=0),
+                   after=df["startTimeMillis"] >= case.inject_time * 1000,
+                   err=df["statusCode"] != 0)
+    own = df[df["serviceName"] == svc]
+    target = svc.lower().removesuffix("service") + "service/"
+    inbound = df[(df["serviceName"] != svc)
+                 & df["operationName"].str.lower().str.contains(target, regex=False, na=False)]
+
+    def side(g) -> dict:
+        b, a = g[~g["after"]], g[g["after"]]
+        p50b, p50a = b["self_us"].median() / 1000, a["self_us"].median() / 1000
+        return {"n_before": int(len(b)), "n_after": int(len(a)),
+                "self_p50_ms_before": round(p50b, 2), "self_p50_ms_after": round(p50a, 2),
+                "self_p90_ms_before": round(b["self_us"].quantile(0.9) / 1000, 2),
+                "self_p90_ms_after": round(a["self_us"].quantile(0.9) / 1000, 2),
+                "p50_ratio": round(p50a / p50b, 2) if p50b > 0 else None,
+                "err_rate_before": round(float(b["err"].mean()), 4) if len(b) else None,
+                "err_rate_after": round(float(a["err"].mean()), 4) if len(a) else None}
+
+    ops = [{"op": op, **side(g)} for op, g in own.groupby("operationName")]
+    ops.sort(key=lambda o: -(o["p50_ratio"] or 0))
+    return {"service": svc, "overall": side(own),
+            "inbound": side(inbound) if len(inbound) else None, "operations": ops[:limit],
+            "source_ref": f"traces.csv:serviceName={svc}"}
 
 
 def service_map(case: IncidentCase) -> dict:

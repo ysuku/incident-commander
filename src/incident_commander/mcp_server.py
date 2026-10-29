@@ -31,7 +31,8 @@ DESCRIPTIONS = {
     "metric_query": ("before/after-alert deviations, computed in code; "
                      "call it with NO filters first: it ranks every service and metric"),
     "log_search": "counts + cited lines",
-    "trace_lookup": "worst request paths",
+    "trace_lookup": ("worst request paths; with service=<name>, that service's own and "
+                     "inbound (caller-observed) latency and errors, before vs after the alert"),
     "service_map": "who calls whom",
     "runbook_lookup": "reference docs; hits suggest fixes but are NOT root-cause evidence",
 }
@@ -53,8 +54,8 @@ def build_server(case: IncidentCase) -> FastMCP:
         return tools.log_search(case, query=query, service=service, level=level, limit=limit)
 
     @server.tool(description=DESCRIPTIONS["trace_lookup"])
-    def trace_lookup(failing_only: bool = True, limit: int = 10) -> dict:
-        return tools.trace_lookup(case, failing_only=failing_only, limit=limit)
+    def trace_lookup(failing_only: bool = True, limit: int = 10, service: str | None = None) -> dict:
+        return tools.trace_lookup(case, failing_only=failing_only, limit=limit, service=service)
 
     @server.tool(description=DESCRIPTIONS["service_map"])
     def service_map() -> dict:
