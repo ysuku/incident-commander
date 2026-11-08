@@ -1,0 +1,183 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "frontend: errors are a downstream symptom of recommendationservice",
+      "why": "frontend-external_error spikes (E1), but recommendationservice's own span self-time rose 5.29x and its inbound latency rose 17.84x (E2), so the fault sits in recommendationservice and frontend only sees the effect."
+    },
+    {
+      "candidate": "recommendationservice: delay fault",
+      "why": "A pure delay injection would raise latency without a large change in socket usage, yet recommendationservice_socket deviates z=106.99 (+535%) alongside the latency (E1), which points to a socket fault."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Inspect recommendationservice's socket and connection state (open sockets, connection pool, file-descriptor limits, any injected socket fault). Remove the fault or restart the recommendationservice pods to clear exhausted sockets, then confirm p50/p90 latency and frontend errors return to baseline.",
+    "model_labeled_destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.2,
+        "prompt_tokens": 632,
+        "completion_tokens": 71,
+        "max_tokens": 16000,
+        "answer_chars": 191,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00395,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so an unfiltered metric query ranks every service and metric and shows where to look first.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.9,
+        "prompt_tokens": 756,
+        "completion_tokens": 225,
+        "max_tokens": 16000,
+        "answer_chars": 466,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00752,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out recommendationservice for latency and socket deviations, so its own traces and the caller-observed traces can confirm it with a second telemetry kind.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.84
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 6.9,
+        "prompt_tokens": 966,
+        "completion_tokens": 700,
+        "max_tokens": 16000,
+        "answer_chars": 1321,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01786,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) are two independent telemetry kinds that both point at recommendationservice; the strong socket deviation alongside the latency jump favours a socket fault over a pure delay injection.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend: errors are a downstream symptom of recommendationservice",
+              "why": "frontend-external_error spikes (E1), but recommendationservice's own span self-time rose 5.29x and its inbound latency rose 17.84x (E2), so the fault sits in recommendationservice and frontend only sees the effect."
+            },
+            {
+              "candidate": "recommendationservice: delay fault",
+              "why": "A pure delay injection would raise latency without a large change in socket usage, yet recommendationservice_socket deviates z=106.99 (+535%) alongside the latency (E1), which points to a socket fault."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Inspect recommendationservice's socket and connection state (open sockets, connection pool, file-descriptor limits, any injected socket fault). Remove the fault or restart the recommendationservice pods to clear exhausted sockets, then confirm p50/p90 latency and frontend errors return to baseline.",
+            "destructive": true
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%); recommendationservice_cpu z=52.54 (562.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 11.0,
+    "tool_seconds": 0.9,
+    "prompt_tokens": 2354,
+    "completion_tokens": 996,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 11.9,
+    "cost_usd": 0.029336
+  }
+}

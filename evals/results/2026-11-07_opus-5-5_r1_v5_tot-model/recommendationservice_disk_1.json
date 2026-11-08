@@ -1,0 +1,958 @@
+{
+  "status": "escalated",
+  "reason": "tie: recommendationservice: mem or recommendationservice: disk, indistinguishable in this data",
+  "candidates": [
+    "recommendationservice: mem (score 5, tied; confirmed mem_up, latency_up, socket_not_saturated, trace_slow)",
+    "recommendationservice: disk (score 5, tied; confirmed mem_up, cpu_up, socket_not_saturated, trace_slow)",
+    "recommendationservice: cpu (score 2, pruned; confirmed cpu_up, socket_not_saturated, trace_slow)",
+    "productcatalogservice: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [
+    "step 5: unparseable response (Extra data: line 1 column 1586 (char 1585)); raw started: 'Metrics (E1/E4) and traces (E2) each point at recommendationservice, and the large memory increase best explains its own slower processing, so I am finishing wi'; reply with ONE JSON object."
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_diskio z=9.258531250599246e+18; recommendationservice_latency-90 z=328.16 (1640.8%); recommendationservice_mem z=177.2 (886.0%); recommendationservice_latency-50 z=72.97 (364.8%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_diskio",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.05->3.11ms (2.96x), errors 0.0->0.0; inbound calls self-time p50 3.84->24.05ms (6.26x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "13025 matching lines; by svc/level {'recommendationservice/INFO': 13025}; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['OLJCESPC7Z', '6E92ZMYYFZ', '66VCHSJNUP'; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['2ZYFJ3GM2N', '66VCHSJNUP', '9SIQT8TOJO'",
+      "source_ref": "logs.csv#L86287",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_diskio z=9.258531250599246e+18; recommendationservice_latency-90 z=328.16 (1640.8%); recommendationservice_mem z=177.2 (886.0%); recommendationservice_latency-50 z=72.97 (364.8%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_diskio",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=productcatalogservice]; largest is only productcatalogservice_latency-50 z=1.3 (6.5%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-50",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice, metric=diskio]: recommendationservice_diskio z=9.258531250599246e+18",
+      "source_ref": "simple_metrics.csv:recommendationservice_diskio",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice, metric=cpu]: recommendationservice_cpu z=60.96 (648.8%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_cpu",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [metric=diskio]: recommendationservice_diskio z=9.258531250599246e+18",
+      "source_ref": "simple_metrics.csv:recommendationservice_diskio",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E11",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=recommendationservice, metric=socket]; largest is only recommendationservice_socket z=0.0 (0.0%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_socket",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 632,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 211,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00407,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so the first step is an unfiltered metric query that ranks every service and metric by deviation from baseline.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.16
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.3,
+        "prompt_tokens": 765,
+        "completion_tokens": 315,
+        "max_tokens": 16000,
+        "answer_chars": 617,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00936,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) single out recommendationservice, with the largest deviations in disk I/O, memory and latency, so I need a second, independent telemetry kind (traces) to confirm whether its own latency rose and callers saw it.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.15
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 5.8,
+        "prompt_tokens": 1022,
+        "completion_tokens": 522,
+        "max_tokens": 16000,
+        "answer_chars": 711,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01453,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both implicate recommendationservice, but the fault type is unclear: the diskio z of about 9e18 probably comes from a zero-variance baseline, and memory is up 886%, so a log search for disk or memory errors should settle it.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 5.3,
+        "prompt_tokens": 1231,
+        "completion_tokens": 524,
+        "max_tokens": 16000,
+        "answer_chars": 818,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0154,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) already both point at recommendationservice, but the fault type is unclear: the diskio z-score is likely a zero-baseline artifact, and both mem and latency spiked. A full per-metric breakdown for this service (cpu, mem, diskio, socket, latency) should tell disk, mem and delay apart.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 11.1,
+        "prompt_tokens": 1399,
+        "completion_tokens": 1076,
+        "max_tokens": 16000,
+        "answer_chars": 1778,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02712,
+        "finish_reason": "stop"
+      },
+      "outcome": "unparseable",
+      "detail": "Extra data: line 1 column 1586 (char 1585); raw started: Metrics (E1/E4) and traces (E2) each point at recommendationservice, and the large memory increase best explains its own slower processing, so I am finishing wi"
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 7.5,
+        "prompt_tokens": 1511,
+        "completion_tokens": 752,
+        "max_tokens": 16000,
+        "answer_chars": 1386,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02108,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E4) and traces (E2) independently point at recommendationservice, and its +886% memory jump best explains why its own processing slowed.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "mem",
+          "supporting_evidence": [
+            "E1",
+            "E4",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "recommendationservice: disk I/O fault",
+              "why": "The diskio z of about 9.26e18 in E1/E4 points to a near-zero baseline artifact, not a real disk fault. Memory shows a large, well-scaled rise instead (mem z=177.2, +886%)."
+            },
+            {
+              "candidate": "recommendationservice: injected network delay",
+              "why": "The service's own span self-time also rose about 3x (1.05 to 3.11ms in E2). Pure network delay would not slow in-process work, so resource pressure inside the service fits better with the memory spike in E1."
+            },
+            {
+              "candidate": "productcatalogservice: downstream slowness",
+              "why": "No evidence implicates productcatalogservice. recommendationservice's own self-time rose in E2, and every metric deviation in E1 is confined to recommendationservice."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Do a rolling restart of the recommendationservice pods to reclaim memory, and raise or enforce container memory limits. Then confirm memory and latency-90 return to baseline and look for a memory leak in the ListRecommendations handler.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "mem (score 5) vs disk (5) for recommendationservice"
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: mem",
+      "thought": "The disk rival rests entirely on a diskio z-score of about 9e18, which looks like a near-zero-variance baseline artifact. Pulling the raw before/after diskio values shows whether disk I/O really grew ",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.5,
+        "prompt_tokens": 1525,
+        "completion_tokens": 469,
+        "max_tokens": 16000,
+        "answer_chars": 608,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01548,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "recommendationservice: disk",
+      "thought": "Both faults predict the diskio and mem rises already seen, but the disk signature also needs CPU z >= 3, which pure memory pressure need not produce, so a recommendationservice CPU query separates the",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 4.2,
+        "prompt_tokens": 1622,
+        "completion_tokens": 279,
+        "max_tokens": 16000,
+        "answer_chars": 402,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01207,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: mem",
+      "thought": "Memory-pressure faults usually leave memory or GC traces in the service's logs, while disk faults leave I/O or filesystem errors, so searching recommendationservice logs for both kinds of keywords sep",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "memory|MemoryError|OOM|oom|gc|disk|I/O|No space|read-only|IOError",
+          "service": "recommendationservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.8,
+        "prompt_tokens": 1690,
+        "completion_tokens": 439,
+        "max_tokens": 16000,
+        "answer_chars": 644,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01554,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "recommendationservice: disk",
+      "thought": "Disk and memory faults both raise CPU, memory and latency, so the clearest remaining separator is application-level I/O failure messages, which a disk fault should produce and pure memory pressure sho",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "IOError",
+          "service": "recommendationservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 7.2,
+        "prompt_tokens": 1741,
+        "completion_tokens": 590,
+        "max_tokens": 16000,
+        "answer_chars": 529,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01876,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: mem",
+      "thought": "If huge diskio z-scores also show up for services that are not slow, recommendationservice's diskio z (~9e18) is a zero-baseline artifact rather than a real disk fault, which leaves the clean +886% me",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "metric": "diskio",
+          "top": 15
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.8,
+        "prompt_tokens": 1764,
+        "completion_tokens": 519,
+        "max_tokens": 16000,
+        "answer_chars": 549,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01744,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 12,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "recommendationservice: disk",
+      "thought": "Every disk-signature item except socket is already on the board, and the diskio z looks like a zero-baseline artifact, so checking socket is the remaining untested signature constraint; it can falsify",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 7.1,
+        "prompt_tokens": 1852,
+        "completion_tokens": 606,
+        "max_tokens": 16000,
+        "answer_chars": 607,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01953,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "tied",
+    "trigger": "T1 mem (score 5) vs disk (5) for recommendationservice",
+    "suspect": "recommendationservice",
+    "rival": "productcatalogservice",
+    "selected": null,
+    "tied": [
+      {
+        "branch_id": "B1",
+        "service": "recommendationservice",
+        "fault_type": "mem",
+        "reason": "top fault types for recommendationservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=328.16",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "The diskio baseline is essentially flat or zero and rises only by a small absolute amount, so the huge z comes from near-zero variance. That makes the mem increase (z=177, +886%) the dominant real res",
+            "rationale": "The disk rival rests entirely on a diskio z-score of about 9e18, which looks like a near-zero-variance baseline artifact. Pulling the raw before/after diskio values shows whether disk I/O really grew ",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "memory|MemoryError|OOM|oom|gc|disk|I/O|No space|read-only|IOError",
+              "service": "recommendationservice",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "Any matches are memory-related (memory, OOM, gc) and there are no disk, IOError or no-space lines, or there are no matches at all. This would leave the huge diskio z as a zero-baseline artifact and me",
+            "rationale": "Memory-pressure faults usually leave memory or GC traces in the service's logs, while disk faults leave I/O or filesystem errors, so searching recommendationservice logs for both kinds of keywords sep",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "metric": "diskio",
+              "top": 15
+            },
+            "depth": 3,
+            "predicted": "Several other healthy services show similarly huge or degenerate diskio z-scores (zero or near-zero baselines). That makes recommendationservice's diskio deviation non-specific, while its mem z=177 st",
+            "rationale": "If huge diskio z-scores also show up for services that are not slow, recommendationservice's diskio z (~9e18) is a zero-baseline artifact rather than a real disk fault, which leaves the clean +886% me",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "recommendationservice",
+        "fault_type": "disk",
+        "reason": "top fault types for recommendationservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=60.96",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "recommendationservice_cpu shows a significant rise (z >= 3) after the alert.",
+            "rationale": "Both faults predict the diskio and mem rises already seen, but the disk signature also needs CPU z >= 3, which pure memory pressure need not produce, so a recommendationservice CPU query separates the",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "query": "IOError",
+              "service": "recommendationservice",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "If the fault is disk, recommendationservice will log IOError or write/read failure lines starting around 00:55Z. Under memory pressure there would be none, or only OOM/MemoryError lines.",
+            "rationale": "Disk and memory faults both raise CPU, memory and latency, so the clearest remaining separator is application-level I/O failure messages, which a disk fault should produce and pure memory pressure sho",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "socket"
+            },
+            "depth": 3,
+            "predicted": "recommendationservice_socket shows no significant deviation or a z well below 25 (not saturated), consistent with a local disk-I/O fault rather than network or socket saturation.",
+            "rationale": "Every disk-signature item except socket is already on the board, and the diskio z looks like a zero-baseline artifact, so checking socket is the remaining untested signature constraint; it can falsify",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "recommendationservice",
+        "fault_type": "mem",
+        "reason": "top fault types for recommendationservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=328.16",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "The diskio baseline is essentially flat or zero and rises only by a small absolute amount, so the huge z comes from near-zero variance. That makes the mem increase (z=177, +886%) the dominant real res",
+            "rationale": "The disk rival rests entirely on a diskio z-score of about 9e18, which looks like a near-zero-variance baseline artifact. Pulling the raw before/after diskio values shows whether disk I/O really grew ",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "memory|MemoryError|OOM|oom|gc|disk|I/O|No space|read-only|IOError",
+              "service": "recommendationservice",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "Any matches are memory-related (memory, OOM, gc) and there are no disk, IOError or no-space lines, or there are no matches at all. This would leave the huge diskio z as a zero-baseline artifact and me",
+            "rationale": "Memory-pressure faults usually leave memory or GC traces in the service's logs, while disk faults leave I/O or filesystem errors, so searching recommendationservice logs for both kinds of keywords sep",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "metric": "diskio",
+              "top": 15
+            },
+            "depth": 3,
+            "predicted": "Several other healthy services show similarly huge or degenerate diskio z-scores (zero or near-zero baselines). That makes recommendationservice's diskio deviation non-specific, while its mem z=177 st",
+            "rationale": "If huge diskio z-scores also show up for services that are not slow, recommendationservice's diskio z (~9e18) is a zero-baseline artifact rather than a real disk fault, which leaves the clean +886% me",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "recommendationservice",
+        "fault_type": "disk",
+        "reason": "top fault types for recommendationservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=60.96",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "recommendationservice_cpu shows a significant rise (z >= 3) after the alert.",
+            "rationale": "Both faults predict the diskio and mem rises already seen, but the disk signature also needs CPU z >= 3, which pure memory pressure need not produce, so a recommendationservice CPU query separates the",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "query": "IOError",
+              "service": "recommendationservice",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "If the fault is disk, recommendationservice will log IOError or write/read failure lines starting around 00:55Z. Under memory pressure there would be none, or only OOM/MemoryError lines.",
+            "rationale": "Disk and memory faults both raise CPU, memory and latency, so the clearest remaining separator is application-level I/O failure messages, which a disk fault should produce and pure memory pressure sho",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "socket"
+            },
+            "depth": 3,
+            "predicted": "recommendationservice_socket shows no significant deviation or a z well below 25 (not saturated), consistent with a local disk-I/O fault rather than network or socket saturation.",
+            "rationale": "Every disk-signature item except socket is already on the board, and the diskio z looks like a zero-baseline artifact, so checking socket is the remaining untested signature constraint; it can falsify",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "recommendationservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for recommendationservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=60.96",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 6+ below the best (5)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E5",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.14",
+            "eid": "E5",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=0.37",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E5",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 6,
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ],
+      "B4": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 12,
+    "model_seconds": 70.6,
+    "tool_seconds": 1.5,
+    "prompt_tokens": 16754,
+    "completion_tokens": 6168,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 72.2,
+    "cost_usd": 0.190376
+  }
+}

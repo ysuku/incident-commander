@@ -1,0 +1,721 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "candidates": [
+    "checkoutservice: mem (score 5, open; confirmed mem_up, latency_up, socket_not_saturated, trace_slow)",
+    "checkoutservice: disk (score 5, open; confirmed mem_up, cpu_up, socket_not_saturated, trace_slow)",
+    "downstream: cpu (score 0, open; confirmed none)",
+    "checkoutservice: cpu (score 2, pruned; confirmed cpu_up, socket_not_saturated, trace_slow)"
+  ],
+  "notes": [
+    "tot root: metric signature of the rival: metric_query(service='downstream') failed: unknown service 'downstream'; metric services are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'frontend-external', 'paymentservice', 'productcatalogservice', 'recommendationservice', 'redis', 'shippingservice']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: checkoutservice_mem z=375.25 (1876.3%); checkoutservice_cpu z=219.84 (4411.2%); checkoutservice_latency-90 z=83.87 (764.2%); checkoutservice_latency-50 z=53.73 (456.1%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_mem",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.76->5.07ms (1.35x), errors 0.0->0.0; inbound calls self-time p50 3.06->17.32ms (5.66x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_mem z=375.25 (1876.3%); checkoutservice_cpu z=219.84 (4411.2%); checkoutservice_latency-90 z=83.87 (764.2%); checkoutservice_latency-50 z=53.73 (456.1%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_mem",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=checkoutservice, metric=disk]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "12308 traces after alert; worst: frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 3993.8ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2756.9ms errors=1; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 2628.9ms errors=1",
+      "source_ref": "traces.csv:traceID=ac83bf3a7a36660d761b1835864bab58",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "emailservice",
+        "frontendservice",
+        "paymentservice",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=checkoutservice, metric=diskio]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_mem z=375.25 (1876.3%); checkoutservice_cpu z=219.84 (4411.2%); checkoutservice_latency-90 z=83.87 (764.2%); checkoutservice_latency-50 z=53.73 (456.1%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_mem",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 632,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 201,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric_query to rank all services and metrics by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.3,
+        "prompt_tokens": 764,
+        "completion_tokens": 315,
+        "max_tokens": 16000,
+        "answer_chars": 577,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00936,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics strongly implicate checkoutservice (mem z=375, cpu z=220). Traces are a second, independent telemetry kind and can show whether checkoutservice's own latency is the problem or whether it is waiting on a downstream dependency.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 7.7,
+        "prompt_tokens": 1007,
+        "completion_tokens": 757,
+        "max_tokens": 16000,
+        "answer_chars": 1276,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01917,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at checkoutservice, memory is its dominant deviation (z=375, ahead of CPU z=220), and no other service appears among the all-service deviations.",
+      "action": {
+        "finish": {
+          "root_cause_service": "checkoutservice",
+          "fault_type": "mem",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "checkoutservice: CPU hog",
+              "why": "CPU deviation (z=219.84) is clearly secondary to memory (z=375.25), consistent with CPU rising as a side effect of memory pressure (E1)"
+            },
+            {
+              "candidate": "downstream dependency (paymentservice/cartservice): delay propagating upward",
+              "why": "The all-service metric ranking shows only checkoutservice metrics as significant deviations, with no downstream service listed (E1); checkoutservice's inbound caller-observed latency rose 5.66x, localizing the slowdown to checkoutservice itself (E2)"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Restart or roll back the checkoutservice pods to clear the memory pressure. Then check recent deploys for a memory leak and set or tighten memory limits and alerts.",
+            "destructive": true
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "mem (score 5) vs disk (5) for checkoutservice"
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "checkoutservice: mem",
+      "thought": "Querying checkoutservice's disk metric directly separates the two: a memory fault should leave disk I/O near baseline while memory sits at z=375, whereas a disk fault would show a large disk deviation",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "disk"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E4",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.6,
+        "prompt_tokens": 1213,
+        "completion_tokens": 325,
+        "max_tokens": 16000,
+        "answer_chars": 438,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01135,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: disk",
+      "thought": "No disk metric series exists for checkoutservice (E4), so the remaining way to tell a disk fault from memory pressure is whether checkoutservice logs show disk/I/O errors or write stalls, which a memo",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk",
+          "service": "checkoutservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 4.4,
+        "prompt_tokens": 1273,
+        "completion_tokens": 409,
+        "max_tokens": 16000,
+        "answer_chars": 543,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01327,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "downstream: cpu",
+      "thought": "The worst request paths show whether the extra latency sits in a callee span below checkoutservice, which fits a downstream CPU fault, or in checkoutservice's own self-time, which fits its own memory ",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 4.8,
+        "prompt_tokens": 1299,
+        "completion_tokens": 443,
+        "max_tokens": 16000,
+        "answer_chars": 595,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01406,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "checkoutservice: mem",
+      "thought": "No disk metric series exists (E4), so disk-fault symptoms such as write or I/O errors in checkoutservice logs are the cleanest way to tell a disk fault apart from memory pressure, which should produce",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk OR \"no space left\" OR \"I/O error\" OR ENOSPC OR \"write failed\"",
+          "service": "checkoutservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 6.0,
+        "prompt_tokens": 1538,
+        "completion_tokens": 464,
+        "max_tokens": 16000,
+        "answer_chars": 534,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01543,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: disk",
+      "thought": "Both disk and memory faults predict the observed mem/cpu spikes and slow spans, so a rising checkoutservice diskio series is the one signature element that separates disk from mem; E4 queried 'disk' b",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.9,
+        "prompt_tokens": 1589,
+        "completion_tokens": 297,
+        "max_tokens": 16000,
+        "answer_chars": 495,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0123,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "checkoutservice: mem",
+      "thought": "Disk metrics for checkoutservice are absent (E4, E8), so the most direct remaining way to tell a disk fault from memory pressure is to look for checkoutservice logs reporting disk or I/O errors; a dis",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk|I/O|no space|write error",
+          "service": "checkoutservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 7.9,
+        "prompt_tokens": 1622,
+        "completion_tokens": 709,
+        "max_tokens": 16000,
+        "answer_chars": 563,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02067,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: disk",
+      "thought": "Disk-I/O series came back empty under the names 'disk' and 'diskio' (E4, E8), so a wider unfiltered checkoutservice ranking can show whether any I/O or filesystem metric moves at all, or whether memor",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "top": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.5,
+        "prompt_tokens": 1673,
+        "completion_tokens": 554,
+        "max_tokens": 16000,
+        "answer_chars": 517,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01777,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T1 mem (score 5) vs disk (5) for checkoutservice",
+    "suspect": "checkoutservice",
+    "rival": "downstream",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "checkoutservice",
+        "fault_type": "mem",
+        "reason": "top fault types for checkoutservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=375.25",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=83.87",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E4",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "disk"
+            },
+            "depth": 1,
+            "predicted": "checkoutservice disk metrics show no significant deviation (|z| < 3), far below the mem z=375, so disk is not the driver.",
+            "rationale": "Querying checkoutservice's disk metric directly separates the two: a memory fault should leave disk I/O near baseline while memory sits at z=375, whereas a disk fault would show a large disk deviation",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "query": "disk OR \"no space left\" OR \"I/O error\" OR ENOSPC OR \"write failed\"",
+              "service": "checkoutservice",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "0 matching disk or I/O error lines for checkoutservice, consistent with memory pressure (mem z=375) rather than a disk fault.",
+            "rationale": "No disk metric series exists (E4), so disk-fault symptoms such as write or I/O errors in checkoutservice logs are the cleanest way to tell a disk fault apart from memory pressure, which should produce",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "query": "disk|I/O|no space|write error",
+              "service": "checkoutservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "Zero or near-zero disk/IO-related log lines from checkoutservice, which fits memory pressure as the cause rather than a disk fault.",
+            "rationale": "Disk metrics for checkoutservice are absent (E4, E8), so the most direct remaining way to tell a disk fault from memory pressure is to look for checkoutservice logs reporting disk or I/O errors; a dis",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "checkoutservice",
+        "fault_type": "disk",
+        "reason": "top fault types for checkoutservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=375.25",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=219.84",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "checkoutservice",
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "If disk is the root cause, checkoutservice logs show disk/I/O-related lines (e.g., write/read errors, I/O timeouts, no space) clustered after 03:27Z, with no OOM or memory-pressure messages.",
+            "rationale": "No disk metric series exists for checkoutservice (E4), so the remaining way to tell a disk fault from memory pressure is whether checkoutservice logs show disk/I/O errors or write stalls, which a memo",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "diskio"
+            },
+            "depth": 2,
+            "predicted": "checkoutservice_diskio shows a significant positive deviation after 03:27Z (z well above 3), alongside the existing mem and cpu rises.",
+            "rationale": "Both disk and memory faults predict the observed mem/cpu spikes and slow spans, so a rising checkoutservice diskio series is the one signature element that separates disk from mem; E4 queried 'disk' b",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "top": 20
+            },
+            "depth": 3,
+            "predicted": "Some I/O or filesystem-related checkoutservice metric (e.g., fs/io read-write bytes) shows a significant rise alongside mem and cpu, with socket z < 25.",
+            "rationale": "Disk-I/O series came back empty under the names 'disk' and 'diskio' (E4, E8), so a wider unfiltered checkoutservice ranking can show whether any I/O or filesystem metric moves at all, or whether memor",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "downstream",
+        "fault_type": "cpu",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "The slowest paths go through checkoutservice, and most of the added time is self-time in a downstream callee such as paymentservice, shippingservice, cartservice or currencyservice, not in checkoutser",
+            "rationale": "The worst request paths show whether the extra latency sits in a callee span below checkoutservice, which fits a downstream CPU fault, or in checkoutservice's own self-time, which fits its own memory ",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "checkoutservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for checkoutservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=219.84",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=375.25",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 7,
+    "generator_calls": 7,
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 49.2,
+    "tool_seconds": 2.0,
+    "prompt_tokens": 12610,
+    "completion_tokens": 4348,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 51.1,
+    "cost_usd": 0.13740000000000002
+  }
+}
