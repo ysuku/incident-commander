@@ -220,65 +220,78 @@ def make_observer(pad: Scratchpad, toolbox: ToolClient, seen_calls: dict, observ
     return observe
 
 
-def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient,
-                 tot: str | None = None) -> dict:
-    alert_utc = datetime.fromtimestamp(case.inject_time, tz=timezone.utc)
-    pad = Scratchpad(alert=f"{case.system}: latency/availability alert at "
-                           f"{alert_utc:%Y-%m-%d %H:%M}Z. Find root-cause service and fault type.")
-    system = SYSTEM_PROMPT.replace("{tools}", toolbox.describe())
-    trace, parse_failures, seen_calls = [], 0, {}
-    observations = {}  # eid -> (tool, args, raw result): what the ToT critic reads
-    totals = {"model_calls": 0, "model_seconds": 0.0, "tool_seconds": 0.0,
-              "prompt_tokens": 0, "completion_tokens": 0, "replies_hit_token_limit": 0}
-    t_run = time.monotonic()
-    log.info("START case=%s | step budget=%d", case.case_id, max_steps)
+class Run:
+    """One investigation's shared state plus the Commander's step primitives.
 
-    def done(brief: dict) -> dict:
-        totals["wall_seconds"] = round(time.monotonic() - t_run, 1)
-        totals["model_seconds"] = round(totals["model_seconds"], 1)
-        totals["tool_seconds"] = round(totals["tool_seconds"], 1)
-        brief["usage"] = totals
+    The linear loop below (`_investigate`) and the LangGraph nodes (graph.py,
+    Checkpoint 5.1) are both built from these methods, so the two architectures
+    cannot drift: a step means the same thing, is logged the same way and lands
+    in the same trace entry in both. The linear loop is the reference behaviour.
+    """
+
+    def __init__(self, case: IncidentCase, model, toolbox: ToolClient,
+                 max_steps: int = MAX_STEPS, tot: str | None = None):
+        alert_utc = datetime.fromtimestamp(case.inject_time, tz=timezone.utc)
+        self.case, self.model, self.toolbox = case, model, toolbox
+        self.max_steps, self.tot = max_steps, tot
+        self.pad = Scratchpad(alert=f"{case.system}: latency/availability alert at "
+                                    f"{alert_utc:%Y-%m-%d %H:%M}Z. Find root-cause service and fault type.")
+        self.system = SYSTEM_PROMPT.replace("{tools}", toolbox.describe())
+        self.trace: list[dict] = []
+        self.parse_failures, self.seen_calls = 0, {}
+        self.observations: dict = {}  # eid -> (tool, args, raw result): what the ToT critic reads
+        self.totals = {"model_calls": 0, "model_seconds": 0.0, "tool_seconds": 0.0,
+                       "prompt_tokens": 0, "completion_tokens": 0, "replies_hit_token_limit": 0}
+        self.t_run = time.monotonic()
+        self.step = 0
+        self.entry: dict = {}  # the current step's trace entry
+        self.observe = make_observer(self.pad, toolbox, self.seen_calls, self.observations, self.totals)
+        log.info("START case=%s | step budget=%d", case.case_id, max_steps)
+
+    # ------------------------------------------------------------ accounting
+    def count(self, call: dict) -> bool:
+        """Add one model call to the run totals; True if the reply was cut off."""
+        self.totals["model_calls"] += 1
+        self.totals["model_seconds"] += call.get("seconds") or 0
+        self.totals["prompt_tokens"] += call.get("prompt_tokens") or 0
+        self.totals["completion_tokens"] += call.get("completion_tokens") or 0
+        cut_off = call.get("finish_reason") == "length"
+        self.totals["replies_hit_token_limit"] += int(cut_off)
+        return cut_off
+
+    def done(self, brief: dict) -> dict:
+        t = self.totals
+        t["wall_seconds"] = round(time.monotonic() - self.t_run, 1)
+        t["model_seconds"] = round(t["model_seconds"], 1)
+        t["tool_seconds"] = round(t["tool_seconds"], 1)
+        brief["usage"] = t
         log.info("END status=%s | %d model calls | %.0fs total (model %.0fs, tools %.1fs) | "
                  "tokens in %d / out %d | %d replies hit the token limit",
-                 brief["status"], totals["model_calls"], totals["wall_seconds"],
-                 totals["model_seconds"], totals["tool_seconds"], totals["prompt_tokens"],
-                 totals["completion_tokens"], totals["replies_hit_token_limit"])
+                 brief["status"], t["model_calls"], t["wall_seconds"], t["model_seconds"],
+                 t["tool_seconds"], t["prompt_tokens"], t["completion_tokens"],
+                 t["replies_hit_token_limit"])
         return brief
 
-    observe = make_observer(pad, toolbox, seen_calls, observations, totals)
-
-    def run_tot(trigger: str, suspect: str, rival: str | None) -> dict:
-        from . import tot as tot_mod
-        gen = tot_mod.ModelGenerator(model) if tot == "model" else tot_mod.HeuristicGenerator()
-        ctx = tot_mod.TotContext(pad, toolbox, observe, observations,
-                                 lambda n, a: (n, json.dumps(a, sort_keys=True)) in seen_calls)
-        result = tot_mod.run_tot(ctx, suspect, rival, gen, trigger, trace)
-        for call in getattr(gen, "last_calls", []):
-            totals["model_calls"] += 1
-            totals["model_seconds"] += call.get("seconds") or 0
-            totals["prompt_tokens"] += call.get("prompt_tokens") or 0
-            totals["completion_tokens"] += call.get("completion_tokens") or 0
-        return done(_tot_brief(pad, trace, result, ctx))
-
-    for step in range(1, max_steps + 1):
-        raw = model.complete([{"role": "system", "content": system},
-                              {"role": "user", "content": pad.render()}])
-        call = dict(getattr(model, "last_call", {}) or {})
-        totals["model_calls"] += 1
-        totals["model_seconds"] += call.get("seconds") or 0
-        totals["prompt_tokens"] += call.get("prompt_tokens") or 0
-        totals["completion_tokens"] += call.get("completion_tokens") or 0
-        cut_off = call.get("finish_reason") == "length"
-        totals["replies_hit_token_limit"] += int(cut_off)
-        entry = {"step": step, "model_call": call}
-        trace.append(entry)
-        log.info("step %d/%d | %s", step, max_steps, _model_line(call))
+    # ------------------------------------------------------------ the Commander's turn
+    def think(self) -> tuple[str, object]:
+        """One Commander turn: ("tool", (name, args)) | ("finish", finish) |
+        ("retry", why) when the reply was unusable and the board now says so |
+        ("abort", reason) after too many unparseable replies."""
+        self.step += 1
+        step, pad = self.step, self.pad
+        raw = self.model.complete([{"role": "system", "content": self.system},
+                                   {"role": "user", "content": pad.render()}])
+        call = dict(getattr(self.model, "last_call", {}) or {})
+        cut_off = self.count(call)
+        self.entry = entry = {"step": step, "model_call": call}
+        self.trace.append(entry)
+        log.info("step %d/%d | %s", step, self.max_steps, _model_line(call))
 
         try:
             msg = _parse(raw)
             action = msg["action"]
         except Exception as e:
-            parse_failures += 1
+            self.parse_failures += 1
             snippet = " ".join(raw.split())[:160] or "(empty response)"
             hint = (" Your reply was cut off at the length limit: think less, answer sooner."
                     if cut_off else "")
@@ -287,9 +300,9 @@ def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient,
             entry.update(outcome="unparseable", detail=f"{e}; raw started: {snippet}")
             log.warning("   -> UNPARSEABLE (%s)%s raw=%r", e,
                         " because the reply hit the token limit" if cut_off else "", snippet[:80])
-            if parse_failures > MAX_PARSE_FAILURES:
-                return done(_escalate(pad, trace, "model output unparseable"))
-            continue
+            if self.parse_failures > MAX_PARSE_FAILURES:
+                return "abort", "model output unparseable"
+            return "retry", "unparseable"
 
         # "rationale" since Oct 28 (Claude's classifier refused a per-step "thought"
         # as reasoning extraction); older runs and the mock still send "thought"
@@ -300,73 +313,145 @@ def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient,
         log.info("   thought: %s", " ".join(entry["thought"].split())[:160])
 
         if "finish" in action:
-            brief, problem = _gate(pad, action["finish"])
-            if problem:
-                pad.notes.append(f"step {step}: finish rejected - {problem}")
-                entry.update(outcome="finish_rejected", detail=problem)
-                log.info("   -> FINISH REJECTED by citation gate: %s", problem)
-                continue
-            if tot:
-                ambiguous = _fault_ambiguity(pad, observe, observations, action["finish"])
-                if ambiguous:
-                    entry.update(outcome="finish_ambiguous", detail=ambiguous)
-                    log.info("   -> FINISH passed the gate but is AMBIGUOUS: %s", ambiguous)
-                    rivals = [s for s in _candidate_services(pad)
-                              if _norm(s) != _norm(brief["root_cause"]["service"])]
-                    return run_tot(f"T1 {ambiguous}", brief["root_cause"]["service"],
-                                   rivals[0] if rivals else None)
-            entry["outcome"] = "diagnosed"
-            rc = brief["root_cause"]
-            log.info("   -> DIAGNOSED %s / %s, citing %s", rc["service"], rc["fault_type"],
-                     ", ".join(e["eid"] for e in brief["supporting_evidence"]))
-            brief.update(status="diagnosed", steps=step, investigation=trace,
-                         evidence_board=[vars(e) for e in pad.evidence])
-            return done(brief)
-
+            return "finish", action["finish"]
         name = action.get("tool")
         args = action.get("args") or {}
-        if name not in toolbox.diagnostic:
+        if name not in self.toolbox.diagnostic:
             pad.notes.append(f"step {step}: unknown tool {name!r}")
             entry.update(outcome="unknown_tool", detail=str(name))
             log.info("   -> UNKNOWN TOOL %r", name)
-            continue
+            return "retry", "unknown_tool"
         if not isinstance(args, dict):
             pad.notes.append(f"step {step}: bad args for {name}: args must be a JSON object")
             entry.update(outcome="bad_args", detail=f"args was {type(args).__name__}")
             log.info("   -> %s BAD ARGS: not an object (%r)", name, args)
-            continue
+            return "retry", "bad_args"
         key = (name, json.dumps(args, sort_keys=True))
-        if key in seen_calls:
+        if key in self.seen_calls:
             pad.notes.append(f"step {step}: {name}({args}) was already called; its result is "
-                             f"{seen_calls[key]}. Choose a different query.")
-            entry.update(outcome="repeated_call", detail=f"same as {seen_calls[key]}")
+                             f"{self.seen_calls[key]}. Choose a different query.")
+            entry.update(outcome="repeated_call", detail=f"same as {self.seen_calls[key]}")
             log.info("   -> REFUSED repeat of %s(%s), already answered by %s",
-                     name, _short(args), seen_calls[key])
-            continue
+                     name, _short(args), self.seen_calls[key])
+            return "retry", "repeated_call"
+        return "tool", (name, args)
+
+    def act(self, name: str, args: dict) -> str | None:
+        """Run the tool the Commander chose; the new evidence id, or None on bad args."""
+        step, entry = self.step, self.entry
         t_tool = time.monotonic()
         try:
-            result = toolbox.call(name, args)
+            result = self.toolbox.call(name, args)
         except (TypeError, ValueError) as e:
-            pad.notes.append(f"step {step}: bad args for {name}: {e}")
+            self.pad.notes.append(f"step {step}: bad args for {name}: {e}")
             entry.update(outcome="bad_args", detail=str(e))
             log.info("   -> %s(%s) BAD ARGS: %s", name, _short(args), str(e)[:140])
-            continue
+            return None
         tool_s = round(time.monotonic() - t_tool, 2)
-        totals["tool_seconds"] += tool_s
+        self.totals["tool_seconds"] += tool_s
         kind, summary, ref, implicated = _summarize(name, result, args)
-        ev = pad.add(kind, summary, ref, implicated)
-        seen_calls[key] = ev.eid
-        observations[ev.eid] = (name, args, result)
+        ev = self.pad.add(kind, summary, ref, implicated)
+        self.seen_calls[(name, json.dumps(args, sort_keys=True))] = ev.eid
+        self.observations[ev.eid] = (name, args, result)
         entry.update(outcome="tool_call", observed=ev.eid, tool_seconds=tool_s)
         log.info("   -> %s(%s) -> %s [%s] %s (tool %.1fs)", name, _short(args), ev.eid,
                  kind, summary[:110], tool_s)
-        if tot and step >= TOT_AFTER_STEPS and not _any_two_kinds(pad):
-            suspects = _candidate_services(pad)
-            if suspects:
-                return run_tot(f"T2 two-kinds rule unmet after {step} steps", suspects[0],
-                               suspects[1] if len(suspects) > 1 else None)
+        return ev.eid
 
-    return done(_escalate(pad, trace, f"step budget ({max_steps}) exhausted"))
+    # ------------------------------------------------------------ validation points
+    def gate(self, finish: dict) -> tuple[dict, str | None]:
+        """The citation gate on a finish proposal: (brief, None) when accepted, else
+        ({}, problem) with the reason posted to the board for the Commander."""
+        brief, problem = _gate(self.pad, finish)
+        if problem:
+            self.pad.notes.append(f"step {self.step}: finish rejected - {problem}")
+            self.entry.update(outcome="finish_rejected", detail=problem)
+            log.info("   -> FINISH REJECTED by citation gate: %s", problem)
+        return brief, problem
+
+    def ambiguity(self, finish: dict, brief: dict) -> tuple[str, str, str | None] | None:
+        """T1: (trigger, suspect, rival) when a gated finish is ambiguous, else None."""
+        ambiguous = _fault_ambiguity(self.pad, self.observe, self.observations, finish)
+        if not ambiguous:
+            return None
+        self.entry.update(outcome="finish_ambiguous", detail=ambiguous)
+        log.info("   -> FINISH passed the gate but is AMBIGUOUS: %s", ambiguous)
+        service = brief["root_cause"]["service"]
+        rivals = [s for s in _candidate_services(self.pad) if _norm(s) != _norm(service)]
+        return f"T1 {ambiguous}", service, rivals[0] if rivals else None
+
+    def two_kinds_unmet(self) -> tuple[str, str, str | None] | None:
+        """T2: (trigger, suspect, rival) when, after TOT_AFTER_STEPS steps, no
+        service has two telemetry kinds implicating it, else None."""
+        if self.step < TOT_AFTER_STEPS or _any_two_kinds(self.pad):
+            return None
+        suspects = _candidate_services(self.pad)
+        if not suspects:
+            return None
+        return (f"T2 two-kinds rule unmet after {self.step} steps", suspects[0],
+                suspects[1] if len(suspects) > 1 else None)
+
+    # ------------------------------------------------------------ outcomes
+    def diagnosed(self, brief: dict, tot: dict | None = None) -> dict:
+        """Finalize an accepted brief (status diagnosed)."""
+        if tot is None:
+            self.entry["outcome"] = "diagnosed"
+        rc = brief["root_cause"]
+        log.info("   -> DIAGNOSED %s / %s, citing %s", rc["service"], rc["fault_type"],
+                 ", ".join(e["eid"] for e in brief["supporting_evidence"]))
+        brief.update(status="diagnosed", steps=self.step, investigation=self.trace,
+                     evidence_board=[vars(e) for e in self.pad.evidence])
+        if tot is not None:
+            brief.update(decided_by="tot", steps=len(self.trace), tot=tot)
+        return brief
+
+    def escalate(self, reason: str) -> dict:
+        return _escalate(self.pad, self.trace, reason)
+
+    # ------------------------------------------------------------ Tree-of-Thought
+    def tot_context(self, toolbox: ToolClient | None = None):
+        from . import tot as tot_mod
+        return tot_mod.TotContext(self.pad, toolbox or self.toolbox, self.observe, self.observations,
+                                  lambda n, a: (n, json.dumps(a, sort_keys=True)) in self.seen_calls)
+
+    def generator(self):
+        from . import tot as tot_mod
+        return tot_mod.ModelGenerator(self.model) if self.tot == "model" else tot_mod.HeuristicGenerator()
+
+    def count_generator(self, gen) -> None:
+        for call in getattr(gen, "last_calls", []):
+            self.count(call)
+
+    def tot_brief(self, trigger: str, suspect: str, rival: str | None) -> dict:
+        """Linear path: run the whole ToT controller and turn its result into a brief."""
+        from . import tot as tot_mod
+        gen, ctx = self.generator(), self.tot_context()
+        result = tot_mod.run_tot(ctx, suspect, rival, gen, trigger, self.trace)
+        self.count_generator(gen)
+        return _tot_brief(self, tot_mod.with_flags(result), ctx)
+
+
+def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient,
+                 tot: str | None = None) -> dict:
+    """The linear ReAct loop, written over Run's primitives."""
+    run = Run(case, model, toolbox, max_steps, tot)
+    while run.step < run.max_steps:
+        kind, payload = run.think()
+        if kind == "abort":
+            return run.done(run.escalate(payload))
+        if kind == "retry":
+            continue
+        if kind == "finish":
+            brief, problem = run.gate(payload)
+            if problem:
+                continue
+            if tot and (req := run.ambiguity(payload, brief)):
+                return run.done(run.tot_brief(*req))
+            return run.done(run.diagnosed(brief))
+        name, args = payload
+        if run.act(name, args) and tot and (req := run.two_kinds_unmet()):
+            return run.done(run.tot_brief(*req))
+    return run.done(run.escalate(f"step budget ({max_steps}) exhausted"))
 
 
 def _gate(pad: Scratchpad, finish: dict) -> tuple[dict, str | None]:
@@ -475,34 +560,50 @@ def _fault_ambiguity(pad: Scratchpad, observe, observations: dict, finish: dict)
     return None
 
 
-def _tot_brief(pad: Scratchpad, trace: list, result: dict, ctx) -> dict:
-    """The brief from a ToT result: selected -> diagnosed (re-checked by the gate);
-    tied -> escalated naming the indistinguishable hypotheses; else escalated with
-    the ranked branches."""
+def tot_finish(result: dict, ctx) -> dict | None:
+    """The finish proposal for ToT's selected branch (None if nothing was selected).
+    It still goes through the citation gate like any Commander finish."""
     from . import signatures as sig
     from . import tot as tot_mod
     sel = result["selected"]
-    result = {**result, "flags": {b["branch_id"]: tot_mod.unobservable_flags(b) for b in result["ranked"]
-                                  if tot_mod.unobservable_flags(b)}}
+    if not sel:
+        return None
+    cited = [eid for eids in ctx.implicating_kinds(sel["service"]).values() for eid in eids]
+    return {"root_cause_service": sel["service"], "fault_type": sel["fault_type"],
+            "supporting_evidence": cited,
+            "alternatives_rejected": tot_mod.alternatives(result),
+            "proposed_fix": {"description": sig.REMEDIATION[sel["fault_type"]].format(svc=sel["service"]),
+                             "destructive": True}}
+
+
+def tot_reason(result: dict, gate_problem: str | None = None) -> str:
+    """Why a ToT result ends in an escalation."""
+    sel = result["selected"]
     if sel:
-        cited = [eid for eids in ctx.implicating_kinds(sel["service"]).values() for eid in eids]
-        finish = {"root_cause_service": sel["service"], "fault_type": sel["fault_type"],
-                  "supporting_evidence": cited,
-                  "alternatives_rejected": tot_mod.alternatives(result),
-                  "proposed_fix": {"description": sig.REMEDIATION[sel["fault_type"]].format(svc=sel["service"]),
-                                   "destructive": True}}
-        brief, problem = _gate(pad, finish)
-        if not problem:
-            brief.update(status="diagnosed", decided_by="tot", steps=len(trace), investigation=trace,
-                         evidence_board=[vars(e) for e in pad.evidence], tot=result)
-            return brief
-        reason = f"tot selected {sel['service']}: {sel['fault_type']} but the gate refused: {problem}"
-    elif result["status"] == "tied":
-        reason = ("tie: " + " or ".join(f"{b['service']}: {b['fault_type']}" for b in result["tied"])
-                  + ", indistinguishable in this data")
-    else:
-        reason = "tot: no branch passed the two-kinds gate"
-    brief = _escalate(pad, trace, reason)
+        return f"tot selected {sel['service']}: {sel['fault_type']} but the gate refused: {gate_problem}"
+    if result["status"] == "tied":
+        return ("tie: " + " or ".join(f"{b['service']}: {b['fault_type']}" for b in result["tied"])
+                + ", indistinguishable in this data")
+    return "tot: no branch passed the two-kinds gate"
+
+
+def tot_escalation(run: "Run", result: dict, reason: str) -> dict:
+    """Escalate with ToT's ranked branches as the candidates."""
+    from . import tot as tot_mod
+    brief = run.escalate(reason)
     brief["candidates"] = [tot_mod.summary_line(b) for b in result["ranked"]]
     brief["tot"] = result
     return brief
+
+
+def _tot_brief(run: "Run", result: dict, ctx) -> dict:
+    """Linear path. The brief from a ToT result: selected -> diagnosed (re-checked
+    by the gate); tied -> escalated naming the indistinguishable hypotheses; else
+    escalated with the ranked branches."""
+    finish = tot_finish(result, ctx)
+    if finish:
+        brief, problem = _gate(run.pad, finish)
+        if not problem:
+            return run.diagnosed(brief, tot=result)
+        return tot_escalation(run, result, tot_reason(result, problem))
+    return tot_escalation(run, result, tot_reason(result))

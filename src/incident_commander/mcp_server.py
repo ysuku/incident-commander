@@ -130,15 +130,11 @@ class ToolClient:
     def describe(self) -> str:
         """Tool lines for the system prompt, from the live schemas:
         'name(required, optional?) - description'."""
-        lines = []
-        for t in self.tools:
-            if t.name in BRANCH_TOOLS:
-                continue
-            schema = t.inputSchema or {}
-            required = set(schema.get("required", []))
-            params = ", ".join(p if p in required else f"{p}?" for p in schema.get("properties", {}))
-            lines.append(f"{t.name}({params}) - {t.description}")
-        return ";\n".join(lines) + "."
+        return _describe(self.tools)
+
+    def scoped(self, allowed) -> "ScopedToolClient":
+        """This session, restricted to `allowed` tool names (a role's view)."""
+        return ScopedToolClient(self, allowed)
 
     def close(self) -> None:
         self._stack.close()
@@ -148,6 +144,46 @@ class ToolClient:
 
     def __exit__(self, *exc):
         self.close()
+
+
+def _describe(tools) -> str:
+    lines = []
+    for t in tools:
+        if t.name in BRANCH_TOOLS:
+            continue
+        schema = t.inputSchema or {}
+        required = set(schema.get("required", []))
+        params = ", ".join(p if p in required else f"{p}?" for p in schema.get("properties", {}))
+        lines.append(f"{t.name}({params}) - {t.description}")
+    return ";\n".join(lines) + "."
+
+
+class ScopedToolClient:
+    """One role's view of the server (Checkpoint 5.1: tool access differs by role).
+
+    Only the allowed tools are listed, rendered into the role's prompt, or
+    callable; anything else is refused here, in code, not by the prompt. The
+    Commander and the Investigators get the diagnostic tools without
+    runbook_lookup, so no runbook can steer a diagnosis; the Fix Advisor gets
+    runbook_lookup only. Shares the underlying session (one server per incident).
+    """
+
+    def __init__(self, client, allowed):
+        self._client, self.allowed = client, tuple(allowed)
+        self.tools = [t for t in client.tools if t.name in self.allowed]
+        self.names = [t.name for t in self.tools]
+        self.diagnostic = [n for n in self.names if n not in BRANCH_TOOLS]
+
+    def call(self, name: str, args: dict):
+        if name not in self.names:
+            raise ToolError(f"tool {name!r} is not available to this role (allowed: {self.names})")
+        return self._client.call(name, args)
+
+    def describe(self) -> str:
+        return _describe(self.tools)
+
+    def scoped(self, allowed) -> "ScopedToolClient":
+        return ScopedToolClient(self._client, [a for a in allowed if a in self.names])
 
 
 def main() -> None:

@@ -55,6 +55,8 @@ def _row(case, brief: dict, outcome: str) -> dict:
         "cost_usd": round(u.get("cost_usd", 0.0), 4),
         "reason": brief.get("reason", brief.get("error", "")),
         "tot": tot_outcome(case, brief),
+        "arch": brief.get("architecture", "linear"),
+        "fix_flags": len((brief.get("proposed_fix") or {}).get("contradictions") or []),
     }
 
 
@@ -75,8 +77,16 @@ def tot_outcome(case, brief: dict) -> str:
     return "escalated_truth_first" if first else "escalated"
 
 
+def diagnose(case, model, tot: str | None = None, arch: str = "linear") -> dict:
+    """Dispatch on architecture: the linear 4.1 agent, or the 5.1 graph."""
+    if arch == "graph":
+        from . import graph
+        return graph.diagnose(case, model, tot=tot or "model")
+    return loop.diagnose(case, model, tot=tot)
+
+
 def run_eval(cases: list, make_model, out_dir: Path, max_usd: float | None = None,
-             tot: str | None = None) -> list[dict]:
+             tot: str | None = None, arch: str = "linear") -> list[dict]:
     """Run each case (skipping ones already saved in out_dir); returns all rows."""
     out_dir.mkdir(parents=True, exist_ok=True)
     rows, spent = [], 0.0
@@ -93,7 +103,7 @@ def run_eval(cases: list, make_model, out_dir: Path, max_usd: float | None = Non
             model = make_model()
             t0 = time.monotonic()
             try:
-                brief = loop.diagnose(case, model, tot=tot)
+                brief = diagnose(case, model, tot=tot, arch=arch)
             except Exception as e:  # keep going; the row records it
                 brief = {"status": "error", "error": f"{type(e).__name__}: {e}",
                          "traceback": traceback.format_exc(),

@@ -162,6 +162,18 @@ class MockModel:
         self.last_call = {"seconds": 0.0, "prompt_tokens": None, "completion_tokens": None,
                           "finish_reason": "stop", "mock": True}
         board = messages[-1]["content"]
+        if messages[0]["content"].startswith("You are an Investigator"):
+            # 4.1/5.1: the mock has no view of the branch, so it hands the choice of
+            # test to the heuristic generator (ModelGenerator's fallback), on the record
+            return "mock investigator: defer to the heuristic test"
+        if messages[0]["content"].startswith("You are the Fix Advisor"):
+            # 5.1: a conditional fix citing the first retrieved runbook, if any
+            refs = re.findall(r"^\s+(R\d+) ", board, flags=re.MULTILINE)
+            return json.dumps({"rationale": "Mock fix advisor.",
+                               "fix": {"summary": "Raise the limit after confirming the app is healthy",
+                                       "steps": ["check the app is not looping", "raise the limit"],
+                                       "preconditions": ["change window open"], "rollback": "revert the limit"},
+                               "runbook_refs": refs[:1], "contradictions": []})
         if "E1" not in board:
             return json.dumps({"thought": "Start with cheap, computed metric deviations.",
                                "candidates": [],

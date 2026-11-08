@@ -205,69 +205,10 @@ class TotContext:
         return out
 
 
-def run_tot(ctx: TotContext, suspect: str, rival: str | None, generator,
-            trigger: str, trace: list | None = None) -> dict:
-    """Beam search over fault hypotheses. Returns
-    {status: selected|tied|escalated, selected, ranked, expansions, ...}."""
-    tb, trace = ctx.toolbox, trace if trace is not None else []
-    log.info("ToT START (%s) suspect=%s rival=%s", trigger, suspect, rival or "-")
-
-    def rescore() -> list[dict]:
-        live = []
-        for b in tb.call("branch_status", {})["branches"]:
-            if b["status"] != "open":
-                continue
-            vs = sig.judge(b["fault_type"], ctx.features(b["service"]))
-            b = tb.call("record_result", {"branch_id": b["branch_id"],
-                                          "verdicts": [asdict(v) for v in vs]})
-            dead = sig.must_contradicted(vs)
-            if dead:
-                why = "; ".join(f"{v.signal} contradicted: {v.observed} ({v.eid})" for v in dead)
-                tb.call("close_branch", {"branch_id": b["branch_id"], "status": "pruned", "reason": why})
-                log.info("   prune %s %s: %s", b["branch_id"], b["service"] + ":" + b["fault_type"], why)
-                continue
-            live.append(b)
-        if live:
-            # prune on the ceiling (untested signals counted as confirmed): a branch that
-            # has only been tested less must not lose to one that has been tested more
-            best = max(b["score"] for b in live)
-            for b in [b for b in live if _ceiling(b) <= best - PRUNE_GAP]:
-                why = (f"score {b['score']} (at most {_ceiling(b)} if every untested signal held) "
-                       f"is {best - _ceiling(b)}+ below the best ({best})")
-                tb.call("close_branch", {"branch_id": b["branch_id"], "status": "pruned", "reason": why})
-                log.info("   prune %s %s: %s", b["branch_id"], b["service"] + ":" + b["fault_type"], why)
-                live.remove(b)
-        return sorted(live, key=lambda b: (b["score"], len(b["kinds"])), reverse=True)
-
-    def decide(live: list[dict]) -> tuple[str, list[dict]] | None:
-        """selected when the best is fully tested (no signal left untested), passes
-        the two-kinds gate, has no contradicted signal, and leads the runner-up by
-        MARGIN (or on telemetry kinds) over every other live branch. A branch with
-        untested signals is compared on its ceiling, so it must be tested (or be out
-        of reach even if all its signals held) before another can win; None = keep
-        testing (and escalate if the budget runs out)."""
-        if not live:
-            return "escalated", []
-        best = live[0]
-        gate = ctx.implicating_kinds(best["service"])
-        clean = not any(v["verdict"] in (sig.CONTRADICTED, sig.UNTESTED) for v in best["verdicts"])
-        if len(gate) < 2 or not clean:
-            return None
-
-        def beaten(o: dict) -> bool:
-            if _untested(o):
-                return best["score"] - _ceiling(o) >= MARGIN
-            return best["score"] - o["score"] >= MARGIN or len(best["kinds"]) > len(o["kinds"])
-
-        others = live[1:]
-        if all(beaten(o) for o in others):
-            return "selected", [best]
-        if any(_untested(o) and not beaten(o) for o in others):
-            return None
-        return "tied", [b for b in live if b["score"] == best["score"]
-                        and len(b["kinds"]) == len(best["kinds"])]
-
-    # root: the suspect's metric signature, then its top fault types
+def open_roots(ctx: TotContext, suspect: str, rival: str | None) -> None:
+    """Root: the suspect's metric signature, then its top fault types as branches
+    (+ one rival-service branch on conflict)."""
+    tb = ctx.toolbox
     ctx.observe("metric_query", {"service": suspect}, "tot root: metric signature of the suspect")
     roots = [r for r in sig.rank_faults(ctx.features(suspect)) if not sig.must_contradicted(r[2])]
     for fault, s, _ in roots[:ROOT_BRANCHES]:
@@ -283,42 +224,100 @@ def run_tot(ctx: TotContext, suspect: str, rival: str | None, generator,
         except ValueError as e:  # rival not a metric service
             log.info("   rival %s skipped: %s", rival, e)
 
-    expansions, outcome = 0, None
-    live = rescore()
-    for depth in range(1, DEPTH_LIMIT + 1):
-        outcome = decide(live)
-        if outcome and outcome[0] != "tied":
-            break
-        beam = live if depth == 1 else live[:BEAM_WIDTH]
-        progressed = False
-        for b in beam:
-            if expansions >= MAX_EXPANSIONS:
-                break
-            rival_b = next((o for o in live if o["branch_id"] != b["branch_id"]), None)
-            thought = generator.propose(b, rival_b, ctx)
-            if thought is None:
-                continue
-            expansions += 1
-            eid = ctx.observe(thought.tool, thought.args,
-                              f"tot {b['branch_id']} {b['service']}:{b['fault_type']} depth {depth}")
-            test = {"eid": eid, "tool": thought.tool, "args": thought.args, "depth": depth,
-                    "predicted": thought.predicted, "rationale": thought.rationale, "by": thought.by}
-            tb.call("record_result", {"branch_id": b["branch_id"], "verdicts": b["verdicts"], "test": test})
-            trace.append({"step": len(trace) + 1, "phase": "tot", "branch": b["branch_id"],
-                          "hypothesis": f"{b['service']}: {b['fault_type']}", "thought": thought.rationale,
-                          "action": {"tool": thought.tool, "args": thought.args},
-                          "outcome": "tot_test" if eid else "tot_test_failed", "observed": eid,
-                          "generator": thought.by,
-                          "model_call": (generator.last_calls[-1] if getattr(generator, "last_calls", None)
-                                         and thought.by == "model" else {})})
-            progressed = progressed or bool(eid)
-        live = rescore()
-        if not progressed or expansions >= MAX_EXPANSIONS:
-            outcome = decide(live)
-            break
-    else:
-        outcome = decide(live)
 
+def rescore(ctx: TotContext) -> list[dict]:
+    """The critic (code): re-judge every open branch against the board, prune, rank."""
+    tb, live = ctx.toolbox, []
+    for b in tb.call("branch_status", {})["branches"]:
+        if b["status"] != "open":
+            continue
+        vs = sig.judge(b["fault_type"], ctx.features(b["service"]))
+        b = tb.call("record_result", {"branch_id": b["branch_id"],
+                                      "verdicts": [asdict(v) for v in vs]})
+        dead = sig.must_contradicted(vs)
+        if dead:
+            why = "; ".join(f"{v.signal} contradicted: {v.observed} ({v.eid})" for v in dead)
+            tb.call("close_branch", {"branch_id": b["branch_id"], "status": "pruned", "reason": why})
+            log.info("   prune %s %s: %s", b["branch_id"], b["service"] + ":" + b["fault_type"], why)
+            continue
+        live.append(b)
+    if live:
+        # prune on the ceiling (untested signals counted as confirmed): a branch that
+        # has only been tested less must not lose to one that has been tested more
+        best = max(b["score"] for b in live)
+        for b in [b for b in live if _ceiling(b) <= best - PRUNE_GAP]:
+            why = (f"score {b['score']} (at most {_ceiling(b)} if every untested signal held) "
+                   f"is {best - _ceiling(b)}+ below the best ({best})")
+            tb.call("close_branch", {"branch_id": b["branch_id"], "status": "pruned", "reason": why})
+            log.info("   prune %s %s: %s", b["branch_id"], b["service"] + ":" + b["fault_type"], why)
+            live.remove(b)
+    return sorted(live, key=lambda b: (b["score"], len(b["kinds"])), reverse=True)
+
+
+def decide(ctx: TotContext, live: list[dict]) -> tuple[str, list[dict]] | None:
+    """selected when the best is fully tested (no signal left untested), passes
+    the two-kinds gate, has no contradicted signal, and leads the runner-up by
+    MARGIN (or on telemetry kinds) over every other live branch. A branch with
+    untested signals is compared on its ceiling, so it must be tested (or be out
+    of reach even if all its signals held) before another can win; None = keep
+    testing (and escalate if the budget runs out)."""
+    if not live:
+        return "escalated", []
+    best = live[0]
+    gate = ctx.implicating_kinds(best["service"])
+    clean = not any(v["verdict"] in (sig.CONTRADICTED, sig.UNTESTED) for v in best["verdicts"])
+    if len(gate) < 2 or not clean:
+        return None
+
+    def beaten(o: dict) -> bool:
+        if _untested(o):
+            return best["score"] - _ceiling(o) >= MARGIN
+        return best["score"] - o["score"] >= MARGIN or len(best["kinds"]) > len(o["kinds"])
+
+    others = live[1:]
+    if all(beaten(o) for o in others):
+        return "selected", [best]
+    if any(_untested(o) and not beaten(o) for o in others):
+        return None
+    return "tied", [b for b in live if b["score"] == best["score"]
+                    and len(b["kinds"]) == len(best["kinds"])]
+
+
+def expand_beam(ctx: TotContext, generator, live: list[dict], depth: int,
+                expansions: int, trace: list) -> tuple[int, bool]:
+    """The investigators: one proposed test per branch in the beam, each run
+    through the shared observer. Returns (expansions so far, whether any test ran)."""
+    tb = ctx.toolbox
+    beam = live if depth == 1 else live[:BEAM_WIDTH]
+    progressed = False
+    for b in beam:
+        if expansions >= MAX_EXPANSIONS:
+            break
+        rival_b = next((o for o in live if o["branch_id"] != b["branch_id"]), None)
+        thought = generator.propose(b, rival_b, ctx)
+        if thought is None:
+            continue
+        expansions += 1
+        eid = ctx.observe(thought.tool, thought.args,
+                          f"tot {b['branch_id']} {b['service']}:{b['fault_type']} depth {depth}")
+        test = {"eid": eid, "tool": thought.tool, "args": thought.args, "depth": depth,
+                "predicted": thought.predicted, "rationale": thought.rationale, "by": thought.by}
+        tb.call("record_result", {"branch_id": b["branch_id"], "verdicts": b["verdicts"], "test": test})
+        trace.append({"step": len(trace) + 1, "phase": "tot", "branch": b["branch_id"],
+                      "hypothesis": f"{b['service']}: {b['fault_type']}", "thought": thought.rationale,
+                      "action": {"tool": thought.tool, "args": thought.args},
+                      "outcome": "tot_test" if eid else "tot_test_failed", "observed": eid,
+                      "generator": thought.by,
+                      "model_call": (generator.last_calls[-1] if getattr(generator, "last_calls", None)
+                                     and thought.by == "model" else {})})
+        progressed = progressed or bool(eid)
+    return expansions, progressed
+
+
+def close(ctx: TotContext, outcome, trigger: str, suspect: str, rival: str | None,
+          expansions: int, generator) -> dict:
+    """Close the chosen branches on the board and assemble the ToT result."""
+    tb = ctx.toolbox
     status, chosen = outcome or ("escalated", [])
     for b in chosen:
         tb.call("close_branch", {"branch_id": b["branch_id"], "status": status,
@@ -332,6 +331,36 @@ def run_tot(ctx: TotContext, suspect: str, rival: str | None, generator,
             "tied": chosen if status == "tied" else [],
             "ranked": ranked, "expansions": expansions,
             "generator_calls": getattr(generator, "calls", 0)}
+
+
+def run_tot(ctx: TotContext, suspect: str, rival: str | None, generator,
+            trigger: str, trace: list | None = None) -> dict:
+    """Beam search over fault hypotheses, as one function (the linear `--tot`
+    path; graph.py runs the same steps as LangGraph nodes). Returns
+    {status: selected|tied|escalated, selected, ranked, expansions, ...}."""
+    trace = trace if trace is not None else []
+    log.info("ToT START (%s) suspect=%s rival=%s", trigger, suspect, rival or "-")
+    open_roots(ctx, suspect, rival)
+    expansions, outcome = 0, None
+    live = rescore(ctx)
+    for depth in range(1, DEPTH_LIMIT + 1):
+        outcome = decide(ctx, live)
+        if outcome and outcome[0] != "tied":
+            break
+        expansions, progressed = expand_beam(ctx, generator, live, depth, expansions, trace)
+        live = rescore(ctx)
+        if not progressed or expansions >= MAX_EXPANSIONS:
+            outcome = decide(ctx, live)
+            break
+    else:
+        outcome = decide(ctx, live)
+    return close(ctx, outcome, trigger, suspect, rival, expansions, generator)
+
+
+def with_flags(result: dict) -> dict:
+    """Attach each branch's unobservable signals (data gaps the brief must name)."""
+    flags = {b["branch_id"]: unobservable_flags(b) for b in result["ranked"] if unobservable_flags(b)}
+    return {**result, "flags": flags}
 
 
 def _untested(b: dict) -> bool:

@@ -16,8 +16,9 @@ held for explicit approval.
 
 > Status: **working agent, under evaluation.** Implemented: the ReAct loop, five read-only tools
 > behind one MCP server, the evidence scratchpad and citation gate (2.1), runbook retrieval (3.1),
-> the dev-set eval runner, and Tree-of-Thought hypothesis testing on ambiguity (4.1, `--tot`).
-> See [DESIGN_LOG.md](DESIGN_LOG.md).
+> the dev-set eval runner, Tree-of-Thought hypothesis testing on ambiguity (4.1, `--tot`), and the
+> multi-agent LangGraph architecture with role-scoped tools and a Fix Advisor (5.1, `--arch graph`,
+> not yet evaluated on the dev set). See [DESIGN_LOG.md](DESIGN_LOG.md).
 
 ## Project structure
 ```text
@@ -26,9 +27,12 @@ src/incident_commander/   the capstone system
   loaders.py              RCAEval case loading (the only code touching raw files)
   tools.py                the five read-only diagnostic tools
   mcp_server.py           FastMCP server wrapping them (one server per incident) + sync client
-  loop.py                 ReAct loop, citation gate, escalation, ToT triggers
+  loop.py                 ReAct loop (Run: the step primitives), citation gate, escalation, ToT triggers
   tot.py                  Tree-of-Thought: beam controller, generators, branch state (4.1)
   signatures.py           fault signature table + deterministic critic (4.1)
+  graph.py                LangGraph coordination: spine + conditional ToT subgraph + validation loops (5.1)
+  roles.py                Commander / Investigator / Fix Advisor: goals and tool allowlists (5.1)
+  fix_advisor.py          runbooks only after the gate; conditional fix + contradiction flags (5.1)
   scratchpad.py           evidence board (short-term memory)
   model.py                OpenRouter/OpenAI-compatible client + keyless MockModel
   retrieval.py            runbook chunking, Chroma index, MMR
@@ -60,10 +64,25 @@ python -m incident_commander.cli baseline --kind plain --case <id>
 python -m incident_commander.cli diagnose --case <id>
 python -m incident_commander.cli diagnose --case <id> --model mock   # keyless demo
 python -m incident_commander.cli diagnose --case <id> --tot model    # + Tree-of-Thought on ambiguity
+python -m incident_commander.cli diagnose --case <id> --arch graph   # 5.1 multi-agent graph (ToT on by default)
 python -m incident_commander.cli eval --model claude-opus-5-5 --tot model --max-usd 20
+python -m incident_commander.cli eval --model claude-opus-5-5 --arch graph --max-usd 20
 python scripts/tot_offline.py --suspect truth                       # ToT critic/controller, $0
+python -m incident_commander.graph --mermaid                        # draw the 5.1 graphs
 python -m pytest -q
 ```
+
+## Multi-agent architecture (5.1)
+`--arch graph` runs the same investigation as a LangGraph state graph: Commander
+(LLM) -> citation gate (code) -> Fix Advisor (LLM) -> human approval, with a
+conditional edge into the Tree-of-Thought subgraph (Investigators, one LLM call
+per branch, and the code critic) when the first pass is ambiguous. Agents never
+message each other: they read and write the shared evidence board and the branch
+board on the MCP server. Tool access is enforced per role by the MCP client:
+the Commander and Investigators cannot call `runbook_lookup`, the Fix Advisor
+can call nothing else, so a runbook can steer a fix but never a diagnosis. The
+brief carries `path` (nodes visited) and `fix_advisor` (what was retrieved,
+what was flagged as contradicted by the evidence, what was dropped).
 
 ## MCP server
 The agent reaches its tools only through MCP: `loop.diagnose` opens an in-process

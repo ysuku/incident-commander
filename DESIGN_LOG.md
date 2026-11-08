@@ -450,3 +450,56 @@ Same 30 cases, same v4 code; full tables in `evals/model_comparison_r1.md`.
   re-sent long generations while the server was still working. Fixed with
   `IC_REQUEST_TIMEOUT` / `IC_MAX_RETRIES` (model.py; defaults unchanged) and a fresh server per
   case in `scripts/qwen_ab.sh`. Error cases were set aside and re-run.
+
+## Module 5 — Multi-agent architecture implemented (Nov 7): the 5.1 plan as a LangGraph graph
+`diagnose --arch graph` / `eval --arch graph`. The linear agent (`--arch linear`, default) is
+unchanged, so every earlier number stays comparable. Not yet evaluated on the dev set.
+
+**Where each 5.1 component lives**
+| 5.1 component | Code |
+|---|---|
+| Commander (LLM) | `graph.commander` + `graph.act` nodes over `loop.Run.think/act`; tools = diagnostic only |
+| Investigators (LLM) | `graph.build_tot_graph` `investigators` node over `tot.expand_beam`; `tot.ModelGenerator` per branch |
+| Fix Advisor (LLM) | `fix_advisor.advise/apply`; `graph.fix_advisor` node, runs only after the gate; `runbook_lookup` only |
+| Critic (code) | `critic` node over `tot.rescore` + `tot.decide` (signatures.py unchanged) |
+| Citation gate (code) | `graph.gate` node over `loop.Run.gate`; ToT's selected branch goes through the same node |
+| Human | `graph.human_approval`: the brief leaves marked `approval.state = pending`; nothing executes |
+| Shared state | evidence board (`loop.Run`) + branch board (MCP server); nodes pass routing signals only |
+| Role tool access | `roles.py` allowlists, enforced by `mcp_server.ScopedToolClient` (refuses, lists, describes) |
+
+**How the port was done.** `loop._investigate` was split into `loop.Run` (shared state + step
+primitives: think, act, gate, ambiguity, two_kinds_unmet, diagnosed, escalate) and the linear loop
+was rewritten over them (59 existing tests unchanged, all pass). `tot.run_tot` was split the same
+way (open_roots / rescore / decide / expand_beam / close) and the one-function controller rewritten
+over the parts. The graph nodes call exactly those functions, so the two architectures share one
+implementation of every step. `test_tot_subgraph_matches_the_one_function_controller` runs both on
+three cases (delay, mem tie, suspect-vs-rival) and asserts identical status, expansions, and ranked
+branches.
+
+**Decisions made while building, beyond the 5.1 text**
+- **CrewAI not adopted.** `pip --dry-run` showed it pins pydantic < 2.13 (the venv has 2.14 for the
+  MCP SDK) and brings a large tree. The 5.1 plan allowed dropping it if it added nothing over plain
+  role definitions; `roles.Role` (name, goal, tool allowlist) is that, and a CrewAI Agent can be
+  generated from it later. LangGraph 1.2 installed cleanly and is the only new dependency.
+- **The Fix Advisor sees only the accepted diagnosis and its cited evidence** (`fix_advisor.render`):
+  no candidates, notes, or rejected alternatives. The runbook query is built in code from the
+  diagnosed fault (`SYMPTOMS`), so the advisor costs one tool call and one model call per diagnosed
+  case, as 5.1 budgeted. Every runbook id and evidence id the model cites is checked in code;
+  untraceable references go to `fix_advisor.dropped`, never into the brief. An unusable reply falls
+  back to the 4.1 `REMEDIATION` template with no contradiction flags. Approval stays forced in code.
+- **ToT's selected branch is re-gated by the same `gate` node** as a Commander finish (5.1 figure:
+  best branch -> citation gate -> Fix Advisor), with T1 suppressed on that pass.
+- **Investigators run sequentially for now.** In the 4.1 controller, branch 2's proposal sees branch
+  1's test result and the dedupe path; a parallel fan-out (LangGraph `Send`) would change that and
+  the comparison with the 4.1 numbers. Parallelism is a Module 6 experiment, not a free change.
+- **The evidence board stays in-process** (`loop.Run`), not on the MCP server as the 5.1 figure draws
+  it; the branch board is on the server. Moving it would touch the linear loop; deferred.
+- The brief gains `architecture`, `path` (nodes visited in order), `roles`, `fix_advisor`,
+  `approval`; `evaluate.py` scores it unchanged and adds `arch` and `fix_flags` columns.
+- The keyless mock now answers the Investigator prompt by deferring to the heuristic generator and
+  the Fix Advisor prompt with a canned plan, so `--model mock --arch graph` exercises every node.
+
+**Next:** (1) `eval --model claude-opus-5-5 --arch graph` on the 90 cases against the v4 ToT run
+(expect the same diagnoses plus a fix section and contradiction flags; cost +1 call per diagnosed
+case); (2) read the flagged contradictions by hand on a sample, since no label exists for them;
+(3) the T3 trigger question from Nov 5 is now a one-line routing change in `graph.commander`.
