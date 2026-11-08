@@ -1,0 +1,185 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: latency degradation",
+      "why": "Latency is a symptom of the underlying CPU/disk exhaustion (E1, E3)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Scale up emailservice CPU resources or optimize disk I/O operations to alleviate resource contention.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 31.0,
+        "prompt_tokens": 424,
+        "completion_tokens": 438,
+        "max_tokens": 8192,
+        "reasoning_chars": 1615,
+        "answer_chars": 170,
+        "finish_reason": "stop"
+      },
+      "thought": "Querying metrics without filters to identify which services and metrics deviated around the alert time.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 82.3,
+        "prompt_tokens": 534,
+        "completion_tokens": 1156,
+        "max_tokens": 8192,
+        "reasoning_chars": 3950,
+        "answer_chars": 380,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows extreme CPU and disk I/O spikes in emailservice; querying logs for errors will provide the second independent telemetry kind required to confirm the root cause.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 110.0,
+        "prompt_tokens": 593,
+        "completion_tokens": 1527,
+        "max_tokens": 8192,
+        "reasoning_chars": 5615,
+        "answer_chars": 374,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics show extreme CPU/disk/latency spikes in emailservice; I need trace evidence to satisfy the two-telemetry requirement and confirm it's the bottleneck.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.89
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 328.4,
+        "prompt_tokens": 690,
+        "completion_tokens": 3902,
+        "max_tokens": 8192,
+        "reasoning_chars": 14060,
+        "answer_chars": 631,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics reveal extreme CPU and disk I/O spikes for emailservice, and traces confirm elevated inbound latency, satisfying the two-telemetry requirement for resource exhaustion.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: latency degradation",
+              "why": "Latency is a symptom of the underlying CPU/disk exhaustion (E1, E3)"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Scale up emailservice CPU resources or optimize disk I/O operations to alleviate resource contention.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 551.7,
+    "tool_seconds": 1.0,
+    "prompt_tokens": 2241,
+    "completion_tokens": 7023,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 552.8,
+    "cost_usd": 0.0
+  }
+}

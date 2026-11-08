@@ -1,0 +1,228 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.2->0.25ms (1.25x), errors 0.0->0.0; inbound calls self-time p50 3.31->34.49ms (10.41x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: injected network delay",
+      "why": "A tc-style delay would not drive emailservice_cpu up 5867.8% (z=629.73) with memory up 420% (E1, E3). Flat own-span self-time with 10x inbound latency (E2) fits requests queuing on a saturated CPU before the span starts."
+    },
+    {
+      "candidate": "checkoutservice: upstream caller issue",
+      "why": "The all-services ranking (E1) shows only emailservice metrics as significant deviations. The slowdown appears on calls into emailservice (E2), not in the caller."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Find and stop the CPU-hungry workload in the emailservice pod, or restart the pod. Temporarily raise its CPU limits or scale out replicas until latency-90 returns to baseline.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 632,
+        "completion_tokens": 74,
+        "max_tokens": 16000,
+        "answer_chars": 200,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00401,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric_query to rank every service and metric by deviation after the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 759,
+        "completion_tokens": 246,
+        "max_tokens": 16000,
+        "answer_chars": 497,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00796,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out emailservice (latency z=7219, cpu z=630), so I need an independent telemetry kind; traces will show whether callers see the slowdown at emailservice itself.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.85
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 8.0,
+        "prompt_tokens": 991,
+        "completion_tokens": 734,
+        "max_tokens": 16000,
+        "answer_chars": 843,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01864,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both implicate emailservice, but the fault type is unclear: CPU jumped (z=629.73, E1), yet emailservice's own span self-time barely moved while caller-observed latency rose 10x (E2), so I need its full metric list to check for network-side deviations.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 15
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 12.5,
+        "prompt_tokens": 1149,
+        "completion_tokens": 1211,
+        "max_tokens": 16000,
+        "answer_chars": 1399,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02882,
+        "finish_reason": "stop"
+      },
+      "outcome": "unparseable",
+      "detail": "Extra data: line 1 column 1220 (char 1219); raw started: Metrics (E1/E3) and traces (E2) both point at emailservice, and a 58x CPU jump points to CPU exhaustion rather than an injected delay. The fault-type call is th"
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 8.7,
+        "prompt_tokens": 1271,
+        "completion_tokens": 739,
+        "max_tokens": 16000,
+        "answer_chars": 1073,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01986,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E3) and traces (E2) independently point at emailservice, and a 58x CPU jump without errors fits CPU exhaustion better than an injected delay.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: injected network delay",
+              "why": "A tc-style delay would not drive emailservice_cpu up 5867.8% (z=629.73) with memory up 420% (E1, E3). Flat own-span self-time with 10x inbound latency (E2) fits requests queuing on a saturated CPU before the span starts."
+            },
+            {
+              "candidate": "checkoutservice: upstream caller issue",
+              "why": "The all-services ranking (E1) shows only emailservice metrics as significant deviations. The slowdown appears on calls into emailservice (E2), not in the caller."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Find and stop the CPU-hungry workload in the emailservice pod, or restart the pod. Temporarily raise its CPU limits or scale out replicas until latency-90 returns to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.2->0.25ms (1.25x), errors 0.0->0.0; inbound calls self-time p50 3.31->34.49ms (10.41x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=7219.26 (36096.3%); emailservice_latency-50 z=1107.79 (5538.9%); emailservice_cpu z=629.73 (5867.8%); emailservice_mem z=84.05 (420.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 33.9,
+    "tool_seconds": 0.9,
+    "prompt_tokens": 4802,
+    "completion_tokens": 3004,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 34.7,
+    "cost_usd": 0.079288
+  }
+}

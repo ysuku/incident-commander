@@ -1,0 +1,287 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "loss"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=615.9 (3079.5%); emailservice_socket z=21.28 (106.4%); checkoutservice_latency-90 z=20.12 (117.0%); emailservice_mem z=18.24 (91.2%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=615.9 (3079.5%); emailservice_socket z=21.28 (106.4%); emailservice_mem z=18.24 (91.2%); emailservice_cpu z=4.55 (51.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.22ms (1.15x), errors 0.0->0.0; inbound calls self-time p50 3.59->3.9ms (1.09x), errors 0.0->0.0545",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: delay fault",
+      "why": "An injected delay would shift the whole latency distribution, but p50 self-time barely moves (0.19->0.22ms, inbound 3.59->3.9ms in E2). Only the tail explodes (latency-90 z=615.9 in E1), and new errors appear (0.0->0.0545 in E2), which is typical of packet loss, not pure delay."
+    },
+    {
+      "candidate": "emailservice: socket fault",
+      "why": "The socket metric rise (z=21.28 in E1/E4) is far smaller than the latency-90 deviation (z=615.9). It is consistent with retransmissions and lingering connections caused by loss, rather than being the primary fault signal."
+    },
+    {
+      "candidate": "checkoutservice: root cause",
+      "why": "Its latency-90 deviation (z=20.12 in E1) is an order of magnitude smaller than emailservice's. E2 shows the errors appear on calls inbound to emailservice, so checkoutservice is the caller absorbing the downstream tail latency."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Inspect emailservice pod networking for packet loss, such as an injected netem/tc qdisc, a faulty node NIC, or CNI drops. Remove the offending loss rule, or cordon the bad node so the pod reschedules elsewhere. Then confirm that emailservice p90 latency and checkout->emailservice error rate return to baseline.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 6,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 632,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 201,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric_query to rank all services and metrics by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.7,
+        "prompt_tokens": 756,
+        "completion_tokens": 229,
+        "max_tokens": 16000,
+        "answer_chars": 567,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0076,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 points strongly at emailservice (latency-90 up 3079%, with checkoutservice latency likely inherited as its caller), so I need an independent trace view of emailservice's own versus caller-observed latency to confirm it.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.84
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 5.9,
+        "prompt_tokens": 991,
+        "completion_tokens": 575,
+        "max_tokens": 16000,
+        "answer_chars": 818,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01546,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at emailservice, but the fault type is still unclear: p50 self-time barely moved (1.15x), while p90 latency spiked and inbound errors appeared. Emailservice logs should show whether this is timeouts, connection or socket errors, or memory pressure.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 7.9,
+        "prompt_tokens": 1174,
+        "completion_tokens": 696,
+        "max_tokens": 16000,
+        "answer_chars": 925,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01862,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at emailservice, but the fault type is still open: a p90 spike of 3079% alongside only a 1.15x change in p50 looks like tail latency (loss or retransmits) rather than uniform delay, so I need emailservice's full metric breakdown (latency-50 vs latency-90, socket, mem, cpu) to tell delay, loss and socket apart.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 6.6,
+        "prompt_tokens": 1336,
+        "completion_tokens": 572,
+        "max_tokens": 16000,
+        "answer_chars": 711,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01678,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E4) and traces (E2) already implicate emailservice, so the open question is fault type; caller-side error logs can separate connection failures (socket) from timeouts and retries (loss/delay).",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "email",
+          "level": "ERROR",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 10.7,
+        "prompt_tokens": 1354,
+        "completion_tokens": 1066,
+        "max_tokens": 16000,
+        "answer_chars": 1715,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02674,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E4) and traces (E2) each independently point at emailservice; a 30x p90 spike with an almost unchanged p50 (1.15x) plus new 5.45% inbound errors fits packet loss (retransmit tail latency and occasional failed calls) better than a uniform delay or a pure socket fault.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "loss",
+          "supporting_evidence": [
+            "E1",
+            "E4",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: delay fault",
+              "why": "An injected delay would shift the whole latency distribution, but p50 self-time barely moves (0.19->0.22ms, inbound 3.59->3.9ms in E2). Only the tail explodes (latency-90 z=615.9 in E1), and new errors appear (0.0->0.0545 in E2), which is typical of packet loss, not pure delay."
+            },
+            {
+              "candidate": "emailservice: socket fault",
+              "why": "The socket metric rise (z=21.28 in E1/E4) is far smaller than the latency-90 deviation (z=615.9). It is consistent with retransmissions and lingering connections caused by loss, rather than being the primary fault signal."
+            },
+            {
+              "candidate": "checkoutservice: root cause",
+              "why": "Its latency-90 deviation (z=20.12 in E1) is an order of magnitude smaller than emailservice's. E2 shows the errors appear on calls inbound to emailservice, so checkoutservice is the caller absorbing the downstream tail latency."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Inspect emailservice pod networking for packet loss, such as an injected netem/tc qdisc, a faulty node NIC, or CNI drops. Remove the offending loss rule, or cordon the bad node so the pod reschedules elsewhere. Then confirm that emailservice p90 latency and checkout->emailservice error rate return to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=615.9 (3079.5%); emailservice_socket z=21.28 (106.4%); checkoutservice_latency-90 z=20.12 (117.0%); emailservice_mem z=18.24 (91.2%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.22ms (1.15x), errors 0.0->0.0; inbound calls self-time p50 3.59->3.9ms (1.09x), errors 0.0->0.0545",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "648 matching lines; by svc/level {'emailservice/INFO': 648}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L89626",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=615.9 (3079.5%); emailservice_socket z=21.28 (106.4%); emailservice_mem z=18.24 (91.2%); emailservice_cpu z=4.55 (51.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 6,
+    "model_seconds": 35.9,
+    "tool_seconds": 1.0,
+    "prompt_tokens": 6243,
+    "completion_tokens": 3213,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 36.9,
+    "cost_usd": 0.089232
+  }
+}

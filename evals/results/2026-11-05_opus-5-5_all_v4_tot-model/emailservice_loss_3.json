@@ -1,0 +1,293 @@
+{
+  "status": "escalated",
+  "reason": "step budget (8) exhausted",
+  "candidates": [
+    "emailservice: delay fault (latency-90 +4856% in E1, but E2 trace self-time is flat, so unconfirmed)",
+    "emailservice: socket or memory fault (socket and mem z~23 in E1; inbound errors rise 0->0.029 in E2)",
+    "checkoutservice: latency inherited from emailservice, not its own fault (latency-90 z=30 in E1, but E6 traces show no change)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=971.31 (4856.6%); checkoutservice_latency-90 z=30.36 (151.8%); emailservice_socket z=23.81 (119.0%); emailservice_mem z=22.82 (114.1%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.21->0.23ms (1.07x), errors 0.0->0.0; inbound calls self-time p50 3.64->3.92ms (1.08x), errors 0.0->0.0292",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "685 matching lines; by svc/level {'emailservice/INFO': 684}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L90253",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "traces",
+      "summary": "12199 traces after alert; worst: frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> recommendationservice -> currencyservice 182.8ms errors=2; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> recommendationservice -> currencyservice 165.5ms errors=2; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> recommendationservice -> currencyservice 150.5ms errors=2",
+      "source_ref": "traces.csv:traceID=8c109836107e7652b1919dc1292aa6a1",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "frontendservice",
+        "paymentservice",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 3.96->4.0ms (1.01x), errors 0.0->0.0021; inbound calls self-time p50 3.08->3.13ms (1.02x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "672 matching lines; by svc/level {'checkoutservice/info': 672}; [checkoutservice/info] order confirmation email sent to \"someone@example.com\"; [checkoutservice/info] order confirmation email sent to \"someone@example.com\"",
+      "source_ref": "logs.csv#L90321",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=971.31 (4856.6%); emailservice_socket z=23.81 (119.0%); emailservice_mem z=22.82 (114.1%); emailservice_cpu z=10.15 (112.1%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 632,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 204,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric_query to rank every service and metric by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.6,
+        "prompt_tokens": 756,
+        "completion_tokens": 250,
+        "max_tokens": 16000,
+        "answer_chars": 539,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00802,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows emailservice p90 latency up about 48x, far beyond checkoutservice's deviation, so a trace check on emailservice's own and caller-observed latency will show whether the slowdown originates there.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.83
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 4.0,
+        "prompt_tokens": 1009,
+        "completion_tokens": 335,
+        "max_tokens": 16000,
+        "answer_chars": 701,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01074,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) point strongly at emailservice but its traces (E2) show only a small inbound error rise and no latency change, so emailservice logs are the next independent telemetry kind to check before deciding between delay and resource pressure.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 4.7,
+        "prompt_tokens": 1170,
+        "completion_tokens": 426,
+        "max_tokens": 16000,
+        "answer_chars": 595,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0132,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point strongly at emailservice, but its traces are flat and its logs are INFO only, so I need to see which request paths are actually failing or slow to find a second, independent signal.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.57
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 7.5,
+        "prompt_tokens": 1380,
+        "completion_tokens": 633,
+        "max_tokens": 16000,
+        "answer_chars": 652,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01818,
+        "finish_reason": "stop"
+      },
+      "thought": "Only metrics (E1) clearly implicate emailservice: E2 traces are below threshold and E3 is routine INFO lines, so I am searching error-level logs across all services for a second, independent signal such as email send failures or timeouts seen by callers.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "level": "ERROR",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 6.2,
+        "prompt_tokens": 1417,
+        "completion_tokens": 497,
+        "max_tokens": 16000,
+        "answer_chars": 653,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01561,
+        "finish_reason": "stop"
+      },
+      "thought": "Only metrics (E1) point at emailservice so far, and its own traces (E2) are sub-threshold; checking checkoutservice traces, as the main emailservice caller, tests whether its latency-90 jump (E1) is inherited from emailservice or is its own fault.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.95
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 5.6,
+        "prompt_tokens": 1547,
+        "completion_tokens": 511,
+        "max_tokens": 16000,
+        "answer_chars": 738,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01641,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) point at emailservice, but traces (E2) show no significant change and emailservice's own logs (E3) are routine INFO, so I need a second independent kind; the caller side, checkoutservice logs about email sends, could confirm it or rule it out.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "email",
+          "service": "checkoutservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 7.3,
+        "prompt_tokens": 1666,
+        "completion_tokens": 683,
+        "max_tokens": 16000,
+        "answer_chars": 716,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02032,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out emailservice, but E2 traces and E3 logs do not confirm it, so I need its full metric breakdown to separate delay from socket or memory faults before looking for a second, independent telemetry kind.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E8",
+      "tool_seconds": 0.01
+    }
+  ],
+  "proposed_fix": null,
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 40.5,
+    "tool_seconds": 2.6,
+    "prompt_tokens": 9577,
+    "completion_tokens": 3410,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 43.0,
+    "cost_usd": 0.106508
+  }
+}

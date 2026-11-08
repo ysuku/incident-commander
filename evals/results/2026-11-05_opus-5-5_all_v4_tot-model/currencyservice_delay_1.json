@@ -1,0 +1,187 @@
+{
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "delay"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_latency-50 z=408.44 (2042.2%); frontend_latency-90 z=103.51 (692.6%); checkoutservice_latency-90 z=82.07 (580.9%); frontend_latency-50 z=69.5 (643.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.14ms (0.99x), errors 0.0->0.0; inbound calls self-time p50 5.13->204.83ms (39.9x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "checkoutservice",
+      "why": "Its latency-90 deviation (z=82.07) is far smaller than currencyservice latency-50 (z=408.44). Checkoutservice calls currencyservice, so this fits downstream propagation of the 39.9x inbound delay into currencyservice (E1, E2)."
+    },
+    {
+      "candidate": "frontend",
+      "why": "Frontend latency (z=103.51, z=69.5) is a downstream symptom. The largest deviation and the inbound-latency jump sit at currencyservice, which frontend calls (E1, E2)."
+    },
+    {
+      "candidate": "currencyservice cpu fault",
+      "why": "A CPU fault would slow its own processing, but own-span self-time stayed at 0.14ms (0.99x) while only the caller-observed latency grew 39.9x, which points to network-level delay (E2)."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Look for added network latency on the currencyservice pod/interface (for example a tc netem qdisc or service-mesh fault injection) and remove it, or restart/reschedule the currencyservice pod. Then confirm that inbound p50 returns to about 5ms.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 17.3,
+        "prompt_tokens": 632,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 207,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so an unfiltered metric_query will rank every service and metric by deviation and show where to look first.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 762,
+        "completion_tokens": 206,
+        "max_tokens": 16000,
+        "answer_chars": 494,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00717,
+        "finish_reason": "stop"
+      },
+      "thought": "Currencyservice shows by far the largest latency deviation in E1, and frontend and checkout both depend on it, so I should check its own versus caller-observed latency in traces for an independent second signal.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.92
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 8.6,
+        "prompt_tokens": 975,
+        "completion_tokens": 869,
+        "max_tokens": 16000,
+        "answer_chars": 1419,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02128,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) independently point at currencyservice. Its own span self-time is flat (0.99x) while caller-observed inbound latency rose 39.9x with no errors, which fits injected network delay rather than CPU saturation.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "checkoutservice",
+              "why": "Its latency-90 deviation (z=82.07) is far smaller than currencyservice latency-50 (z=408.44). Checkoutservice calls currencyservice, so this fits downstream propagation of the 39.9x inbound delay into currencyservice (E1, E2)."
+            },
+            {
+              "candidate": "frontend",
+              "why": "Frontend latency (z=103.51, z=69.5) is a downstream symptom. The largest deviation and the inbound-latency jump sit at currencyservice, which frontend calls (E1, E2)."
+            },
+            {
+              "candidate": "currencyservice cpu fault",
+              "why": "A CPU fault would slow its own processing, but own-span self-time stayed at 0.14ms (0.99x) while only the caller-observed latency grew 39.9x, which points to network-level delay (E2)."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Look for added network latency on the currencyservice pod/interface (for example a tc netem qdisc or service-mesh fault injection) and remove it, or restart/reschedule the currencyservice pod. Then confirm that inbound p50 returns to about 5ms.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_latency-50 z=408.44 (2042.2%); frontend_latency-90 z=103.51 (692.6%); checkoutservice_latency-90 z=82.07 (580.9%); frontend_latency-50 z=69.5 (643.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.14ms (0.99x), errors 0.0->0.0; inbound calls self-time p50 5.13->204.83ms (39.9x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-50 z=408.44 (2042.2%); currencyservice_latency-90 z=29.0 (319.0%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 29.0,
+    "tool_seconds": 1.0,
+    "prompt_tokens": 2369,
+    "completion_tokens": 1150,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 30.0,
+    "cost_usd": 0.032476000000000005
+  }
+}

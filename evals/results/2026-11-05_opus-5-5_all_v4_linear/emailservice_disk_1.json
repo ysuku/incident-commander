@@ -1,0 +1,243 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "disk"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: CPU exhaustion",
+      "why": "The CPU spike is real, but a CPU-only fault would not make diskio jump from a near-zero baseline (z~9.6e18, E1/E3). Disk stress accounts for both the disk and the CPU signal. One caveat: a z-score that large partly reflects a near-zero baseline variance, so it shows disk I/O appeared but overstates how big the change is."
+    },
+    {
+      "candidate": "checkoutservice: upstream caller inflating email latency",
+      "why": "The all-services ranking in E1 shows significant deviations only on emailservice metrics. E2 shows callers seeing emailservice slow down 2.75x (3.49->9.61ms) at emailservice itself, not at checkout."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Find and stop the process or workload generating excessive disk I/O in the emailservice pod. If that is not possible, restart or reschedule the emailservice pod onto a healthy node. Then confirm diskio, cpu and caller-observed latency return to baseline.",
+    "model_labeled_destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 632,
+        "completion_tokens": 82,
+        "max_tokens": 16000,
+        "answer_chars": 228,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00417,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so an unfiltered metric_query will rank every service and metric by before/after-alert deviation and give the widest first view.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 756,
+        "completion_tokens": 301,
+        "max_tokens": 16000,
+        "answer_chars": 518,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00904,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at emailservice but disk vs cpu is ambiguous, and a second telemetry kind is required; traces will show whether emailservice's own latency and its callers' observed latency actually degraded.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.85
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 5.5,
+        "prompt_tokens": 996,
+        "completion_tokens": 482,
+        "max_tokens": 16000,
+        "answer_chars": 670,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01362,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both implicate emailservice, but the fault type is ambiguous: the diskio z of about 9.6e18 suggests a near-zero baseline, while CPU rose 6238%, so the full emailservice metric breakdown should tell me which resource actually saturated.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 8.7,
+        "prompt_tokens": 1167,
+        "completion_tokens": 783,
+        "max_tokens": 16000,
+        "answer_chars": 748,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02033,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E3) and traces (E2) already implicate emailservice; diskio rising from a near-zero baseline would fit a disk fault better than CPU, but that z-score could be an artifact, so emailservice logs are needed to settle disk vs CPU before finishing.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "query": "disk|io|write|timeout|cpu",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 11.8,
+        "prompt_tokens": 1217,
+        "completion_tokens": 1111,
+        "max_tokens": 16000,
+        "answer_chars": 1389,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02709,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E3) and traces (E2) independently point at emailservice. Disk I/O rising from a near-zero baseline separates a disk fault from pure CPU stress, because CPU stress alone does not generate disk I/O, while disk stress also burns CPU.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "disk",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: CPU exhaustion",
+              "why": "The CPU spike is real, but a CPU-only fault would not make diskio jump from a near-zero baseline (z~9.6e18, E1/E3). Disk stress accounts for both the disk and the CPU signal. One caveat: a z-score that large partly reflects a near-zero baseline variance, so it shows disk I/O appeared but overstates how big the change is."
+            },
+            {
+              "candidate": "checkoutservice: upstream caller inflating email latency",
+              "why": "The all-services ranking in E1 shows significant deviations only on emailservice metrics. E2 shows callers seeing emailservice slow down 2.75x (3.49->9.61ms) at emailservice itself, not at checkout."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Find and stop the process or workload generating excessive disk I/O in the emailservice pod. If that is not possible, restart or reschedule the emailservice pod onto a healthy node. Then confirm diskio, cpu and caller-observed latency return to baseline.",
+            "destructive": true
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 31.0,
+    "tool_seconds": 0.9,
+    "prompt_tokens": 4768,
+    "completion_tokens": 2759,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 32.0,
+    "cost_usd": 0.074252
+  }
+}

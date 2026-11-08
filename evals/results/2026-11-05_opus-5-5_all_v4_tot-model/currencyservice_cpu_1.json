@@ -1,0 +1,502 @@
+{
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_diskio z=4022776688641.85; currencyservice_latency-50 z=171.75 (858.7%); frontend_latency-50 z=26.69 (196.5%); checkoutservice_latency-90 z=18.16 (90.8%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_diskio z=4022776688641.85; currencyservice_latency-50 z=171.75 (858.7%); currencyservice_socket z=9.79 (49.0%); currencyservice_latency-90 z=6.1 (82.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.13ms (0.93x), errors 0.0->0.0; inbound calls self-time p50 5.07->39.07ms (7.71x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "currencyservice: disk",
+      "why": "score 2 is 3 below the best (5); contradicted: mem_up mem z=1.79 (E3)"
+    },
+    {
+      "candidate": "currencyservice: loss",
+      "why": "score 2 is 3 below the best (5); contradicted: cpu_not_up cpu z=4.59 (E1)"
+    },
+    {
+      "candidate": "frontend: delay",
+      "why": "score 2 is 3 below the best (5)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Raise the CPU limit (keep the request) or scale out currencyservice, after confirming the app is not looping",
+    "model_labeled_destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "decided_by": "tot",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 4.4,
+        "prompt_tokens": 632,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 203,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric ranking to see which services and metrics deviate most after the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.9,
+        "prompt_tokens": 758,
+        "completion_tokens": 231,
+        "max_tokens": 16000,
+        "answer_chars": 447,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00765,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics flag currencyservice disk I/O and latency, so a second telemetry kind is needed; checking traces will show whether callers see currencyservice slowing down.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.93
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 9.0,
+        "prompt_tokens": 969,
+        "completion_tokens": 870,
+        "max_tokens": 16000,
+        "answer_chars": 1710,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02128,
+        "finish_reason": "stop"
+      },
+      "thought": "Two independent telemetry kinds point at currencyservice: metrics show an extreme disk I/O deviation plus a large rise in median latency (E1), and callers see its responses slow down 7.7x (E2). That matches a disk fault, though its own span self-time staying flat leaves a network delay as an unexcluded alternative.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "disk",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend: latency inherited from downstream calls",
+              "why": "Frontend's median latency rose only 196.5% (z=26.69), far less than currencyservice's 858.7% (z=171.75), and it has no resource anomaly of its own. That fits frontend inheriting latency from its currencyservice calls (E1, E2)."
+            },
+            {
+              "candidate": "checkoutservice: latency inherited from currencyservice",
+              "why": "Checkoutservice shows only a moderate p90 latency rise (z=18.16) and no resource deviation of its own. The anomaly is concentrated in currencyservice's disk I/O and inbound latency (E1, E2)."
+            },
+            {
+              "candidate": "currencyservice: network delay (fault_type delay)",
+              "why": "Not ruled out. Its own span self-time stayed flat (0.14->0.13ms) while caller-observed latency rose 7.71x (E2), the pattern a network delay would produce. The disk I/O deviation (z~4.0e12, E1) is the reason disk was chosen, and its absolute size has not been checked."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Check currencyservice's node and pod for disk I/O pressure, e.g. a noisy neighbour, excessive logging, or a leftover disk stress process. Stop the offending process or move the pod to a healthy node, then confirm latency returns to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "disk (score 2) vs cpu (5), loss (2) for currencyservice"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_diskio z=4022776688641.85; currencyservice_latency-50 z=171.75 (858.7%); frontend_latency-50 z=26.69 (196.5%); checkoutservice_latency-90 z=18.16 (90.8%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.13ms (0.93x), errors 0.0->0.0; inbound calls self-time p50 5.07->39.07ms (7.71x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_diskio z=4022776688641.85; currencyservice_latency-50 z=171.75 (858.7%); currencyservice_socket z=9.79 (49.0%); currencyservice_latency-90 z=6.1 (82.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_latency-50 z=26.69 (196.5%); frontend_latency-90 z=14.46 (113.2%)",
+      "source_ref": "simple_metrics.csv:frontend_latency-50",
+      "implicates": [
+        "frontend"
+      ]
+    }
+  ],
+  "tot": {
+    "status": "selected",
+    "trigger": "T1 disk (score 2) vs cpu (5), loss (2) for currencyservice",
+    "suspect": "currencyservice",
+    "rival": "frontend",
+    "selected": {
+      "branch_id": "B1",
+      "service": "currencyservice",
+      "fault_type": "cpu",
+      "reason": "top fault types for currencyservice by metric signature (score 5)",
+      "status": "open",
+      "close_reason": "",
+      "score": 5,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "cpu_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=4.59",
+          "eid": "E1",
+          "must": true,
+          "expect": "cpu z >= 3"
+        },
+        {
+          "signal": "mem_not_saturated",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "mem z=1.79",
+          "eid": "E3",
+          "must": false,
+          "expect": "mem z < 15"
+        },
+        {
+          "signal": "socket_not_saturated",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=9.79",
+          "eid": "E1",
+          "must": false,
+          "expect": "socket z < 25"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E2",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        }
+      ],
+      "tests": []
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "currencyservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for currencyservice by metric signature (score 5)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=4.59",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=1.79",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=9.79",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B2",
+        "service": "currencyservice",
+        "fault_type": "disk",
+        "reason": "top fault types for currencyservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 is 3 below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=1.79",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=4.59",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=9.79",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "currencyservice",
+        "fault_type": "loss",
+        "reason": "top fault types for currencyservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 is 3 below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=171.75",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=9.79",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=4.59",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score 2 is 3 below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=26.69",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource socket z=0.72",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 0,
+    "generator_calls": 0,
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 16.3,
+    "tool_seconds": 1.0,
+    "prompt_tokens": 2359,
+    "completion_tokens": 1176,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 17.3,
+    "cost_usd": 0.032956
+  }
+}

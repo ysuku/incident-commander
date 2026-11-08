@@ -1,0 +1,263 @@
+{
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "delay"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; currencyservice_latency-50 z=318.36 (1591.8%); currencyservice_socket z=68.18 (340.9%); checkoutservice_latency-90 z=54.21 (271.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.12ms (0.88x), errors 0.0->0.0; inbound calls self-time p50 5.11->88.98ms (17.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-50 z=318.36 (1591.8%); currencyservice_socket z=68.18 (340.9%); currencyservice_latency-90 z=22.64 (244.4%); currencyservice_cpu z=4.94 (48.8%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "55768 matching lines; by svc/level {'currencyservice/info': 55768}; [currencyservice/info] conversion request successful; [currencyservice/info] conversion request successful",
+      "source_ref": "logs.csv#L90595",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "logs",
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "currencyservice: socket exhaustion/leak",
+      "why": "Caller-observed latency jumped 5.11->88.98ms but own self-time stayed flat at 0.14->0.12ms with zero errors (E2), and logs show only successful conversions (E3). A socket leak would usually bring connection errors or failures. The socket rise (z=68, E4) fits connections held open longer behind a network delay."
+    },
+    {
+      "candidate": "checkoutservice: slow itself",
+      "why": "Its deviation (latency-90 z=54) is much smaller than currencyservice latency-50 z=318 (E1), and currencyservice's inbound latency rose 17.4x (E2). Checkout's slowdown fits waiting on a delayed currencyservice."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Check the currencyservice pod and node network for an injected delay (e.g., a tc/netem qdisc or chaos experiment) and remove it. Then verify that inbound p50 latency returns to about 5ms and socket counts normalize. If the delay can't be removed directly, reschedule the currencyservice pod to a healthy node.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 632,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 209,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00407,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric query that ranks every service and metric by before/after-alert deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.9,
+        "prompt_tokens": 752,
+        "completion_tokens": 254,
+        "max_tokens": 16000,
+        "answer_chars": 577,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00809,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out currencyservice (large latency and socket-count jumps), so I need a second, independent telemetry kind. Traces will show whether currencyservice's own and caller-observed latency rose, as opposed to it only reflecting problems downstream.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.93
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 6.3,
+        "prompt_tokens": 977,
+        "completion_tokens": 572,
+        "max_tokens": 16000,
+        "answer_chars": 736,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01535,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both implicate currencyservice, but they do not separate a socket fault from injected delay, so its logs may show connection or socket errors that tell the two apart.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 9.7,
+        "prompt_tokens": 1076,
+        "completion_tokens": 822,
+        "max_tokens": 16000,
+        "answer_chars": 630,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02074,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both implicate currencyservice, but socket and delay faults would look alike there, so I need currencyservice's full metric breakdown to tell them apart.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 9.2,
+        "prompt_tokens": 1241,
+        "completion_tokens": 931,
+        "max_tokens": 16000,
+        "answer_chars": 1462,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02358,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E4) and traces (E2) independently implicate currencyservice: caller-observed latency rose 17.4x while its own self-time stayed flat and logs show no errors (E3), which fits injected network delay rather than socket exhaustion or a checkoutservice fault.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E4",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "currencyservice: socket exhaustion/leak",
+              "why": "Caller-observed latency jumped 5.11->88.98ms but own self-time stayed flat at 0.14->0.12ms with zero errors (E2), and logs show only successful conversions (E3). A socket leak would usually bring connection errors or failures. The socket rise (z=68, E4) fits connections held open longer behind a network delay."
+            },
+            {
+              "candidate": "checkoutservice: slow itself",
+              "why": "Its deviation (latency-90 z=54) is much smaller than currencyservice latency-50 z=318 (E1), and currencyservice's inbound latency rose 17.4x (E2). Checkout's slowdown fits waiting on a delayed currencyservice."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Check the currencyservice pod and node network for an injected delay (e.g., a tc/netem qdisc or chaos experiment) and remove it. Then verify that inbound p50 latency returns to about 5ms and socket counts normalize. If the delay can't be removed directly, reschedule the currencyservice pod to a healthy node.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; currencyservice_latency-50 z=318.36 (1591.8%); currencyservice_socket z=68.18 (340.9%); checkoutservice_latency-90 z=54.21 (271.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.12ms (0.88x), errors 0.0->0.0; inbound calls self-time p50 5.11->88.98ms (17.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "55768 matching lines; by svc/level {'currencyservice/info': 55768}; [currencyservice/info] conversion request successful; [currencyservice/info] conversion request successful",
+      "source_ref": "logs.csv#L90595",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-50 z=318.36 (1591.8%); currencyservice_socket z=68.18 (340.9%); currencyservice_latency-90 z=22.64 (244.4%); currencyservice_cpu z=4.94 (48.8%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 30.2,
+    "tool_seconds": 1.0,
+    "prompt_tokens": 4678,
+    "completion_tokens": 2656,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 31.3,
+    "cost_usd": 0.07183200000000001
+  }
+}

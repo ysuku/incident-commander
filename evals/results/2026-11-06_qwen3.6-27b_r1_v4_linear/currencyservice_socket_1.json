@@ -1,0 +1,183 @@
+{
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_socket z=32.13 (160.7%)",
+      "source_ref": "simple_metrics.csv:currencyservice_socket",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "56645 matching lines; by svc/level {'currencyservice/info': 56645}; [currencyservice/info] Getting supported currencies...; [currencyservice/info] Getting supported currencies...",
+      "source_ref": "logs.csv#L89022",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "logs",
+    "metrics"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "currencyservice latency/error",
+      "why": "Traces (E3) show stable latency and zero errors"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Fix connection pooling or retry logic in currencyservice to prevent socket exhaustion",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 38.3,
+        "prompt_tokens": 424,
+        "completion_tokens": 525,
+        "max_tokens": 8192,
+        "reasoning_chars": 1829,
+        "answer_chars": 207,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify which services and metrics are showing significant deviations to narrow down the scope of the incident.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 18.3,
+        "prompt_tokens": 464,
+        "completion_tokens": 236,
+        "max_tokens": 8192,
+        "reasoning_chars": 656,
+        "answer_chars": 195,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows a massive socket deviation in currencyservice; I need log evidence to confirm the root cause.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 147.8,
+        "prompt_tokens": 534,
+        "completion_tokens": 2045,
+        "max_tokens": 8192,
+        "reasoning_chars": 7402,
+        "answer_chars": 328,
+        "finish_reason": "stop"
+      },
+      "thought": "Verify trace latency and error patterns for currencyservice to confirm if the socket deviation and log flood indicate a connection storm.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": false,
+          "limit": 10,
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.99
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 167.2,
+        "prompt_tokens": 670,
+        "completion_tokens": 2263,
+        "max_tokens": 8192,
+        "reasoning_chars": 8292,
+        "answer_chars": 581,
+        "finish_reason": "stop"
+      },
+      "thought": "The massive socket metric spike (E1) and high-volume log spam (E2) independently implicate currencyservice, while traces (E3) rule out latency or error faults.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "currencyservice latency/error",
+              "why": "Traces (E3) show stable latency and zero errors"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Fix connection pooling or retry logic in currencyservice to prevent socket exhaustion",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_socket z=32.13 (160.7%)",
+      "source_ref": "simple_metrics.csv:currencyservice_socket",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "56645 matching lines; by svc/level {'currencyservice/info': 56645}; [currencyservice/info] Getting supported currencies...; [currencyservice/info] Getting supported currencies...",
+      "source_ref": "logs.csv#L89022",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for currencyservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.14->0.14ms (0.98x), errors 0.0->0.0; inbound calls self-time p50 5.04->5.02ms (1.0x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 371.6,
+    "tool_seconds": 1.1,
+    "prompt_tokens": 2092,
+    "completion_tokens": 5069,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 372.7,
+    "cost_usd": 0.0
+  }
+}

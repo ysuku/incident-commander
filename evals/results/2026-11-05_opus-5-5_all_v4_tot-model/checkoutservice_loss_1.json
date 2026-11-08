@@ -1,0 +1,538 @@
+{
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "loss"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=36054091.54; frontend-external_error z=36054091.54; checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "checkoutservice",
+        "emailservice",
+        "frontend",
+        "frontend-external",
+        "paymentservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%); checkoutservice_socket z=6.69 (33.4%); checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-50",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.98->126.32ms (31.72x), errors 0.0->0.0025; inbound calls self-time p50 2.83->3.43ms (1.21x), errors 0.0->0.1014; outbound calls slowed to 6 callees (cartservice, currencyservice, emailservice, paymentservice, productcatalogservice, shippingservice): delay on checkoutservice's own network",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "checkoutservice: mem",
+      "why": "score 4 is 2 below the best (6)"
+    },
+    {
+      "candidate": "paymentservice: delay",
+      "why": "score 2 is 4 below the best (6)"
+    },
+    {
+      "candidate": "checkoutservice: disk",
+      "why": "score 1 is 5 below the best (6); contradicted: cpu_up cpu z=-1.52 (E3)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Inspect checkoutservice's pod network for packet loss (tc/netem, NIC errors); fix before retrying",
+    "model_labeled_destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "decided_by": "tot",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 632,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 209,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric query to rank every service and metric by deviation from before the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.9,
+        "prompt_tokens": 745,
+        "completion_tokens": 344,
+        "max_tokens": 16000,
+        "answer_chars": 680,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00986,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows checkoutservice latency up roughly 18-19x while frontend errors spike, so checkoutservice's own latency versus what its callers see will tell us whether it is the origin or just reflecting a slow downstream.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.91
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 5.2,
+        "prompt_tokens": 1097,
+        "completion_tokens": 521,
+        "max_tokens": 16000,
+        "answer_chars": 856,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01481,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at checkoutservice, and every one of its 6 callees slowed at once, which suggests network delay on checkoutservice itself; checking its resource metrics will rule a CPU fault in or out before finishing.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 8.6,
+        "prompt_tokens": 1299,
+        "completion_tokens": 793,
+        "max_tokens": 16000,
+        "answer_chars": 1474,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02106,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E3: checkoutservice latency p50 up 1761%) and traces (E2: own self-time 31.72x, with all 6 callees slowed at once) both point at checkoutservice network delay, which meets the two-telemetry-kind requirement.",
+      "action": {
+        "finish": {
+          "root_cause_service": "checkoutservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "checkoutservice: CPU saturation",
+              "why": "The service-scoped deviation ranking shows latency, socket (z=6.69) and mem (z=6.26), with no CPU deviation in the top results (E3), and the outbound-wide slowdown fits a network delay (E2)."
+            },
+            {
+              "candidate": "paymentservice/shippingservice/emailservice/currencyservice/cartservice/productcatalogservice",
+              "why": "All 6 callees slowed at the same time from checkoutservice's side, so the delay sits on checkoutservice's own network rather than in any one callee (E2)."
+            },
+            {
+              "candidate": "frontend",
+              "why": "Frontend errors are a downstream symptom: inbound calls to checkoutservice show errors rising 0.0->0.1014, while checkoutservice's own latency is the main deviation (E1, E2)."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Inspect the checkoutservice pod's network interface for injected latency (e.g., a tc/netem qdisc) or a degraded node or network path, and remove the delay rule. Then confirm that checkoutservice p50 latency and frontend error rate return to baseline. Do not restart other services.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "delay has a contradicted must-have signal for checkoutservice"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=36054091.54; frontend-external_error z=36054091.54; checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "checkoutservice",
+        "emailservice",
+        "frontend",
+        "frontend-external",
+        "paymentservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.98->126.32ms (31.72x), errors 0.0->0.0025; inbound calls self-time p50 2.83->3.43ms (1.21x), errors 0.0->0.1014; outbound calls slowed to 6 callees (cartservice, currencyservice, emailservice, paymentservice, productcatalogservice, shippingservice): delay on checkoutservice's own network",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%); checkoutservice_socket z=6.69 (33.4%); checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-50",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=paymentservice]: paymentservice_latency-90 z=18.05 (279.0%); paymentservice_latency-50 z=3.3 (23.3%)",
+      "source_ref": "simple_metrics.csv:paymentservice_latency-90",
+      "implicates": [
+        "paymentservice"
+      ]
+    }
+  ],
+  "tot": {
+    "status": "selected",
+    "trigger": "T1 delay has a contradicted must-have signal for checkoutservice",
+    "suspect": "checkoutservice",
+    "rival": "paymentservice",
+    "selected": {
+      "branch_id": "B1",
+      "service": "checkoutservice",
+      "fault_type": "loss",
+      "reason": "top fault types for checkoutservice by metric signature (score 6)",
+      "status": "open",
+      "close_reason": "",
+      "score": 6,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "latency_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "latency z=117.63",
+          "eid": "E1",
+          "must": true,
+          "expect": "latency z >= 3"
+        },
+        {
+          "signal": "conn_pressure",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=6.69",
+          "eid": "E1",
+          "must": false,
+          "expect": "mem or socket z >= 5"
+        },
+        {
+          "signal": "cpu_not_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=-1.52",
+          "eid": "E3",
+          "must": false,
+          "expect": "cpu z < 3"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E2",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        },
+        {
+          "signal": "errors_up",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "span error rate +0.101",
+          "eid": "E2",
+          "must": false,
+          "expect": "span error rate rises >= 0.05"
+        }
+      ],
+      "tests": []
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "checkoutservice",
+        "fault_type": "loss",
+        "reason": "top fault types for checkoutservice by metric signature (score 6)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 6,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=117.63",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.69",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-1.52",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.101",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B2",
+        "service": "checkoutservice",
+        "fault_type": "mem",
+        "reason": "top fault types for checkoutservice by metric signature (score 4)",
+        "status": "pruned",
+        "close_reason": "score 4 is 2 below the best (6)",
+        "score": 4,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=6.26",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=117.63",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.69",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "paymentservice",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score 2 is 4 below the best (6)",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=18.05",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource socket z=0",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "checkoutservice",
+        "fault_type": "disk",
+        "reason": "top fault types for checkoutservice by metric signature (score 1)",
+        "status": "pruned",
+        "close_reason": "score 1 is 5 below the best (6)",
+        "score": 1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=6.26",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-1.52",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.69",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 0,
+    "generator_calls": 0,
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 19.3,
+    "tool_seconds": 1.0,
+    "prompt_tokens": 3773,
+    "completion_tokens": 1733,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 20.4,
+    "cost_usd": 0.049752
+  }
+}

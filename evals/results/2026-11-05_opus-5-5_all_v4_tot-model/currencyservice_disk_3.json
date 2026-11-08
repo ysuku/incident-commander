@@ -1,0 +1,948 @@
+{
+  "status": "escalated",
+  "reason": "tie: currencyservice: mem or currencyservice: disk, indistinguishable in this data",
+  "candidates": [
+    "currencyservice: mem (score 5, tied; confirmed mem_up, latency_up, socket_not_saturated, trace_slow)",
+    "currencyservice: disk (score 5, tied; confirmed mem_up, cpu_up, socket_not_saturated, trace_slow)",
+    "currencyservice: cpu (score 2, pruned; confirmed cpu_up, socket_not_saturated, trace_slow)",
+    "frontend: delay (score 2, pruned; confirmed latency_up, resources_flat)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_diskio z=1.0642447790645682e+19; frontend-external_error z=2766990.29; currencyservice_latency-50 z=274.57 (1372.8%); currencyservice_mem z=91.54 (457.7%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.13ms (0.92x), errors 0.0->0.0; inbound calls self-time p50 5.12->75.92ms (14.83x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "56114 matching lines; by svc/level {'currencyservice/info': 56114}; [currencyservice/info] Getting supported currencies...; [currencyservice/info] Getting supported currencies...",
+      "source_ref": "logs.csv#L89564",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_diskio z=1.0642447790645682e+19; currencyservice_latency-50 z=274.57 (1372.8%); currencyservice_mem z=91.54 (457.7%); currencyservice_socket z=14.6 (73.0%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_diskio z=1.0642447790645682e+19; currencyservice_latency-50 z=274.57 (1372.8%); currencyservice_mem z=91.54 (457.7%); currencyservice_socket z=14.6 (73.0%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend-external_error z=2766990.29; frontend_latency-90 z=37.06 (230.9%); frontend_latency-50 z=36.55 (244.9%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice, metric=diskio]: currencyservice_diskio z=1.0642447790645682e+19",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [metric=mem]: currencyservice_mem z=91.54 (457.7%)",
+      "source_ref": "simple_metrics.csv:currencyservice_mem",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice, metric=cpu]: currencyservice_cpu z=4.24 (42.9%)",
+      "source_ref": "simple_metrics.csv:currencyservice_cpu",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E11",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E12",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 632,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 203,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric ranking to see which services and metrics deviate most after the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 753,
+        "completion_tokens": 284,
+        "max_tokens": 16000,
+        "answer_chars": 603,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00869,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out currencyservice (enormous diskio deviation plus its latency and memory), so I need a second, independent telemetry kind to confirm it. Traces show whether currencyservice's own latency and errors rose and whether its callers saw the slowdown.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.96
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 6.7,
+        "prompt_tokens": 998,
+        "completion_tokens": 573,
+        "max_tokens": 16000,
+        "answer_chars": 854,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01545,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at currencyservice, but the fault type is ambiguous: the diskio z is degenerate, mem is also up, and only inbound latency rose while own self-time held flat (which could also fit a delay fault), so its logs should help tell these apart.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 4.9,
+        "prompt_tokens": 1121,
+        "completion_tokens": 424,
+        "max_tokens": 16000,
+        "answer_chars": 639,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01296,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at currencyservice, but the fault type is ambiguous, so a per-service metric breakdown should separate disk, memory and network signals before finishing.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "top": 15
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 8.1,
+        "prompt_tokens": 1260,
+        "completion_tokens": 834,
+        "max_tokens": 16000,
+        "answer_chars": 1483,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02172,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E4) and traces (E2) both point at currencyservice. Its own span self-time is flat while caller-observed latency rose 14.83x, which fits network delay injected on currencyservice rather than a resource fault inside it.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E2",
+            "E4",
+            "E1",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "currencyservice: disk I/O fault",
+              "why": "The diskio z of about 1e19 (E1/E4) points to a near-zero baseline, not a real disk fault. A disk fault would also raise currencyservice's own span self-time, which stayed flat at 0.14->0.13ms (E2)."
+            },
+            {
+              "candidate": "currencyservice: memory pressure",
+              "why": "Memory rose about 457% (E4), but own self-time is unchanged (E2) and there are no error or OOM logs, only info-level lines (E3). The rise fits queued in-flight requests building up behind added network delay."
+            },
+            {
+              "candidate": "frontend: root cause",
+              "why": "Frontend-external errors (E1) line up in time with currencyservice's 14.83x inbound latency jump (E2), so they are most likely a downstream symptom. I did not query frontend directly to confirm this."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Remove the injected network delay (e.g., tc netem rule) on the currencyservice pod's interface, or restart/reschedule the currencyservice pod. Then confirm that caller-observed p50 latency returns to about 5ms and frontend errors clear.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "delay has a contradicted must-have signal for currencyservice"
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "currencyservice: mem",
+      "thought": "Metrics and traces cannot tell the two apart: both diskio and mem deviate, and the diskio z may just reflect a near-zero baseline; currencyservice logs naming heap or memory exhaustion would separate ",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "heap memory OOM ENOMEM allocation",
+          "service": "currencyservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 4.4,
+        "prompt_tokens": 1419,
+        "completion_tokens": 371,
+        "max_tokens": 16000,
+        "answer_chars": 627,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0131,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "currencyservice: disk",
+      "thought": "Diskio is the only signature element that separates a disk fault from memory pressure, and its z of about 1e19 may just reflect a near-zero baseline, so the raw before/after diskio values decide wheth",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.2,
+        "prompt_tokens": 1470,
+        "completion_tokens": 470,
+        "max_tokens": 16000,
+        "answer_chars": 571,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01528,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "currencyservice: mem",
+      "thought": "Checking memory across all services shows whether the +457% memory rise is unique to currencyservice, which would indicate an injected memory fault, or a general shift; disk fault is the rival, and it",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "metric": "mem",
+          "top": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 7.2,
+        "prompt_tokens": 1537,
+        "completion_tokens": 553,
+        "max_tokens": 16000,
+        "answer_chars": 571,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01721,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "currencyservice: disk",
+      "thought": "Diskio, memory and socket readings are already on the board, but CPU, which the disk signature requires at z >= 3, is still untested and absent from the top deviations; an explicit CPU query decides w",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 4.5,
+        "prompt_tokens": 1619,
+        "completion_tokens": 384,
+        "max_tokens": 16000,
+        "answer_chars": 513,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01416,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "currencyservice: mem",
+      "thought": "Metrics already show both mem (z=91) and diskio (z~1e19, likely from a near-zero baseline) deviating, so I am checking currencyservice logs for memory-pressure messages (heap/GC/OOM), which would favo",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "heap|memory|OOM|out of memory|GC|allocation",
+          "service": "currencyservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 6.4,
+        "prompt_tokens": 1684,
+        "completion_tokens": 505,
+        "max_tokens": 16000,
+        "answer_chars": 612,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01684,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "currencyservice: disk",
+      "thought": "Both faults predict the same metric pattern already on the board (diskio up, mem z>=15, cpu z>=3, socket below 25, slow inbound spans), so currencyservice's logs are the remaining discriminator: a mem",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "heap out of memory|OOM|JavaScript heap|allocation failed|GC",
+          "service": "currencyservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E12",
+      "generator": "model",
+      "model_call": {
+        "seconds": 7.2,
+        "prompt_tokens": 1735,
+        "completion_tokens": 657,
+        "max_tokens": 16000,
+        "answer_chars": 704,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02008,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "tied",
+    "trigger": "T1 delay has a contradicted must-have signal for currencyservice",
+    "suspect": "currencyservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [
+      {
+        "branch_id": "B1",
+        "service": "currencyservice",
+        "fault_type": "mem",
+        "reason": "top fault types for currencyservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=91.54",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=274.57",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.6",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "query": "heap memory OOM ENOMEM allocation",
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "If memory is the cause, currencyservice will show warn or error lines about heap or memory (for example JS heap or allocation failures, or GC pressure) after 20:07Z. There should be no disk or I/O err",
+            "rationale": "Metrics and traces cannot tell the two apart: both diskio and mem deviate, and the diskio z may just reflect a near-zero baseline; currencyservice logs naming heap or memory exhaustion would separate ",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "metric": "mem",
+              "top": 10
+            },
+            "depth": 2,
+            "predicted": "currencyservice_mem ranks first by a wide margin (z\u224891, well above 15), and no other service shows a comparable memory deviation, which supports a memory fault in currencyservice rather than disk.",
+            "rationale": "Checking memory across all services shows whether the +457% memory rise is unique to currencyservice, which would indicate an injected memory fault, or a general shift; disk fault is the rival, and it",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "log_search",
+            "args": {
+              "query": "heap|memory|OOM|out of memory|GC|allocation",
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "If memory is the fault, there will be some memory, heap or GC-related lines (or restarts) in currencyservice after 20:07Z and no disk or IO error lines; a disk fault would instead show IO, ENOSPC or w",
+            "rationale": "Metrics already show both mem (z=91) and diskio (z~1e19, likely from a near-zero baseline) deviating, so I am checking currencyservice logs for memory-pressure messages (heap/GC/OOM), which would favo",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "currencyservice",
+        "fault_type": "disk",
+        "reason": "top fault types for currencyservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=91.54",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=4.24",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.6",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "currencyservice diskio is near zero before 20:07Z and shows a sustained, large absolute rise after the alert, starting at or before the mem rise. Under a pure memory fault, diskio would instead stay f",
+            "rationale": "Diskio is the only signature element that separates a disk fault from memory pressure, and its z of about 1e19 may just reflect a near-zero baseline, so the raw before/after diskio values decide wheth",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "currencyservice_cpu shows a significant rise (z >= 3), consistent with I/O-driven CPU work alongside the huge diskio spike.",
+            "rationale": "Diskio, memory and socket readings are already on the board, but CPU, which the disk signature requires at z >= 3, is still untested and absent from the top deviations; an explicit CPU query decides w",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "log_search",
+            "args": {
+              "query": "heap out of memory|OOM|JavaScript heap|allocation failed|GC",
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "Zero or negligible memory-exhaustion lines, with only the routine 'Getting supported currencies...' info lines. That would mean the mem rise is secondary to the disk fault (I/O buffering or page cache",
+            "rationale": "Both faults predict the same metric pattern already on the board (diskio up, mem z>=15, cpu z>=3, socket below 25, slow inbound spans), so currencyservice's logs are the remaining discriminator: a mem",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "currencyservice",
+        "fault_type": "mem",
+        "reason": "top fault types for currencyservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=91.54",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=274.57",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.6",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "query": "heap memory OOM ENOMEM allocation",
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "If memory is the cause, currencyservice will show warn or error lines about heap or memory (for example JS heap or allocation failures, or GC pressure) after 20:07Z. There should be no disk or I/O err",
+            "rationale": "Metrics and traces cannot tell the two apart: both diskio and mem deviate, and the diskio z may just reflect a near-zero baseline; currencyservice logs naming heap or memory exhaustion would separate ",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "metric": "mem",
+              "top": 10
+            },
+            "depth": 2,
+            "predicted": "currencyservice_mem ranks first by a wide margin (z\u224891, well above 15), and no other service shows a comparable memory deviation, which supports a memory fault in currencyservice rather than disk.",
+            "rationale": "Checking memory across all services shows whether the +457% memory rise is unique to currencyservice, which would indicate an injected memory fault, or a general shift; disk fault is the rival, and it",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "log_search",
+            "args": {
+              "query": "heap|memory|OOM|out of memory|GC|allocation",
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "If memory is the fault, there will be some memory, heap or GC-related lines (or restarts) in currencyservice after 20:07Z and no disk or IO error lines; a disk fault would instead show IO, ENOSPC or w",
+            "rationale": "Metrics already show both mem (z=91) and diskio (z~1e19, likely from a near-zero baseline) deviating, so I am checking currencyservice logs for memory-pressure messages (heap/GC/OOM), which would favo",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "currencyservice",
+        "fault_type": "disk",
+        "reason": "top fault types for currencyservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=91.54",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=4.24",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.6",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "currencyservice diskio is near zero before 20:07Z and shows a sustained, large absolute rise after the alert, starting at or before the mem rise. Under a pure memory fault, diskio would instead stay f",
+            "rationale": "Diskio is the only signature element that separates a disk fault from memory pressure, and its z of about 1e19 may just reflect a near-zero baseline, so the raw before/after diskio values decide wheth",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "currencyservice_cpu shows a significant rise (z >= 3), consistent with I/O-driven CPU work alongside the huge diskio spike.",
+            "rationale": "Diskio, memory and socket readings are already on the board, but CPU, which the disk signature requires at z >= 3, is still untested and absent from the top deviations; an explicit CPU query decides w",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "log_search",
+            "args": {
+              "query": "heap out of memory|OOM|JavaScript heap|allocation failed|GC",
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "Zero or negligible memory-exhaustion lines, with only the routine 'Getting supported currencies...' info lines. That would mean the mem rise is secondary to the disk fault (I/O buffering or page cache",
+            "rationale": "Both faults predict the same metric pattern already on the board (diskio up, mem z>=15, cpu z>=3, socket below 25, slow inbound spans), so currencyservice's logs are the remaining discriminator: a mem",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "currencyservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for currencyservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 is 3 below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=4.24",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=91.54",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.6",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score 2 is 3 below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=37.06",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=0.15",
+            "eid": "E6",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 6,
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 11,
+    "model_seconds": 59.2,
+    "tool_seconds": 1.4,
+    "prompt_tokens": 14228,
+    "completion_tokens": 5130,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 60.5,
+    "cost_usd": 0.159512
+  }
+}

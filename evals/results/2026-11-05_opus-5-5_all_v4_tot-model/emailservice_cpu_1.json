@@ -1,0 +1,169 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=589.02 (6545.5%); emailservice_latency-90 z=82.21 (411.0%); emailservice_latency-50 z=57.85 (289.2%); cartservice_latency-90 z=16.66 (191.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "cartservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.18->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.48->10.01ms (2.87x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "cartservice: delay fault",
+      "why": "cartservice_latency-90 deviates far less (z=16.66) than emailservice_cpu (z=589.02) and emailservice latency (z=82.21) (E1); its traces were not examined, so it is ranked lower on magnitude rather than ruled out, and its p90 bump is more likely secondary contention."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Find the process consuming CPU inside emailservice and stop it. Meanwhile scale out emailservice replicas or raise its CPU limit to relieve queuing for callers. Then confirm that emailservice CPU and inbound latency return to baseline.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 632,
+        "completion_tokens": 78,
+        "max_tokens": 16000,
+        "answer_chars": 207,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00409,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; an unfiltered metric query ranks all services and metrics so I can see where the deviation is concentrated.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 757,
+        "completion_tokens": 223,
+        "max_tokens": 16000,
+        "answer_chars": 449,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00749,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 metrics single out emailservice with a massive CPU spike and latency jump, so I need an independent telemetry kind, traces for emailservice, to confirm or refute it before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.83
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 6.9,
+        "prompt_tokens": 966,
+        "completion_tokens": 668,
+        "max_tokens": 16000,
+        "answer_chars": 968,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01722,
+        "finish_reason": "stop"
+      },
+      "thought": "Two independent telemetry kinds already point at emailservice: E1 shows a massive CPU deviation plus latency deviations, and E2 shows caller-observed latency up 2.87x, so I am finishing now.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "cartservice: delay fault",
+              "why": "cartservice_latency-90 deviates far less (z=16.66) than emailservice_cpu (z=589.02) and emailservice latency (z=82.21) (E1); its traces were not examined, so it is ranked lower on magnitude rather than ruled out, and its p90 bump is more likely secondary contention."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Find the process consuming CPU inside emailservice and stop it. Meanwhile scale out emailservice replicas or raise its CPU limit to relieve queuing for callers. Then confirm that emailservice CPU and inbound latency return to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=589.02 (6545.5%); emailservice_latency-90 z=82.21 (411.0%); emailservice_latency-50 z=57.85 (289.2%); cartservice_latency-90 z=16.66 (191.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "cartservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.18->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.48->10.01ms (2.87x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_cpu z=589.02 (6545.5%); emailservice_latency-90 z=82.21 (411.0%); emailservice_latency-50 z=57.85 (289.2%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 11.0,
+    "tool_seconds": 0.9,
+    "prompt_tokens": 2355,
+    "completion_tokens": 969,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 12.0,
+    "cost_usd": 0.0288
+  }
+}

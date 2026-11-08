@@ -1,0 +1,256 @@
+{
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "disk"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_diskio z=19381468410877.04; adservice_error z=23633841.89; currencyservice_latency-50 z=341.66 (1708.3%); checkoutservice_latency-90 z=139.91 (699.6%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "adservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_diskio z=19381468410877.04; currencyservice_latency-50 z=341.66 (1708.3%); currencyservice_latency-90 z=80.41 (869.6%); currencyservice_mem z=70.71 (353.5%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.1ms (0.72x), errors 0.0->0.0; inbound calls self-time p50 4.61->90.1ms (19.53x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "adservice: independent error fault",
+      "why": "Its traces show no significant change: inbound latency only 1.34x and error rate just 0.0033 (E3)."
+    },
+    {
+      "candidate": "checkoutservice: own fault",
+      "why": "Its latency-90 rise (E1) is consistent with waiting on currencyservice, whose inbound latency jumped 19.5x (E2). It is a downstream symptom."
+    },
+    {
+      "candidate": "currencyservice: network delay injection",
+      "why": "Flat own self-time (E2) fits a delay, but no network or socket metric deviates. The dominant anomaly is disk I/O at z~1.9e13 (E1, E4), which points to a disk fault rather than an injected delay."
+    }
+  ],
+  "proposed_fix": {
+    "description": "1. Find the source of the abnormal disk I/O on the currencyservice pod (runaway writer, log flood or stress process) and stop it. 2. If it cannot be isolated, cordon the pod and reschedule it to a healthy node. 3. Watch currencyservice p50 latency and checkout latency return to baseline.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 632,
+        "completion_tokens": 113,
+        "max_tokens": 16000,
+        "answer_chars": 318,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00479,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric query to rank every service and metric by deviation and see where the anomaly is.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.8,
+        "prompt_tokens": 814,
+        "completion_tokens": 257,
+        "max_tokens": 16000,
+        "answer_chars": 544,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0084,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 points strongly at currencyservice (extreme diskio deviation plus a large latency-50 rise), so I need a second, independent telemetry kind; its own and caller-observed trace latency will confirm or refute it.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.93
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 5.8,
+        "prompt_tokens": 979,
+        "completion_tokens": 492,
+        "max_tokens": 16000,
+        "answer_chars": 545,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01376,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) already implicate currencyservice, so I want to check whether the large adservice error spike is a real competing fault before I can reject it with evidence.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "adservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.86
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 5.9,
+        "prompt_tokens": 1093,
+        "completion_tokens": 560,
+        "max_tokens": 16000,
+        "answer_chars": 782,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01557,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at currencyservice, but the fault type is unclear: the huge diskio z suggests disk, yet own-span self-time is flat while caller-observed latency rose 19x, which looks more like delay; I need currencyservice's full per-metric profile to tell these apart.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 11.0,
+        "prompt_tokens": 1262,
+        "completion_tokens": 1004,
+        "max_tokens": 16000,
+        "answer_chars": 1564,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02513,
+        "finish_reason": "stop"
+      },
+      "thought": "Two independent telemetry kinds both point at currencyservice: metrics show a disk I/O deviation (z~1.9e13) plus 17x p50 latency (E1, E4), and traces show caller-observed latency up 19.5x (E2); the extreme disk I/O anomaly makes a disk fault the best-supported type.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "disk",
+          "supporting_evidence": [
+            "E1",
+            "E4",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "adservice: independent error fault",
+              "why": "Its traces show no significant change: inbound latency only 1.34x and error rate just 0.0033 (E3)."
+            },
+            {
+              "candidate": "checkoutservice: own fault",
+              "why": "Its latency-90 rise (E1) is consistent with waiting on currencyservice, whose inbound latency jumped 19.5x (E2). It is a downstream symptom."
+            },
+            {
+              "candidate": "currencyservice: network delay injection",
+              "why": "Flat own self-time (E2) fits a delay, but no network or socket metric deviates. The dominant anomaly is disk I/O at z~1.9e13 (E1, E4), which points to a disk fault rather than an injected delay."
+            }
+          ],
+          "proposed_fix": {
+            "description": "1. Find the source of the abnormal disk I/O on the currencyservice pod (runaway writer, log flood or stress process) and stop it. 2. If it cannot be isolated, cordon the pod and reschedule it to a healthy node. 3. Watch currencyservice p50 latency and checkout latency return to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_diskio z=19381468410877.04; adservice_error z=23633841.89; currencyservice_latency-50 z=341.66 (1708.3%); checkoutservice_latency-90 z=139.91 (699.6%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "adservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.1ms (0.72x), errors 0.0->0.0; inbound calls self-time p50 4.61->90.1ms (19.53x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for adservice: NO significant change (<2x latency, <0.05 error rise); inbound calls self-time p50 2.98->4.0ms (1.34x), errors 0.0->0.0033",
+      "source_ref": "traces.csv:serviceName=adservice",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_diskio z=19381468410877.04; currencyservice_latency-50 z=341.66 (1708.3%); currencyservice_latency-90 z=80.41 (869.6%); currencyservice_mem z=70.71 (353.5%)",
+      "source_ref": "simple_metrics.csv:currencyservice_diskio",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 28.9,
+    "tool_seconds": 1.8,
+    "prompt_tokens": 4780,
+    "completion_tokens": 2426,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 30.8,
+    "cost_usd": 0.06764
+  }
+}

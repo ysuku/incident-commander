@@ -1,0 +1,785 @@
+{
+  "status": "escalated",
+  "reason": "tie: recommendationservice: mem or recommendationservice: disk, indistinguishable in this data",
+  "candidates": [
+    "recommendationservice: mem (score 5, tied; confirmed mem_up, latency_up, socket_not_saturated, trace_slow)",
+    "recommendationservice: disk (score 5, tied; confirmed mem_up, cpu_up, socket_not_saturated, trace_slow)",
+    "recommendationservice: cpu (score 2, pruned; confirmed cpu_up, socket_not_saturated, trace_slow)"
+  ],
+  "notes": [
+    "step 3: unparseable response (no JSON object in response); raw started: '(empty response)'; reply with ONE JSON object. Your reply was cut off at the length limit: think less, answer sooner.",
+    "tot B1 recommendationservice:mem depth 1: metric_query(service='recommendationservice', metric='swap') failed: unknown metric 'swap'; available metrics are ['cpu', 'diskio', 'error', 'latency-50', 'latency-90', 'mem', 'socket', 'workload']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_diskio z=9.258531250599246e+18; recommendationservice_latency-90 z=328.16 (1640.8%); recommendationservice_mem z=177.2 (886.0%); recommendationservice_latency-50 z=72.97 (364.8%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_diskio",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.05->3.11ms (2.96x), errors 0.0->0.0; inbound calls self-time p50 3.84->24.05ms (6.26x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_diskio z=9.258531250599246e+18; recommendationservice_latency-90 z=328.16 (1640.8%); recommendationservice_mem z=177.2 (886.0%); recommendationservice_latency-50 z=72.97 (364.8%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_diskio",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice, metric=cpu]: recommendationservice_cpu z=60.96 (648.8%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_cpu",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=recommendationservice, metric=socket]; largest is only recommendationservice_socket z=0.0 (0.0%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_socket",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=recommendationservice, metric=workload]; largest is only recommendationservice_workload z=-0.11 (-0.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_workload",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 38.6,
+        "prompt_tokens": 424,
+        "completion_tokens": 485,
+        "max_tokens": 8192,
+        "reasoning_chars": 1736,
+        "answer_chars": 170,
+        "finish_reason": "stop"
+      },
+      "thought": "Querying metrics without filters to identify which services and metrics deviated around the alert time.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 93.2,
+        "prompt_tokens": 535,
+        "completion_tokens": 1296,
+        "max_tokens": 8192,
+        "reasoning_chars": 4688,
+        "answer_chars": 373,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows massive disk I/O, memory, and latency spikes in recommendationservice; I need trace evidence to confirm it's the root cause before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 5,
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.91
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 607.1,
+        "prompt_tokens": 663,
+        "completion_tokens": 8192,
+        "max_tokens": 8192,
+        "reasoning_chars": 26714,
+        "answer_chars": 0,
+        "finish_reason": "length"
+      },
+      "outcome": "unparseable",
+      "detail": "no JSON object in response; raw started: (empty response)"
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 147.7,
+        "prompt_tokens": 715,
+        "completion_tokens": 1997,
+        "max_tokens": 8192,
+        "reasoning_chars": 6480,
+        "answer_chars": 702,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) independently confirm recommendationservice is experiencing extreme disk I/O and memory pressure causing latency.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "disk",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "other services",
+              "why": "E1 shows significant deviations only for recommendationservice"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Restart recommendationservice to clear disk I/O backlog and memory pressure",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "disk (score 5) vs mem (5) for recommendationservice"
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: mem",
+      "thought": "High swap usage confirms the disk I/O spike is due to memory pressure, distinguishing it from a primary disk fault.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "swap"
+        }
+      },
+      "outcome": "tot_test_failed",
+      "observed": null,
+      "generator": "model",
+      "model_call": {
+        "seconds": 328.4,
+        "prompt_tokens": 787,
+        "completion_tokens": 4418,
+        "max_tokens": 8192,
+        "reasoning_chars": 15146,
+        "answer_chars": 251,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "recommendationservice: disk",
+      "thought": "Checking CPU usage validates the 'cpu_up' condition required by the disk hypothesis, distinguishing it from memory issues which may not spike CPU.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E4",
+      "generator": "model",
+      "model_call": {
+        "seconds": 382.6,
+        "prompt_tokens": 865,
+        "completion_tokens": 5150,
+        "max_tokens": 8192,
+        "reasoning_chars": 18010,
+        "answer_chars": 279,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: mem",
+      "thought": "Checking socket saturation validates the mem hypothesis signature and distinguishes it from disk I/O issues that typically cause connection pool exhaustion.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 302.0,
+        "prompt_tokens": 908,
+        "completion_tokens": 4045,
+        "max_tokens": 8192,
+        "reasoning_chars": 13783,
+        "answer_chars": 295,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "recommendationservice: disk",
+      "thought": "Querying workload distinguishes between load-driven disk I/O (supporting the disk hypothesis) and resource leaks (supporting the memory hypothesis).",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "workload"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 365.3,
+        "prompt_tokens": 974,
+        "completion_tokens": 4888,
+        "max_tokens": 8192,
+        "reasoning_chars": 16662,
+        "answer_chars": 312,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: mem",
+      "thought": "Searching logs for OOM/GC versus disk I/O errors will definitively distinguish memory exhaustion from disk bottlenecks.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "query": "OOM|GC|memory|disk|io"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 183.5,
+        "prompt_tokens": 1028,
+        "completion_tokens": 2391,
+        "max_tokens": 8192,
+        "reasoning_chars": 8355,
+        "answer_chars": 348,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "recommendationservice: disk",
+      "thought": "Searching logs for disk I/O keywords will confirm if disk operations are failing or slow, distinguishing disk root cause from memory pressure.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk|io",
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 249.0,
+        "prompt_tokens": 1061,
+        "completion_tokens": 3279,
+        "max_tokens": 8192,
+        "reasoning_chars": 12327,
+        "answer_chars": 304,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "tied",
+    "trigger": "T1 disk (score 5) vs mem (5) for recommendationservice",
+    "suspect": "recommendationservice",
+    "rival": null,
+    "selected": null,
+    "tied": [
+      {
+        "branch_id": "B1",
+        "service": "recommendationservice",
+        "fault_type": "mem",
+        "reason": "top fault types for recommendationservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=328.16",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "swap"
+            },
+            "depth": 1,
+            "predicted": "swap z >= 15",
+            "rationale": "High swap usage confirms the disk I/O spike is due to memory pressure, distinguishing it from a primary disk fault.",
+            "by": "model"
+          },
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "socket"
+            },
+            "depth": 2,
+            "predicted": "socket z < 25",
+            "rationale": "Checking socket saturation validates the mem hypothesis signature and distinguishes it from disk I/O issues that typically cause connection pool exhaustion.",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "service": "recommendationservice",
+              "query": "OOM|GC|memory|disk|io"
+            },
+            "depth": 3,
+            "predicted": "Logs will show OOM or GC pressure messages, confirming memory exhaustion as the root cause.",
+            "rationale": "Searching logs for OOM/GC versus disk I/O errors will definitively distinguish memory exhaustion from disk bottlenecks.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "recommendationservice",
+        "fault_type": "disk",
+        "reason": "top fault types for recommendationservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=60.96",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E4",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "cpu z >= 3",
+            "rationale": "Checking CPU usage validates the 'cpu_up' condition required by the disk hypothesis, distinguishing it from memory issues which may not spike CPU.",
+            "by": "model"
+          },
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "workload"
+            },
+            "depth": 2,
+            "predicted": "workload z-score is high (e.g., > 3)",
+            "rationale": "Querying workload distinguishes between load-driven disk I/O (supporting the disk hypothesis) and resource leaks (supporting the memory hypothesis).",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "disk|io",
+              "service": "recommendationservice"
+            },
+            "depth": 3,
+            "predicted": "logs contain disk I/O related messages",
+            "rationale": "Searching logs for disk I/O keywords will confirm if disk operations are failing or slow, distinguishing disk root cause from memory pressure.",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "recommendationservice",
+        "fault_type": "mem",
+        "reason": "top fault types for recommendationservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=328.16",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "swap"
+            },
+            "depth": 1,
+            "predicted": "swap z >= 15",
+            "rationale": "High swap usage confirms the disk I/O spike is due to memory pressure, distinguishing it from a primary disk fault.",
+            "by": "model"
+          },
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "socket"
+            },
+            "depth": 2,
+            "predicted": "socket z < 25",
+            "rationale": "Checking socket saturation validates the mem hypothesis signature and distinguishes it from disk I/O issues that typically cause connection pool exhaustion.",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "service": "recommendationservice",
+              "query": "OOM|GC|memory|disk|io"
+            },
+            "depth": 3,
+            "predicted": "Logs will show OOM or GC pressure messages, confirming memory exhaustion as the root cause.",
+            "rationale": "Searching logs for OOM/GC versus disk I/O errors will definitively distinguish memory exhaustion from disk bottlenecks.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "recommendationservice",
+        "fault_type": "disk",
+        "reason": "top fault types for recommendationservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=60.96",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E4",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "cpu z >= 3",
+            "rationale": "Checking CPU usage validates the 'cpu_up' condition required by the disk hypothesis, distinguishing it from memory issues which may not spike CPU.",
+            "by": "model"
+          },
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "workload"
+            },
+            "depth": 2,
+            "predicted": "workload z-score is high (e.g., > 3)",
+            "rationale": "Querying workload distinguishes between load-driven disk I/O (supporting the disk hypothesis) and resource leaks (supporting the memory hypothesis).",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "disk|io",
+              "service": "recommendationservice"
+            },
+            "depth": 3,
+            "predicted": "logs contain disk I/O related messages",
+            "rationale": "Searching logs for disk I/O keywords will confirm if disk operations are failing or slow, distinguishing disk root cause from memory pressure.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "recommendationservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for recommendationservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 is 3 below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=60.96",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=177.2",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 6,
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 2697.4,
+    "tool_seconds": 1.4,
+    "prompt_tokens": 7960,
+    "completion_tokens": 36141,
+    "replies_hit_token_limit": 1,
+    "wall_seconds": 2698.9,
+    "cost_usd": 0.0
+  }
+}

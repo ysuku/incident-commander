@@ -1,0 +1,549 @@
+{
+  "root_cause": {
+    "service": "productcatalogservice",
+    "fault_type": "loss"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=20804438.28; productcatalogservice_latency-90 z=16885.35 (84426.7%); recommendationservice_latency-90 z=13770.22 (68851.1%); recommendationservice_latency-50 z=3763.17 (18815.9%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "cartservice",
+        "frontend",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=16885.35 (84426.7%); productcatalogservice_latency-50 z=2791.84 (13959.2%); productcatalogservice_workload z=-11.45 (-79.0%); productcatalogservice_mem z=10.06 (50.3%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.89x), errors 0.0->0.0018; inbound calls self-time p50 2.29->224.12ms (97.7x), errors 0.0->0.0012",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "productcatalogservice: mem",
+      "why": "scored 4 vs 5"
+    },
+    {
+      "candidate": "recommendationservice: loss",
+      "why": "score 3 is 2 below the best (5)"
+    },
+    {
+      "candidate": "productcatalogservice: disk",
+      "why": "score 1 is 4 below the best (5); contradicted: cpu_up cpu z=-6.77 (E3)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Inspect productcatalogservice's pod network for packet loss (tc/netem, NIC errors); fix before retrying",
+    "model_labeled_destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "decided_by": "tot",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 632,
+        "completion_tokens": 95,
+        "max_tokens": 16000,
+        "answer_chars": 255,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00443,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric ranking to see which services and metrics deviate most after the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.5,
+        "prompt_tokens": 806,
+        "completion_tokens": 276,
+        "max_tokens": 16000,
+        "answer_chars": 560,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00874,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows the largest latency jump at productcatalogservice, and recommendationservice and frontend sit upstream of it, so a caller-observed trace check on productcatalogservice should test whether it is the source.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.61
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 6.4,
+        "prompt_tokens": 1002,
+        "completion_tokens": 668,
+        "max_tokens": 16000,
+        "answer_chars": 673,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01737,
+        "finish_reason": "stop"
+      },
+      "thought": "E2 shows productcatalogservice's own processing time is unchanged while callers see 97.7x higher latency, which points to a network delay rather than CPU; I'll check its resource metrics to confirm CPU and memory are flat before finishing.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 8.5,
+        "prompt_tokens": 1195,
+        "completion_tokens": 917,
+        "max_tokens": 16000,
+        "answer_chars": 1519,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02312,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E3) and traces (E2) independently point at productcatalogservice: callers see a 97.7x latency jump while its own span self-time stays flat, which matches injected network delay rather than a CPU or memory fault.",
+      "action": {
+        "finish": {
+          "root_cause_service": "productcatalogservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "productcatalogservice: cpu fault",
+              "why": "Own span self-time is unchanged at 0.01ms p50 (0.89x), so the service is not compute-bound. Only caller-observed latency rose (E2)."
+            },
+            {
+              "candidate": "productcatalogservice: mem fault",
+              "why": "Mem deviation is modest (z=10.06, +50.3%) next to the latency deviation (z=16885). Self-time is flat, so memory pressure is not slowing processing (E2, E3)."
+            },
+            {
+              "candidate": "recommendationservice: own fault",
+              "why": "Its latency-90 deviation (68851%) is smaller than productcatalogservice's (84426%), and it calls productcatalogservice, so the latency is likely inherited (E1, E2)."
+            },
+            {
+              "candidate": "frontend: own fault",
+              "why": "Frontend errors are downstream symptoms. Inbound calls to productcatalogservice show both the latency jump and new errors (0.0->0.0012) (E1, E2)."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Remove the injected network delay on the productcatalogservice pod's network interface (for example, delete the tc netem qdisc or chaos rule). Then confirm that caller-observed latency and frontend errors return to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "delay has a contradicted must-have signal for productcatalogservice"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=20804438.28; productcatalogservice_latency-90 z=16885.35 (84426.7%); recommendationservice_latency-90 z=13770.22 (68851.1%); recommendationservice_latency-50 z=3763.17 (18815.9%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "cartservice",
+        "frontend",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.89x), errors 0.0->0.0018; inbound calls self-time p50 2.29->224.12ms (97.7x), errors 0.0->0.0012",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=16885.35 (84426.7%); productcatalogservice_latency-50 z=2791.84 (13959.2%); productcatalogservice_workload z=-11.45 (-79.0%); productcatalogservice_mem z=10.06 (50.3%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=13770.22 (68851.1%); recommendationservice_latency-50 z=3763.17 (18815.9%); recommendationservice_socket z=74.34 (371.7%); recommendationservice_mem z=32.6 (163.0%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "tot": {
+    "status": "selected",
+    "trigger": "T1 delay has a contradicted must-have signal for productcatalogservice",
+    "suspect": "productcatalogservice",
+    "rival": "recommendationservice",
+    "selected": {
+      "branch_id": "B1",
+      "service": "productcatalogservice",
+      "fault_type": "loss",
+      "reason": "top fault types for productcatalogservice by metric signature (score 5)",
+      "status": "open",
+      "close_reason": "",
+      "score": 5,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "latency_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "latency z=16885.3",
+          "eid": "E1",
+          "must": true,
+          "expect": "latency z >= 3"
+        },
+        {
+          "signal": "conn_pressure",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "mem z=10.06",
+          "eid": "E3",
+          "must": false,
+          "expect": "mem or socket z >= 5"
+        },
+        {
+          "signal": "cpu_not_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=-6.77",
+          "eid": "E3",
+          "must": false,
+          "expect": "cpu z < 3"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E2",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        },
+        {
+          "signal": "errors_up",
+          "kind": "traces",
+          "verdict": "inconclusive",
+          "observed": "span error rate +0.002",
+          "eid": "E2",
+          "must": false,
+          "expect": "span error rate rises >= 0.05"
+        }
+      ],
+      "tests": []
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "productcatalogservice",
+        "fault_type": "loss",
+        "reason": "top fault types for productcatalogservice by metric signature (score 5)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=16885.3",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=10.06",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-6.77",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.002",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B2",
+        "service": "productcatalogservice",
+        "fault_type": "mem",
+        "reason": "top fault types for productcatalogservice by metric signature (score 4)",
+        "status": "open",
+        "close_reason": "",
+        "score": 4,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=10.06",
+            "eid": "E3",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=16885.3",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=7.46",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "recommendationservice",
+        "fault_type": "loss",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score 3 is 2 below the best (5)",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=13770.2",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=74.34",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-5.35",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "reason": "top fault types for productcatalogservice by metric signature (score 1)",
+        "status": "pruned",
+        "close_reason": "score 1 is 4 below the best (5)",
+        "score": 1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=10.06",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-6.77",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=7.46",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 0,
+    "generator_calls": 0,
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 20.0,
+    "tool_seconds": 0.7,
+    "prompt_tokens": 3635,
+    "completion_tokens": 1956,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 20.6,
+    "cost_usd": 0.05366
+  }
+}
