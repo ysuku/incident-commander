@@ -7,6 +7,10 @@ Scoring (per case, against the folder-name label; the agent never sees it):
   escalated      handed to a human with findings (honest, but not a diagnosis)
   error          the run crashed (API error etc.); not counted as an agent outcome
 
+With ToT (--tot), an escalation can still carry a useful answer: a tie that
+includes the true fault ("mem or disk"), or ranked branches with the true fault
+first. Those are tracked in the `tot` column, not counted as correct.
+
 Each case's brief is saved as it finishes, so an interrupted run resumes where it
 stopped (same --out dir) and a spend cap (--max-usd) can stop it safely.
 """
@@ -50,10 +54,29 @@ def _row(case, brief: dict, outcome: str) -> dict:
         "prompt_tokens": u.get("prompt_tokens", 0), "completion_tokens": u.get("completion_tokens", 0),
         "cost_usd": round(u.get("cost_usd", 0.0), 4),
         "reason": brief.get("reason", brief.get("error", "")),
+        "tot": tot_outcome(case, brief),
     }
 
 
-def run_eval(cases: list, make_model, out_dir: Path, max_usd: float | None = None) -> list[dict]:
+def tot_outcome(case, brief: dict) -> str:
+    """'' (ToT not run) | selected | tie_with_truth | tie_without_truth |
+    escalated_truth_first | escalated (service compared too)."""
+    t = brief.get("tot")
+    if not t:
+        return ""
+    if t["status"] == "selected":
+        return "selected"
+    svc = lambda b: _norm(b["service"]) == _norm(case.root_cause_service)
+    if t["status"] == "tied":
+        hit = any(svc(b) and b["fault_type"] == case.fault_type for b in t["tied"])
+        return "tie_with_truth" if hit else "tie_without_truth"
+    live = [b for b in t["ranked"] if b["status"] != "pruned"]
+    first = live and svc(live[0]) and live[0]["fault_type"] == case.fault_type
+    return "escalated_truth_first" if first else "escalated"
+
+
+def run_eval(cases: list, make_model, out_dir: Path, max_usd: float | None = None,
+             tot: str | None = None) -> list[dict]:
     """Run each case (skipping ones already saved in out_dir); returns all rows."""
     out_dir.mkdir(parents=True, exist_ok=True)
     rows, spent = [], 0.0
@@ -70,7 +93,7 @@ def run_eval(cases: list, make_model, out_dir: Path, max_usd: float | None = Non
             model = make_model()
             t0 = time.monotonic()
             try:
-                brief = loop.diagnose(case, model)
+                brief = loop.diagnose(case, model, tot=tot)
             except Exception as e:  # keep going; the row records it
                 brief = {"status": "error", "error": f"{type(e).__name__}: {e}",
                          "traceback": traceback.format_exc(),
@@ -111,6 +134,11 @@ def write_summary(rows: list[dict], out_dir: Path) -> str:
         fc = Counter(r["outcome"] for r in rows if r["truth_fault"] == fault)
         lines.append(f"| {fault} | {sum(fc.values())} | {fc['correct']} | {fc['service_only']} | "
                      f"{fc['wrong']} | {fc['escalated']} |")
+    tc = Counter(r.get("tot") for r in rows if r.get("tot"))
+    if tc:
+        lines += ["", "## Tree-of-Thought", "",
+                  f"ToT ran in {sum(tc.values())} of {n} cases.", "", "| ToT result | n |", "|---|---|"]
+        lines += [f"| {k} | {v} |" for k, v in tc.most_common()]
     md = "\n".join(lines) + "\n"
     (out_dir / "summary.md").write_text(md, encoding="utf-8")
     return md

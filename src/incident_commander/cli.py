@@ -4,6 +4,7 @@
   python -m incident_commander.cli baseline --kind plain --case <id>
   python -m incident_commander.cli diagnose --case <id>        (agent; M2+)
   python -m incident_commander.cli eval --model claude-opus-5-5 --runs 1 --max-usd 20
+  add --tot model|heuristic to diagnose/eval for Tree-of-Thought (Checkpoint 4.1)
 """
 import argparse
 from datetime import datetime, timezone
@@ -57,14 +58,15 @@ def cmd_eval(args) -> None:
     if args.limit:
         cases = cases[: args.limit]
     _, model_name = make_model(args.model)
-    out = (REPO_ROOT / "evals" / "results" / (args.out or f"{datetime.now():%Y-%m-%d}_{model_name}"))
+    default = f"{datetime.now():%Y-%m-%d}_{model_name}" + (f"_tot-{args.tot}" if args.tot else "")
+    out = REPO_ROOT / "evals" / "results" / (args.out or default)
     out.mkdir(parents=True, exist_ok=True)
     _log_to(out / "eval.log")
     import logging
     logging.getLogger("incident_commander").info(
-        "EVAL model=%s | %d cases | out=%s | cap=%s", model_name, len(cases),
+        "EVAL model=%s | tot=%s | %d cases | out=%s | cap=%s", model_name, args.tot or "off", len(cases),
         out.relative_to(REPO_ROOT), f"${args.max_usd}" if args.max_usd else "none")
-    evaluate.run_eval(cases, lambda: make_model(args.model)[0], out, args.max_usd)
+    evaluate.run_eval(cases, lambda: make_model(args.model)[0], out, args.max_usd, tot=args.tot)
     print((out / "summary.md").read_text())
 
 
@@ -82,7 +84,8 @@ def cmd_diagnose(args) -> None:
     case = loaders.load_case(args.case, args.system)
     model, model_name = make_model(args.model)
 
-    stem = f"{datetime.now():%Y-%m-%d_%H%M}_{model_name}_{case.case_id.replace('/', '_')}"
+    stem = (f"{datetime.now():%Y-%m-%d_%H%M}_{model_name}{'_tot' if args.tot else ''}_"
+            f"{case.case_id.replace('/', '_')}")
     run_dir = REPO_ROOT / "evals" / "runs"
     run_dir.mkdir(parents=True, exist_ok=True)
 
@@ -90,7 +93,7 @@ def cmd_diagnose(args) -> None:
     logging.getLogger("incident_commander").info("model=%s | max_tokens=%s", model_name,
                 "n/a" if model_name == "mock" else os.environ.get("IC_MAX_TOKENS", "4096"))
 
-    brief = loop.diagnose(case, model)
+    brief = loop.diagnose(case, model, tot=args.tot)
     out = json.dumps(brief, indent=2, default=str)
     (run_dir / f"{stem}.json").write_text(out, encoding="utf-8")
     print(out)
@@ -116,6 +119,9 @@ def main() -> None:
     dp.add_argument("--model", default="env",
                     help="'mock' (keyless demo), 'claude-opus-5-5' etc. (Anthropic API), "
                          "or 'env' to use .env OPENAI_MODEL")
+    dp.add_argument("--tot", choices=["model", "heuristic"],
+                    help="Tree-of-Thought on ambiguity (4.1): 'model' = LLM thought generator, "
+                         "'heuristic' = code picks each test (no extra model calls)")
     dp.set_defaults(fn=cmd_diagnose)
 
     ep = sub.add_parser("eval", help="Run the agent over many cases and score them")
@@ -126,6 +132,9 @@ def main() -> None:
     ep.add_argument("--limit", type=int, help="first N cases only (smoke test)")
     ep.add_argument("--max-usd", type=float, help="stop starting new cases past this spend")
     ep.add_argument("--out", help="results folder name under evals/results/ (reuse to resume)")
+    ep.add_argument("--tot", choices=["model", "heuristic"],
+                    help="Tree-of-Thought on ambiguity (4.1): 'model' = LLM thought generator, "
+                         "'heuristic' = code picks each test (no extra model calls)")
     ep.set_defaults(fn=cmd_eval)
 
     args = p.parse_args()

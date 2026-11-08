@@ -7,19 +7,32 @@ import re
 import time
 
 
+def _load_env() -> None:
+    """load_dotenv() for the settings, minus the Claude key (see _capstone_anthropic_key):
+    it stays in the file and is never placed in os.environ."""
+    from dotenv import dotenv_values, find_dotenv
+    for k, v in dotenv_values(find_dotenv(usecwd=True)).items():
+        if k != ANTHROPIC_KEY_VAR and v is not None:
+            os.environ.setdefault(k, v)
+
+
 class OpenRouterClient:
     """Chat-completions client; works with OpenRouter, OpenAI, or any local
     OpenAI-compatible server (e.g. LM Studio / Ollama serving Qwen)."""
 
     def __init__(self, model: str | None = None, temperature: float = 0.0):
-        from dotenv import load_dotenv
         from openai import OpenAI
-        load_dotenv()
+        _load_env()
         self.model = model or os.environ.get("OPENAI_MODEL")
         if not self.model:
             raise RuntimeError("Set OPENAI_MODEL (and OPENAI_API_KEY / OPENAI_BASE_URL) in .env")
         self.temperature = temperature
-        self.client = OpenAI()  # reads OPENAI_API_KEY / OPENAI_BASE_URL from env
+        # Reads OPENAI_API_KEY / OPENAI_BASE_URL from env. A slow local model can take
+        # more than the SDK's 600s default for one reply; the timeout then retries while
+        # the server is still generating, piling up concurrent requests until MLX hits
+        # Metal's buffer limit. For local runs set IC_REQUEST_TIMEOUT high and IC_MAX_RETRIES=0.
+        self.client = OpenAI(timeout=float(os.environ.get("IC_REQUEST_TIMEOUT", "600")),
+                             max_retries=int(os.environ.get("IC_MAX_RETRIES", "2")))
         self.calls = 0
         self.last_call: dict = {}
 
@@ -56,6 +69,27 @@ CLAUDE_PRICES = {
 }
 
 
+ANTHROPIC_KEY_VAR = "IC_ANTHROPIC_API_KEY"
+
+
+def _capstone_anthropic_key() -> str:
+    """The capstone's own Claude key, read from the repo's .env file only.
+
+    Deliberately NOT the standard ANTHROPIC_API_KEY: a key under that name in a
+    shell is picked up by other tools (Claude Code bills it). The value is read
+    straight from .env and passed to the client, never put into os.environ, and
+    an ambient ANTHROPIC_API_KEY is ignored.
+    """
+    from dotenv import dotenv_values
+
+    from .config import REPO_ROOT
+    key = (dotenv_values(REPO_ROOT / ".env").get(ANTHROPIC_KEY_VAR) or "").strip()
+    if not key:
+        raise RuntimeError(f"Set {ANTHROPIC_KEY_VAR} in {REPO_ROOT / '.env'} to use --model claude-*. "
+                           "The shell's ANTHROPIC_API_KEY is ignored on purpose.")
+    return key
+
+
 class AnthropicClient:
     """Native Anthropic Messages API client with the same complete()/last_call
     interface as OpenRouterClient, so the loop does not care which one it has.
@@ -68,11 +102,10 @@ class AnthropicClient:
 
     def __init__(self, model: str | None = None):
         import anthropic
-        from dotenv import load_dotenv
-        load_dotenv()
+        _load_env()
         self.model = model or "claude-opus-5-5"
         self.effort = os.environ.get("IC_EFFORT", "medium")
-        self.client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
+        self.client = anthropic.Anthropic(api_key=_capstone_anthropic_key())
         self.calls = 0
         self.cost_usd = 0.0
         self.last_call: dict = {}

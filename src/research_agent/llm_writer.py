@@ -9,9 +9,10 @@ except ImportError:  # pragma: no cover - optional dependency
     OpenAI = None  # type: ignore[assignment]
 
 try:
-    from dotenv import load_dotenv
+    # settings from .env, minus the capstone's Claude key (never placed in os.environ)
+    from incident_commander.model import _load_env
 
-    load_dotenv()
+    _load_env()
 except ImportError:  # pragma: no cover - optional dependency
     pass
 

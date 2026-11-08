@@ -301,3 +301,152 @@ true service is implicated in the same 62 as before (no regression), and the
 checkout-delay cases now point at checkout. Regression test:
 `test_caller_side_delay_is_pinned_on_the_caller`.
 Next: the fault-signal guide, then one 90-case rerun for both changes.
+
+## Module 4 — Where Tree-of-Thought helps (Nov 1): the data changed the plan
+**Decision:** ToT is appropriate, but only for hypothesis testing and only when the first pass is
+ambiguous. Checkpoint 4.1 plan, not yet implemented.
+
+**The earlier 4.1 premise was wrong.** The draft assumed the linear loop's main weakness was
+anchoring on the wrong SERVICE (misleading failing traces). Re-reading the 90-case Opus run
+(`evals/results/2026-10-28_opus-5-5_all_v3`):
+- first unfiltered metric_query implicates the true service in 90/90 cases;
+- in all 28 escalations the true service was already ranked FIRST in the final candidates (20 of
+  28 also already named the true fault word); the loop stalled on the two-kinds rule;
+- 33 service_only: right service, wrong fault (loss->delay 7, mem->cpu/delay 8, disk->mem 4);
+  in 15 of 33 the true fault word appears in the brief's alternatives/fix text (text match);
+- wrong service only 2/90, both callee-vs-caller delay (since fixed in trace_lookup).
+So the error mass is fault-type ambiguity, a competing-hypotheses problem.
+
+**Plan:** branches = fault-type hypotheses for the suspect service (+ a rival-service branch on
+conflict); beam search width 2, depth <=3, <=8 expansions; scoring in code from a signature table
+(fault type -> telemetry it must move); signals are confirmed / contradicted / unobservable and only
+"contradicted" prunes (diskio exists for 4 of 11 services; no network metric); shared evidence
+board, per-branch scores; ties escalate. Triggered only on ambiguity, so cases that already
+work (delay 13/15) pay nothing.
+**To test (Module 6):** same 90 cases with vs without ToT: correct / service_only / escalated,
+cost per case. Estimated ceiling ~$0.20/case (Opus), from escalated-run cost of $0.10.
+
+## Module 4 — ToT implemented (Nov 1): 3.1 retrieval loop -> 4.1 hypothesis tree
+The 4.1 plan now runs; `diagnose --tot model|heuristic`, `eval --tot ...`. Without `--tot`
+the linear 3.1 agent is unchanged (same prompt, same gate, same outputs).
+
+**Where each 4.1 role lives**
+| 4.1 role | Code | Module 5 target |
+|---|---|---|
+| Thought generator | `tot.ModelGenerator` (LLM proposes {tool, args, predicted}; reply field is `rationale`, not `thought`, after the Oct 28 refusals), `tot.HeuristicGenerator` (zero-cost ablation) | CrewAI Investigator per branch |
+| Critic | `signatures.py`: signature table + `judge`/`score`, pure code | LangChain Runnable |
+| Controller | `tot.run_tot`: root -> expand -> rescore -> prune -> select / tie / escalate | LangGraph state graph |
+| State manager | `BranchBoard` behind the MCP server: `open_branch`, `record_result`, `close_branch`, `branch_status` | same server |
+The controller is framework-free on purpose: each step is a function over shared state,
+so the LangGraph port is mechanical. Branch tools are on the MCP server but hidden from the
+ReAct prompt (`ToolClient.diagnostic`). Evidence stays on the loop's scratchpad, and ToT
+calls tools through the loop's own dedupe path (`make_observer`), so a call runs once and
+every branch reuses it.
+
+**Triggers (4.1 "only when ambiguous").** T1: a finish passes the gate, but the critic
+does not rank its fault type first by >= MARGIN, or a must-have signal contradicts it. The check
+costs one tool call and no model call, so clear cases like checkoutservice_cpu/1 keep the
+linear answer. T2: after 3 steps, no service has two telemetry kinds implicating it.
+**The suspect comes from the model's candidate list, not from the raw top metric
+deviation.** That top deviation is not the true service in 20 of 90 cases (frontend-external 9,
+frontend 5, emailservice 3 for checkout delay, ...). The 4.1 text says "the first metric query named
+S". It did implicate S in 90/90, but did not rank it first.
+
+**Calibration findings (data, not the plan)**
+- `diskio` is unusable everywhere: z is 0, NaN or 1e12..1e19 in every fault type. So disk's
+  must-have signal is always unobservable. Per the 4.1 risk rule that never prunes disk,
+  but disk can also never be confirmed, so **mem and disk tie** (mem z 22+ in both).
+  ToT reports "mem or disk, indistinguishable in this data" instead of guessing.
+- Logs are dropped from the signature table. The root-cause service logged zero
+  error lines in all 90 cases, so a logs signal would only contradict true hypotheses.
+- Signals are five-valued in code (confirmed / contradicted / inconclusive / unobservable /
+  untested). "Inconclusive" is the grey zone (3 <= z < strong threshold). "Untested" drives the
+  generator. Only "contradicted" scores negative or prunes.
+- Added a rule not in 4.1: a branch cannot be selected while any of its signals is
+  untested. Without it, ToT selected on the root ranking with zero tests run.
+- Loss vs delay is separated without a network metric by `conn_pressure` (mem or socket
+  z >= 5 with no cpu rise; delay never passes 3.4) plus `resources_flat` for delay.
+
+**Offline check, $0** (`scripts/tot_offline.py`, heuristic generator, suspect given):
+| suspect | correct | service_only | wrong | tie incl. truth | tie w/o truth | escalated, truth 1st | escalated |
+|---|---|---|---|---|---|---|---|
+| truth service | 36 | 2 | 0 | 22 | 2 | 21 | 7 |
+| top metric deviation | 23 | 0 | 5 | 17 | 2 | 21 | 22 |
+With the service right, the wrong-fault failure (33 service_only in the linear Opus run)
+nearly disappears (2). Delay is 15/15. The 21 "escalated, truth first" cases are the
+cpu/socket faults on checkout, email and productcatalog, where traces stay flat. ToT cannot
+create a second telemetry kind, so it escalates with the right answer ranked first.
+The 4.1 risk did show up: the 2-point prune gap dropped the true branch in 3 cases.
+Mean expansions are 1.0 to 1.2. **The tree is shallow in practice** (5 tools, 2 of
+them scoped per service), so the 8-expansion cap and $0.20/case estimate are loose upper bounds.
+These are dev-set numbers with thresholds read off the same 90 cases. Train Ticket is the
+honest test.
+
+**Next:** paid A/B on the 90 cases (`eval --model claude-opus-5-5 --tot model` vs the v3
+run), then `--tot heuristic` as the zero-cost ablation. Module 5: port the controller to
+LangGraph and the generator to CrewAI agents.
+
+## Module 4 — ToT A/B on the 90 dev cases (Nov 5)
+Same code, same model (Opus 5.5, effort medium), all 90 RE2-OB cases; only `--tot model` differs.
+The linear baseline was rerun because v3 predates the caller-side trace fix.
+`evals/results/2026-11-05_opus-5-5_all_v4_linear/` vs `..._all_v4_tot-model/`.
+
+| Outcome | linear v4 | ToT (model generator) |
+|---|---|---|
+| correct | 29 (32%) | **38 (42%)** |
+| service_only (wrong fault) | 34 | **2** |
+| wrong service | 0 | 0 |
+| escalated | 27 | 50 |
+| of which: tie that includes the truth | - | 24 |
+| cost | $5.98 ($0.066/case) | $8.25 ($0.092/case, **1.38x**) |
+| wall time | 42 min | 56 min |
+
+- **The 4.1 bar is met:** the correct rate rose at less than 2x cost (1.38x). ToT ran in 44 of 90 cases
+  (T1 38, T2 6); the other 46 paid one extra tool call and no model call. Mean 3.6
+  expansions per ToT case; all 159 generator replies were usable (no fallbacks).
+- **Case transitions:** 12 service_only became correct (ToT selected the right fault), 3 escalated
+  became correct, 18 service_only became honest "mem or disk" ties that include the truth.
+  Cost: 6 linear-correct cases became ties, all mem/disk, where the linear agent's guess
+  happened to be right. 2 ties excluded the truth.
+- **By fault:** cpu 3 -> 10 correct, loss 4 -> 8, socket 1 -> 5, delay 15 -> 15. mem and disk went
+  to 0 correct, 30 escalated, nearly all ties naming the true fault. That is the diskio data gap made
+  explicit instead of guessed: linear got 6/30 of these right and 18 wrong-fault.
+- Offline prediction (`tot_offline_truth.md`: 36 correct, 2 service_only, 22 ties) matched
+  the paid run closely (38 / 2 / 24 ties).
+
+**Trigger gap found: 22 escalations where ToT never ran.** In every one, some service
+(usually the true one) already had two telemetry kinds implicating it, so T2 ("two-kinds
+rule unmet") could not fire. But the model never finished: it judged the trace evidence too
+weak (the service on a slow path, not isolated) and spent the budget. All 22 are cpu, disk,
+socket or loss on checkout, email, currency and recommendation, the same no-trace-signal cases.
+Option for Module 5 (a design choice, not made yet): T3 = run ToT when the budget is
+nearly spent instead of escalating. ToT's own selection rule requires the scoped trace
+test to have run, but the gate would still accept loose path evidence. So T3 should
+probably also tighten the gate, accepting only service-scoped traces, or it would trade
+honest escalations for weakly evidenced answers.
+
+## Module 4 — local Qwen3.6-27B vs Opus, linear vs ToT, repetition 1 (Nov 7)
+Same 30 cases, same v4 code; full tables in `evals/model_comparison_r1.md`.
+
+| 30 cases | Opus linear | Opus ToT | Qwen linear | Qwen ToT |
+|---|---|---|---|---|
+| correct | 13 | 16 | 11 | 17 |
+| service_only | 11 | 0 | 16 | 0 |
+| wrong service | 0 | 0 | 0 | 1 |
+| escalated (ties with truth) | 6 | 14 (8) | 3 | 12 (8) |
+| min / case | 0.4 | 0.6 | 10.6 | 22.3 |
+
+- ToT removes every wrong-fault answer for both models; Qwen gains more (8 service_only ->
+  correct vs 4 for Opus). Qwen ToT and Opus ToT are level: the shared deterministic critic
+  makes much of the fault-type call.
+- New failure (Qwen, productcatalogservice_mem/1): ToT selected the rival
+  `recommendationservice: loss`. The rival's `trace_slow` was confirmed although the trace
+  summary attributes the slowdown to frontendservice, and the suspect's branches were pruned
+  on the score gap while `trace_slow` was still untested. Candidate fixes (not applied, since
+  they would require re-running both models): `trace_slow` should not confirm when the trace
+  tool attributes the slowdown elsewhere; do not prune on gap while a branch has untested
+  signals.
+- Ops: MLX server crashed twice (Metal buffer limit). Cause: SDK 600 s timeout + 2 retries
+  re-sent long generations while the server was still working. Fixed with
+  `IC_REQUEST_TIMEOUT` / `IC_MAX_RETRIES` (model.py; defaults unchanged) and a fresh server per
+  case in `scripts/qwen_ab.sh`. Error cases were set aside and re-run.

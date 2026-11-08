@@ -9,6 +9,13 @@ Design rules, enforced in CODE, not left to the model:
 - the model sees only the scratchpad rendering; raw telemetry never enters context.
 - tools are reached only through the MCP server (mcp_server.py); the tool list in
   the prompt is rendered from the server's schemas, so the two cannot drift.
+
+With tot= set (Checkpoint 4.1), Tree-of-Thought takes over the reason/stop steps
+only when the first pass is ambiguous (tot.py):
+- T1: a finish passes the gate, but the critic does not rank its fault type
+  clearly first for that service (another type within MARGIN, or contradicted);
+- T2: after TOT_AFTER_STEPS steps no service has two telemetry kinds implicating it.
+Cases that are already clear (most delay faults) pay one extra tool call, no model call.
 """
 import json
 import logging
@@ -26,6 +33,7 @@ TRACE_RATIO_SIGNIFICANT = 2.0  # per-service p50 self time; calibrated on RE2-OB
 ERR_RISE_SIGNIFICANT = 0.05    # error-rate rise (absolute) on a service's spans
 log = logging.getLogger("incident_commander")
 MAX_PARSE_FAILURES = 2
+TOT_AFTER_STEPS = 3
 
 SYSTEM_PROMPT = """You are Incident Commander, diagnosing one recorded microservice incident.
 Work ONLY from the evidence board you are shown. Never invent log lines, metrics, or services.
@@ -171,26 +179,55 @@ def _short(args: dict) -> str:
 
 
 def diagnose(case: IncidentCase, model, max_steps: int = MAX_STEPS,
-             toolbox: ToolClient | None = None) -> dict:
+             toolbox: ToolClient | None = None, tot: str | None = None) -> dict:
     """Run the loop on one case. Returns the incident brief (dict).
 
     Every step is recorded in brief["investigation"] (including failed steps) with
     the model call's time/token stats and an `outcome`, and is logged in plain
     language to the "incident_commander" logger. brief["usage"] holds run totals.
     Tools go through `toolbox`; by default a fresh MCP server for this case.
+    tot: None (linear only), "model" (LLM thought generator) or "heuristic"
+    (code picks each test: a zero-cost ablation).
     """
     if toolbox is not None:
-        return _investigate(case, model, max_steps, toolbox)
+        return _investigate(case, model, max_steps, toolbox, tot)
     with ToolClient(build_server(case)) as toolbox:
-        return _investigate(case, model, max_steps, toolbox)
+        return _investigate(case, model, max_steps, toolbox, tot)
 
 
-def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient) -> dict:
+def make_observer(pad: Scratchpad, toolbox: ToolClient, seen_calls: dict, observations: dict,
+                  totals: dict | None = None):
+    """observe(name, args, why) -> eid | None: run one tool for ToT through the
+    loop's own dedup/summarize/record path (a repeated call returns its old eid)."""
+    def observe(name: str, args: dict, why: str) -> str | None:
+        key = (name, json.dumps(args, sort_keys=True))
+        if key in seen_calls:
+            return seen_calls[key]
+        t_tool = time.monotonic()
+        try:
+            result = toolbox.call(name, args)
+        except (TypeError, ValueError) as e:
+            pad.notes.append(f"{why}: {name}({_short(args)}) failed: {e}")
+            log.info("   -> %s(%s) FAILED (%s): %s", name, _short(args), why, str(e)[:140])
+            return None
+        if totals is not None:
+            totals["tool_seconds"] += time.monotonic() - t_tool
+        kind, summary, ref, implicated = _summarize(name, result, args)
+        ev = pad.add(kind, summary, ref, implicated)
+        seen_calls[key], observations[ev.eid] = ev.eid, (name, args, result)
+        log.info("   -> %s(%s) -> %s [%s] %s (%s)", name, _short(args), ev.eid, kind, summary[:100], why)
+        return ev.eid
+    return observe
+
+
+def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient,
+                 tot: str | None = None) -> dict:
     alert_utc = datetime.fromtimestamp(case.inject_time, tz=timezone.utc)
     pad = Scratchpad(alert=f"{case.system}: latency/availability alert at "
                            f"{alert_utc:%Y-%m-%d %H:%M}Z. Find root-cause service and fault type.")
     system = SYSTEM_PROMPT.replace("{tools}", toolbox.describe())
     trace, parse_failures, seen_calls = [], 0, {}
+    observations = {}  # eid -> (tool, args, raw result): what the ToT critic reads
     totals = {"model_calls": 0, "model_seconds": 0.0, "tool_seconds": 0.0,
               "prompt_tokens": 0, "completion_tokens": 0, "replies_hit_token_limit": 0}
     t_run = time.monotonic()
@@ -207,6 +244,21 @@ def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient)
                  totals["model_seconds"], totals["tool_seconds"], totals["prompt_tokens"],
                  totals["completion_tokens"], totals["replies_hit_token_limit"])
         return brief
+
+    observe = make_observer(pad, toolbox, seen_calls, observations, totals)
+
+    def run_tot(trigger: str, suspect: str, rival: str | None) -> dict:
+        from . import tot as tot_mod
+        gen = tot_mod.ModelGenerator(model) if tot == "model" else tot_mod.HeuristicGenerator()
+        ctx = tot_mod.TotContext(pad, toolbox, observe, observations,
+                                 lambda n, a: (n, json.dumps(a, sort_keys=True)) in seen_calls)
+        result = tot_mod.run_tot(ctx, suspect, rival, gen, trigger, trace)
+        for call in getattr(gen, "last_calls", []):
+            totals["model_calls"] += 1
+            totals["model_seconds"] += call.get("seconds") or 0
+            totals["prompt_tokens"] += call.get("prompt_tokens") or 0
+            totals["completion_tokens"] += call.get("completion_tokens") or 0
+        return done(_tot_brief(pad, trace, result, ctx))
 
     for step in range(1, max_steps + 1):
         raw = model.complete([{"role": "system", "content": system},
@@ -254,6 +306,15 @@ def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient)
                 entry.update(outcome="finish_rejected", detail=problem)
                 log.info("   -> FINISH REJECTED by citation gate: %s", problem)
                 continue
+            if tot:
+                ambiguous = _fault_ambiguity(pad, observe, observations, action["finish"])
+                if ambiguous:
+                    entry.update(outcome="finish_ambiguous", detail=ambiguous)
+                    log.info("   -> FINISH passed the gate but is AMBIGUOUS: %s", ambiguous)
+                    rivals = [s for s in _candidate_services(pad)
+                              if _norm(s) != _norm(brief["root_cause"]["service"])]
+                    return run_tot(f"T1 {ambiguous}", brief["root_cause"]["service"],
+                                   rivals[0] if rivals else None)
             entry["outcome"] = "diagnosed"
             rc = brief["root_cause"]
             log.info("   -> DIAGNOSED %s / %s, citing %s", rc["service"], rc["fault_type"],
@@ -264,7 +325,7 @@ def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient)
 
         name = action.get("tool")
         args = action.get("args") or {}
-        if name not in toolbox.names:
+        if name not in toolbox.diagnostic:
             pad.notes.append(f"step {step}: unknown tool {name!r}")
             entry.update(outcome="unknown_tool", detail=str(name))
             log.info("   -> UNKNOWN TOOL %r", name)
@@ -295,9 +356,15 @@ def _investigate(case: IncidentCase, model, max_steps: int, toolbox: ToolClient)
         kind, summary, ref, implicated = _summarize(name, result, args)
         ev = pad.add(kind, summary, ref, implicated)
         seen_calls[key] = ev.eid
+        observations[ev.eid] = (name, args, result)
         entry.update(outcome="tool_call", observed=ev.eid, tool_seconds=tool_s)
         log.info("   -> %s(%s) -> %s [%s] %s (tool %.1fs)", name, _short(args), ev.eid,
                  kind, summary[:110], tool_s)
+        if tot and step >= TOT_AFTER_STEPS and not _any_two_kinds(pad):
+            suspects = _candidate_services(pad)
+            if suspects:
+                return run_tot(f"T2 two-kinds rule unmet after {step} steps", suspects[0],
+                               suspects[1] if len(suspects) > 1 else None)
 
     return done(_escalate(pad, trace, f"step budget ({max_steps}) exhausted"))
 
@@ -353,3 +420,89 @@ def _escalate(pad: Scratchpad, trace: list, reason: str) -> dict:
             "candidates": pad.candidates, "notes": pad.notes,
             "evidence_board": [vars(e) for e in pad.evidence],
             "investigation": trace, "proposed_fix": None}
+
+
+def _implicated_kinds(pad: Scratchpad) -> dict[str, set[str]]:
+    """normalized service -> telemetry kinds on the board that implicate it."""
+    out: dict[str, set[str]] = {}
+    for e in pad.evidence:
+        if e.kind in TELEMETRY_KINDS:
+            for s in e.implicates:
+                out.setdefault(_norm(s), set()).add(e.kind)
+    return out
+
+
+def _any_two_kinds(pad: Scratchpad) -> bool:
+    return any(len(k) >= 2 for k in _implicated_kinds(pad).values())
+
+
+def _candidate_services(pad: Scratchpad) -> list[str]:
+    """Services in the model's own ranking ("svc: hypothesis"), in order; if it gave
+    none, services by how many telemetry kinds implicate them. In the 90-case run
+    the true service was the model's first candidate in all 28 escalations, while
+    the raw top metric deviation was a caller or the frontend in ~1 case in 5."""
+    out = []
+    for c in pad.candidates:
+        m = re.match(r"\s*([A-Za-z][\w-]*)", c)
+        if m and _norm(m.group(1)) not in {_norm(s) for s in out}:
+            out.append(m.group(1))
+    if not out:
+        kinds = _implicated_kinds(pad)
+        names = {_norm(s): s for e in pad.evidence for s in e.implicates}
+        out = [names[k] for k in sorted(kinds, key=lambda k: -len(kinds[k]))]
+    return out
+
+
+def _fault_ambiguity(pad: Scratchpad, observe, observations: dict, finish: dict) -> str | None:
+    """T1: does the critic rank the claimed fault type clearly first for that service?
+    Costs one tool call (the service's own metric signature), no model call.
+    Returns None when clear, else a one-line reason."""
+    from . import signatures as sig
+    from .tot import MARGIN
+    service, fault = finish.get("root_cause_service"), str(finish.get("fault_type", "")).lower()
+    if observe("metric_query", {"service": service}, "tot check: metric signature") is None:
+        return None  # not a metric service: nothing to check against, keep the linear answer
+    implicates = {e.eid: e.implicates for e in pad.evidence}
+    ranked = sig.rank_faults(sig.features(service, observations, implicates))
+    alive = [(f, s) for f, s, vs in ranked if not sig.must_contradicted(vs)]
+    scores = dict(alive)
+    if fault not in scores:
+        return f"{fault} has a contradicted must-have signal for {service}"
+    rivals = [(f, s) for f, s in alive if f != fault and s > scores[fault] - MARGIN]
+    if rivals:
+        return (f"{fault} (score {scores[fault]}) vs " +
+                ", ".join(f"{f} ({s})" for f, s in rivals) + f" for {service}")
+    return None
+
+
+def _tot_brief(pad: Scratchpad, trace: list, result: dict, ctx) -> dict:
+    """The brief from a ToT result: selected -> diagnosed (re-checked by the gate);
+    tied -> escalated naming the indistinguishable hypotheses; else escalated with
+    the ranked branches."""
+    from . import signatures as sig
+    from . import tot as tot_mod
+    sel = result["selected"]
+    result = {**result, "flags": {b["branch_id"]: tot_mod.unobservable_flags(b) for b in result["ranked"]
+                                  if tot_mod.unobservable_flags(b)}}
+    if sel:
+        cited = [eid for eids in ctx.implicating_kinds(sel["service"]).values() for eid in eids]
+        finish = {"root_cause_service": sel["service"], "fault_type": sel["fault_type"],
+                  "supporting_evidence": cited,
+                  "alternatives_rejected": tot_mod.alternatives(result),
+                  "proposed_fix": {"description": sig.REMEDIATION[sel["fault_type"]].format(svc=sel["service"]),
+                                   "destructive": True}}
+        brief, problem = _gate(pad, finish)
+        if not problem:
+            brief.update(status="diagnosed", decided_by="tot", steps=len(trace), investigation=trace,
+                         evidence_board=[vars(e) for e in pad.evidence], tot=result)
+            return brief
+        reason = f"tot selected {sel['service']}: {sel['fault_type']} but the gate refused: {problem}"
+    elif result["status"] == "tied":
+        reason = ("tie: " + " or ".join(f"{b['service']}: {b['fault_type']}" for b in result["tied"])
+                  + ", indistinguishable in this data")
+    else:
+        reason = "tot: no branch passed the two-kinds gate"
+    brief = _escalate(pad, trace, reason)
+    brief["candidates"] = [tot_mod.summary_line(b) for b in result["ranked"]]
+    brief["tot"] = result
+    return brief

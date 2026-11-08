@@ -34,7 +34,7 @@ class Priced:
 def test_resume_and_spend_cap(tmp_path, monkeypatch):
     calls = []
 
-    def fake_diagnose(c, model):
+    def fake_diagnose(c, model, **kw):
         calls.append(c.case_id)
         return {**diagnosed(c.root_cause_service, c.fault_type), "investigation": [], "usage": {}}
 
@@ -54,7 +54,7 @@ def test_resume_and_spend_cap(tmp_path, monkeypatch):
 
 
 def test_crash_is_recorded_not_raised(tmp_path, monkeypatch):
-    def boom(c, model):
+    def boom(c, model, **kw):
         raise RuntimeError("API down")
     monkeypatch.setattr(loop, "diagnose", boom)
     rows = evaluate.run_eval([case()], Priced, tmp_path)

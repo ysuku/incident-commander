@@ -11,6 +11,10 @@ Two ways in:
   MCP client session over in-memory streams, wrapped in a sync API.
 - stdio, for any MCP host (MCP Inspector, Claude Desktop, Claude Code):
     python -m incident_commander.mcp_server --case checkoutservice_cpu/1
+
+The same server is the ToT state manager (Checkpoint 4.1): four branch tools over
+one BranchBoard per incident. They are not diagnostic tools, so the ReAct prompt
+never lists them (ToolClient.diagnostic); the ToT controller calls them.
 """
 import argparse
 import json
@@ -35,12 +39,18 @@ DESCRIPTIONS = {
                      "inbound (caller-observed) latency and errors, before vs after the alert"),
     "service_map": "who calls whom",
     "runbook_lookup": "reference docs; hits suggest fixes but are NOT root-cause evidence",
+    "open_branch": "ToT: open a hypothesis branch (service, fault_type); returns it",
+    "record_result": "ToT: store the critic's verdicts (and the test run) on a branch; rescored here",
+    "close_branch": "ToT: set a branch's status (pruned|selected|tied|exhausted) with a reason",
+    "branch_status": "ToT: every branch with score, verdicts and tests, best first",
 }
+BRANCH_TOOLS = ("open_branch", "record_result", "close_branch", "branch_status")
 
 
 def build_server(case: IncidentCase) -> FastMCP:
-    """FastMCP server exposing the five tools, bound to one case. Tool errors
-    (unknown service, bad args) come back to the client as isError results."""
+    """FastMCP server exposing the five tools, bound to one case, plus the ToT
+    branch tools over a fresh BranchBoard. Tool errors (unknown service, bad
+    args) come back to the client as isError results."""
     server = FastMCP("incident-commander",
                      instructions=f"Read-only diagnostic tools for recorded incident {case.case_id}.")
 
@@ -65,6 +75,25 @@ def build_server(case: IncidentCase) -> FastMCP:
     def runbook_lookup(symptom: str, k: int = 4) -> list[dict]:
         return tools.runbook_lookup(symptom, k=k)
 
+    from .tot import BranchBoard  # not at top: tot -> signatures -> loop -> this module
+    board = BranchBoard()
+
+    @server.tool(description=DESCRIPTIONS["open_branch"])
+    def open_branch(service: str, fault_type: str, reason: str = "") -> dict:
+        return board.open(service, fault_type, reason)
+
+    @server.tool(description=DESCRIPTIONS["record_result"])
+    def record_result(branch_id: str, verdicts: list[dict], test: dict | None = None) -> dict:
+        return board.record(branch_id, verdicts, test)
+
+    @server.tool(description=DESCRIPTIONS["close_branch"])
+    def close_branch(branch_id: str, status: str, reason: str = "") -> dict:
+        return board.close(branch_id, status, reason)
+
+    @server.tool(description=DESCRIPTIONS["branch_status"])
+    def branch_status() -> dict:
+        return board.status()
+
     return server
 
 
@@ -83,6 +112,7 @@ class ToolClient:
             create_connected_server_and_client_session(server._mcp_server)))
         self.tools = self._portal.call(self._session.list_tools).tools
         self.names = [t.name for t in self.tools]
+        self.diagnostic = [n for n in self.names if n not in BRANCH_TOOLS]
 
     def call(self, name: str, args: dict):
         """Call one tool; returns its result as plain Python (dict or list)."""
@@ -102,6 +132,8 @@ class ToolClient:
         'name(required, optional?) - description'."""
         lines = []
         for t in self.tools:
+            if t.name in BRANCH_TOOLS:
+                continue
             schema = t.inputSchema or {}
             required = set(schema.get("required", []))
             params = ", ".join(p if p in required else f"{p}?" for p in schema.get("properties", {}))
