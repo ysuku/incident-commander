@@ -1,0 +1,654 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "candidates": [
+    "productcatalogservice: mem (score 3, open; confirmed mem_up, latency_up, socket_not_saturated)",
+    "productcatalogservice: disk (score 3, open; confirmed mem_up, cpu_up, socket_not_saturated)",
+    "frontend: delay (score 2, open; confirmed latency_up, resources_flat, no_errors)",
+    "productcatalogservice: cpu (score 0, pruned; confirmed cpu_up, socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_mem z=223.66 (1118.3%); productcatalogservice_cpu z=48.04 (475.4%); productcatalogservice_socket z=14.71 (73.5%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_mem",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.01->0.01ms (1.0x), errors 0.0->0.0; inbound calls self-time p50 2.53->4.08ms (1.61x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_mem z=223.66 (1118.3%); productcatalogservice_latency-90 z=309.74 (1548.7%); productcatalogservice_socket z=14.71 (73.5%); productcatalogservice_cpu z=48.04 (475.4%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_mem",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_latency-50 z=16.27 (82.0%)",
+      "source_ref": "simple_metrics.csv:frontend_latency-50",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=productcatalogservice, metric=disk]; largest is only productcatalogservice_diskio z=nan",
+      "source_ref": "simple_metrics.csv:productcatalogservice_diskio",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "traces",
+      "summary": "traces for frontendservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 3.07->4.34ms (1.41x), errors 0.092->0.0926",
+      "source_ref": "traces.csv:serviceName=frontendservice",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.06->1.18ms (1.11x), errors 0.0->0.0; inbound calls self-time p50 3.82->3.92ms (1.03x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": []
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=productcatalogservice, metric=io]; largest is only productcatalogservice_diskio z=nan",
+      "source_ref": "simple_metrics.csv:productcatalogservice_diskio",
+      "implicates": []
+    },
+    {
+      "eid": "E11",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 632,
+        "completion_tokens": 74,
+        "max_tokens": 16000,
+        "answer_chars": 201,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00401,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric_query to rank every service and metric by deviation around the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.3,
+        "prompt_tokens": 740,
+        "completion_tokens": 234,
+        "max_tokens": 16000,
+        "answer_chars": 488,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00764,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows a large memory deviation on productcatalogservice, so I need a second telemetry kind (traces) to confirm it is the source rather than a victim.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.18
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 3.4,
+        "prompt_tokens": 980,
+        "completion_tokens": 231,
+        "max_tokens": 16000,
+        "answer_chars": 551,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00854,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics strongly implicate productcatalogservice memory but traces show no significant change, so I need logs as an independent second telemetry kind to confirm or refute a memory fault there.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "productcatalogservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.11
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: mem",
+      "thought": "A disk fault on productcatalogservice would show strongly elevated disk read/write deviations, while a memory fault leaves disk I/O near baseline beside the huge mem z=223, so querying the disk metric",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "metric": "disk"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.4,
+        "prompt_tokens": 1155,
+        "completion_tokens": 315,
+        "max_tokens": 16000,
+        "answer_chars": 485,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01092,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "productcatalogservice: disk",
+      "thought": "Disk metrics are flat (E6: no significant disk deviation, diskio z=nan), so the only remaining way to tell a disk fault from memory exhaustion is direct log evidence of I/O trouble, such as disk-full,",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk OR I/O OR no space OR write error OR read error OR iowait",
+          "service": "productcatalogservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.7,
+        "prompt_tokens": 1259,
+        "completion_tokens": 559,
+        "max_tokens": 16000,
+        "answer_chars": 771,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01622,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: delay",
+      "thought": "A frontend-injected delay should show up as increased self-time in frontend's own spans, whereas a productcatalogservice memory fault would leave frontend self-time flat and push the added latency int",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "frontend"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 1287,
+        "completion_tokens": 272,
+        "max_tokens": 16000,
+        "answer_chars": 533,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01059,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: mem",
+      "thought": "Disk is already ruled out by E6 (no disk deviation), so the open signature item is trace_slow: E2 showed only a 1.61x inbound slowdown at productcatalogservice. Checking a caller's view of its product",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 6.3,
+        "prompt_tokens": 1377,
+        "completion_tokens": 569,
+        "max_tokens": 16000,
+        "answer_chars": 740,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01689,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: mem",
+      "thought": "E6 reported diskio as z=nan, which is inconclusive rather than clean evidence, so a broader 'io' metric query for productcatalogservice should check whether any read/write/IO metric moved; a disk faul",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "metric": "io"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 6.1,
+        "prompt_tokens": 1510,
+        "completion_tokens": 513,
+        "max_tokens": 16000,
+        "answer_chars": 507,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0163,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "productcatalogservice: disk",
+      "thought": "Diskio already shows no measurable deviation (z=nan in E6 and E10), so the only remaining way to tell disk from memory is a disk-specific error signature (ENOSPC, I/O or write failures) in productcata",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk OR ENOSPC OR \"no space\" OR \"I/O error\" OR \"write failed\"",
+          "service": "productcatalogservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 6.6,
+        "prompt_tokens": 1613,
+        "completion_tokens": 525,
+        "max_tokens": 16000,
+        "answer_chars": 646,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01695,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "productcatalogservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "productcatalogservice",
+        "fault_type": "mem",
+        "reason": "top fault types for productcatalogservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=223.66",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=309.74",
+            "eid": "E4",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "productcatalogservice",
+              "metric": "disk"
+            },
+            "depth": 1,
+            "predicted": "productcatalogservice disk metrics show no significant deviation (z < 3), far below mem z=223.66, so the disk-fault rival is ruled out.",
+            "rationale": "A disk fault on productcatalogservice would show strongly elevated disk read/write deviations, while a memory fault leaves disk I/O near baseline beside the huge mem z=223, so querying the disk metric",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "recommendationservice"
+            },
+            "depth": 2,
+            "predicted": "Recommendationservice's outbound/self latency on its productcatalogservice calls rises after the alert, with tail (p90) latency growing much more than p50 and no errors. That fits memory pressure (GC/",
+            "rationale": "Disk is already ruled out by E6 (no disk deviation), so the open signature item is trace_slow: E2 showed only a 1.61x inbound slowdown at productcatalogservice. Checking a caller's view of its product",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "productcatalogservice",
+              "metric": "io"
+            },
+            "depth": 3,
+            "predicted": "No IO, read or write metric for productcatalogservice reaches |z|>=3, while memory stays the dominant deviation at z\u2248224, which rules out disk.",
+            "rationale": "E6 reported diskio as z=nan, which is inconclusive rather than clean evidence, so a broader 'io' metric query for productcatalogservice should check whether any read/write/IO metric moved; a disk faul",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "reason": "top fault types for productcatalogservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=223.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=48.04",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "query": "disk OR I/O OR no space OR write error OR read error OR iowait",
+              "service": "productcatalogservice",
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "If the root cause is a disk fault, productcatalogservice logs show disk or I/O related warnings or errors (e.g. no space left, slow read or write, I/O timeout) clustered after 23:18Z. If none appear, ",
+            "rationale": "Disk metrics are flat (E6: no significant disk deviation, diskio z=nan), so the only remaining way to tell a disk fault from memory exhaustion is direct log evidence of I/O trouble, such as disk-full,",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "log_search",
+            "args": {
+              "query": "disk OR ENOSPC OR \"no space\" OR \"I/O error\" OR \"write failed\"",
+              "service": "productcatalogservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "If the fault is disk, productcatalogservice logs show disk/IO error lines clustered after 23:18Z. Zero matches would leave the huge memory z-score as the best explanation and favor the mem rival.",
+            "rationale": "Diskio already shows no measurable deviation (z=nan in E6 and E10), so the only remaining way to tell disk from memory is a disk-specific error signature (ENOSPC, I/O or write failures) in productcata",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=16.27",
+            "eid": "E5",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=0.23",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E8",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.001",
+            "eid": "E8",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "frontend"
+            },
+            "depth": 1,
+            "predicted": "Frontend's own span self-time p50 rises sharply (>=2x) and accounts for most of the end-to-end latency increase, with no error rise and little added latency from downstream productcatalogservice calls",
+            "rationale": "A frontend-injected delay should show up as increased self-time in frontend's own spans, whereas a productcatalogservice memory fault would leave frontend self-time flat and push the added latency int",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "productcatalogservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for productcatalogservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=48.04",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=223.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 7,
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 43.9,
+    "tool_seconds": 3.7,
+    "prompt_tokens": 12077,
+    "completion_tokens": 3685,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 47.7,
+    "cost_usd": 0.12200799999999999
+  }
+}

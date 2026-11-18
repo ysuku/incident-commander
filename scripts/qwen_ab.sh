@@ -8,6 +8,8 @@ unset ANTHROPIC_API_KEY IC_ANTHROPIC_API_KEY
 export IC_REQUEST_TIMEOUT=3600 IC_MAX_RETRIES=0   # no duplicate requests against the local server
 PY=.venv/bin/python
 SERVER_PID=""
+code_hash() { find src -name '*.py' -print0 | sort -z | xargs -0 shasum | shasum | cut -c1-12; }
+CODE=$(code_hash); echo "code fingerprint $CODE"
 start_server() {
   [ -n "$SERVER_PID" ] && { kill $SERVER_PID 2>/dev/null; wait $SERVER_PID 2>/dev/null; }
   pkill -f 'mlx_lm.server' 2>/dev/null; sleep 2
@@ -19,8 +21,10 @@ start_server() {
 }
 run_mode() {  # $1 = results folder, $2.. = extra eval flags
   local out=$1; shift
+  mkdir -p "evals/results/$out"; echo "$CODE" > "evals/results/$out/code_fingerprint.txt"
   for c in $($PY -c "from incident_commander import loaders; print(' '.join(x.case_id for x in loaders.list_cases('online-boutique') if x.run == '1'))"); do
     [ -f "evals/results/$out/${c//\//_}.json" ] && continue
+    [ "$(code_hash)" != "$CODE" ] && { echo "CODE_CHANGED: src/ edited mid-run; stopping"; exit 2; }
     start_server
     $PY -m incident_commander.cli eval --model env --runs 1 --cases "$c" --out "$out" "$@"
   done

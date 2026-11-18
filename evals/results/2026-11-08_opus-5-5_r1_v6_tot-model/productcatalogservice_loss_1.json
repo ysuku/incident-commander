@@ -1,0 +1,1062 @@
+{
+  "status": "escalated",
+  "reason": "tie: productcatalogservice: loss or frontend: loss, indistinguishable in this data",
+  "candidates": [
+    "productcatalogservice: loss (score 5, tied; confirmed latency_up, conn_pressure, cpu_not_up, trace_slow)",
+    "frontend: loss (score 5, tied; confirmed latency_up, conn_pressure, cpu_not_up, trace_slow)",
+    "productcatalogservice: mem (score 4, open; confirmed latency_up, socket_not_saturated, trace_slow)",
+    "productcatalogservice: disk (score 1, pruned; confirmed socket_not_saturated, trace_slow)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=20804438.28; productcatalogservice_latency-90 z=16885.35 (84426.7%); recommendationservice_latency-90 z=13770.22 (68851.1%); recommendationservice_latency-50 z=3763.17 (18815.9%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "cartservice",
+        "frontend",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.89x), errors 0.0->0.0018; inbound calls self-time p50 2.29->224.12ms (97.7x), errors 0.0->0.0012",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.05->1.87ms (1.78x), errors 0.0->0.0009; inbound calls self-time p50 3.77->8.61ms (2.28x), errors 0.0->0.0748; BUT the inbound slowdown is only on calls from frontendservice, which is also slow to adservice, productcatalogservice: likely frontendservice's own network, not recommendationservice",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "frontendservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "traces",
+      "summary": "traces for frontendservice: SIGNIFICANT change; own spans self-time p50 3.03->17.41ms (5.74x), errors 0.0923->0.1014; outbound calls slowed to 3 callees (adservice, productcatalogservice, recommendationservice): delay on frontendservice's own network",
+      "source_ref": "traces.csv:serviceName=frontendservice",
+      "implicates": [
+        "frontendservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=16885.35 (84426.7%); productcatalogservice_latency-50 z=2791.84 (13959.2%); productcatalogservice_workload z=-11.45 (-79.0%); productcatalogservice_mem z=10.06 (50.3%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=16885.35 (84426.7%); productcatalogservice_latency-50 z=2791.84 (13959.2%); productcatalogservice_workload z=-11.45 (-79.0%); productcatalogservice_mem z=10.06 (50.3%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_error z=20804438.28; frontend_latency-50 z=465.05 (2325.3%); frontend_latency-90 z=293.32 (3185.4%); frontend_socket z=17.8 (89.0%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "traces",
+      "summary": "5342 traces after alert; worst: frontendservice -> checkoutservice 10.8ms errors=4; frontendservice -> currencyservice -> productcatalogservice 10302.2ms errors=3; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 1253.9ms errors=3",
+      "source_ref": "traces.csv:traceID=16802007a6fca54ea0cc5b6eb30f0b7f",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "emailservice",
+        "frontendservice",
+        "paymentservice",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E9",
+      "kind": "logs",
+      "summary": "15 matching lines; by svc/level {'frontend/error': 15}; [frontend/error] request error; [frontend/error] request error",
+      "source_ref": "logs.csv#L105795",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E11",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 3.8->4.09ms (1.08x), errors 0.0->0.0011; inbound calls self-time p50 2.97->3.22ms (1.08x), errors 0.0->0.0083",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": []
+    },
+    {
+      "eid": "E12",
+      "kind": "traces",
+      "summary": "traces for adservice: SIGNIFICANT change; inbound calls self-time p50 2.99->7.17ms (2.4x), errors 0.0->0.0; BUT the inbound slowdown is only on calls from frontendservice, which is also slow to productcatalogservice, recommendationservice: likely frontendservice's own network, not adservice",
+      "source_ref": "traces.csv:serviceName=adservice",
+      "implicates": [
+        "frontendservice"
+      ]
+    },
+    {
+      "eid": "E13",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.89x), errors 0.0->0.0018; inbound calls self-time p50 2.29->224.12ms (97.7x), errors 0.0->0.0012",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E14",
+      "kind": "traces",
+      "summary": "traces for frontendservice: SIGNIFICANT change; own spans self-time p50 3.03->17.41ms (5.74x), errors 0.0923->0.1014; outbound calls slowed to 3 callees (adservice, productcatalogservice, recommendationservice): delay on frontendservice's own network",
+      "source_ref": "traces.csv:serviceName=frontendservice",
+      "implicates": [
+        "frontendservice"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 632,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 206,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00407,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric_query to rank every service and metric by before/after-alert deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.8,
+        "prompt_tokens": 759,
+        "completion_tokens": 303,
+        "max_tokens": 16000,
+        "answer_chars": 642,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0091,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows productcatalogservice p90 latency up roughly 84000%, and recommendationservice depends on it, so I need traces of productcatalogservice's own versus caller-observed latency to see whether the fault starts there or downstream.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.73
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 5.5,
+        "prompt_tokens": 1005,
+        "completion_tokens": 503,
+        "max_tokens": 16000,
+        "answer_chars": 715,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01408,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 and E2 both implicate productcatalogservice, and the gap between unchanged own self-time and 97.7x caller-observed latency fits a network delay; checking recommendationservice's own spans will show whether its latency is only inherited.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.68
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 5.7,
+        "prompt_tokens": 1212,
+        "completion_tokens": 598,
+        "max_tokens": 16000,
+        "answer_chars": 717,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01681,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 and E2 both point at productcatalogservice, but E3 says frontend is slow to several services, so I need frontend's own and inbound trace view to rule out a frontend-side network fault before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "frontend"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.71
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 8.6,
+        "prompt_tokens": 1374,
+        "completion_tokens": 809,
+        "max_tokens": 16000,
+        "answer_chars": 751,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02168,
+        "finish_reason": "stop"
+      },
+      "thought": "Productcatalogservice already has metric (E1) and trace (E2) support, but its own resource metrics are needed to tell network delay from loss or CPU, and to see whether the fault is really frontend's network (E4).",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 9.3,
+        "prompt_tokens": 1544,
+        "completion_tokens": 950,
+        "max_tokens": 16000,
+        "answer_chars": 1543,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02518,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E5) and traces (E2) both point at productcatalogservice: its p90 latency rose about 84,000% while its own self-time stayed flat and callers saw a 97.7x slowdown, which fits a network delay on its interface.",
+      "action": {
+        "finish": {
+          "root_cause_service": "productcatalogservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E5",
+            "E3",
+            "E4"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend: own network delay",
+              "why": "Frontend's other callees slowed only modestly (recommendationservice inbound 2.28x, E3), while productcatalogservice inbound slowed 97.7x (E2). Frontend's 5.74x self-time increase (E4) is better explained by waiting on productcatalogservice than by its own network."
+            },
+            {
+              "candidate": "recommendationservice: own delay/CPU",
+              "why": "Its own self-time rose only 1.78x and its inbound slowdown is modest at 2.28x (E3). This is far smaller than productcatalogservice's 84426.7% p90 latency jump (E1, E5)."
+            },
+            {
+              "candidate": "productcatalogservice: mem fault",
+              "why": "The memory deviation is small (z=10.06, +50.3%) next to the latency deviation (z=16885, E5). Its own span self-time is unchanged at 0.89x (E2), so the problem is in the network path rather than the service's own resources."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Remove the injected network delay on productcatalogservice's pod interface, for example by deleting the tc netem qdisc. Then confirm that inbound p50 latency returns to about 2ms. If the delay source cannot be found, reschedule the pod.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "delay has a contradicted must-have signal for productcatalogservice"
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: loss",
+      "thought": "If productcatalogservice's own interface is losing packets, calls into it from recommendationservice, and not just from frontend, should also be slow or failing; frontend-side loss would only affect h",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.6,
+        "prompt_tokens": 1760,
+        "completion_tokens": 515,
+        "max_tokens": 16000,
+        "answer_chars": 571,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01734,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: loss",
+      "thought": "Packet loss on frontend's interface should produce frontend error logs (timeouts or connection resets) spread across several downstream callees, whereas loss at productcatalogservice should produce er",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "frontend",
+          "level": "error",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 4.9,
+        "prompt_tokens": 1939,
+        "completion_tokens": 434,
+        "max_tokens": 16000,
+        "answer_chars": 635,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01644,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "productcatalogservice: mem",
+      "thought": "The two faults leave different traces in productcatalogservice's own logs: a memory fault should produce memory, GC or OOM pressure messages, while packet loss would show timeouts or connection resets",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "memory OR OOM OR GC OR heap OR timeout OR reset",
+          "service": "productcatalogservice",
+          "limit": 30
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.6,
+        "prompt_tokens": 1986,
+        "completion_tokens": 525,
+        "max_tokens": 16000,
+        "answer_chars": 719,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01844,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: loss",
+      "thought": "checkoutservice calls productcatalogservice without going through frontend's network, so a slowdown or errors only on checkout's calls to productcatalogservice would point to productcatalogservice los",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.2,
+        "prompt_tokens": 2042,
+        "completion_tokens": 511,
+        "max_tokens": 16000,
+        "answer_chars": 585,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01839,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: loss",
+      "thought": "Adservice is called only by frontend and does not depend on productcatalogservice, so caller-observed slowdown and errors on adservice would point to loss on frontend's own network, while productcatal",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "adservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E12",
+      "generator": "model",
+      "model_call": {
+        "seconds": 4.8,
+        "prompt_tokens": 2177,
+        "completion_tokens": 470,
+        "max_tokens": 16000,
+        "answer_chars": 561,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01811,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 12,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: loss",
+      "thought": "If productcatalogservice's own interface is losing packets, its failing and slow inbound calls should come from several callers such as recommendationservice and checkoutservice; if frontend's network",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "service": "productcatalogservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E13",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.6,
+        "prompt_tokens": 2318,
+        "completion_tokens": 520,
+        "max_tokens": 16000,
+        "answer_chars": 688,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01967,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 13,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: loss",
+      "thought": "If the packet loss is on frontend's own interface, failing requests should show errors and retransmit-scale delays on frontend's outbound calls to every callee. If the loss is on productcatalogservice",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "service": "frontendservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E14",
+      "generator": "model",
+      "model_call": {
+        "seconds": 7.4,
+        "prompt_tokens": 2445,
+        "completion_tokens": 709,
+        "max_tokens": 16000,
+        "answer_chars": 739,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02396,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "tied",
+    "trigger": "T1 delay has a contradicted must-have signal for productcatalogservice",
+    "suspect": "productcatalogservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [
+      {
+        "branch_id": "B1",
+        "service": "productcatalogservice",
+        "fault_type": "loss",
+        "reason": "top fault types for productcatalogservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=16885.3",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=10.06",
+            "eid": "E5",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-6.77",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.002",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "Worst and failing request paths include recommendationservice -> productcatalogservice spans with large latency (hundreds of ms, retransmission-like) and errors, so the degradation centres on productc",
+            "rationale": "If productcatalogservice's own interface is losing packets, calls into it from recommendationservice, and not just from frontend, should also be slow or failing; frontend-side loss would only affect h",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "checkoutservice"
+            },
+            "depth": 2,
+            "predicted": "checkoutservice's outbound calls to productcatalogservice show a large latency increase (tens of times higher, with retransmission-like long tails) and a raised error rate. checkoutservice's own self-",
+            "rationale": "checkoutservice calls productcatalogservice without going through frontend's network, so a slowdown or errors only on checkout's calls to productcatalogservice would point to productcatalogservice los",
+            "by": "model"
+          },
+          {
+            "eid": "E13",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "service": "productcatalogservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "Failing or retried calls into productcatalogservice show large inbound latency and errors from several callers (recommendationservice, checkoutservice, frontendservice) while productcatalogservice's o",
+            "rationale": "If productcatalogservice's own interface is losing packets, its failing and slow inbound calls should come from several callers such as recommendationservice and checkoutservice; if frontend's network",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "loss",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=465.05",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=17.8",
+            "eid": "E7",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-5.76",
+            "eid": "E7",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E4",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.009",
+            "eid": "E4",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "service": "frontend",
+              "level": "error",
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "Many frontend error lines (rpc timeouts, 'transport is closing', connection reset or deadline exceeded) spread across several callees such as adservice, recommendationservice, currencyservice and prod",
+            "rationale": "Packet loss on frontend's interface should produce frontend error logs (timeouts or connection resets) spread across several downstream callees, whereas loss at productcatalogservice should produce er",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "adservice"
+            },
+            "depth": 2,
+            "predicted": "adservice own-span self-time stays flat (~1x), but inbound calls from frontendservice slow down by >=2x and their error rate rises by >=0.05, meaning the fault sits on frontend's side rather than in p",
+            "rationale": "Adservice is called only by frontend and does not depend on productcatalogservice, so caller-observed slowdown and errors on adservice would point to loss on frontend's own network, while productcatal",
+            "by": "model"
+          },
+          {
+            "eid": "E14",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "service": "frontendservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "Failing traces are dominated by frontendservice's own spans, with errors and slowdowns spread across its calls to adservice, recommendationservice and productcatalogservice. productcatalogservice's ow",
+            "rationale": "If the packet loss is on frontend's own interface, failing requests should show errors and retransmit-scale delays on frontend's outbound calls to every callee. If the loss is on productcatalogservice",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "productcatalogservice",
+        "fault_type": "loss",
+        "reason": "top fault types for productcatalogservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=16885.3",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=10.06",
+            "eid": "E5",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-6.77",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.002",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "Worst and failing request paths include recommendationservice -> productcatalogservice spans with large latency (hundreds of ms, retransmission-like) and errors, so the degradation centres on productc",
+            "rationale": "If productcatalogservice's own interface is losing packets, calls into it from recommendationservice, and not just from frontend, should also be slow or failing; frontend-side loss would only affect h",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "checkoutservice"
+            },
+            "depth": 2,
+            "predicted": "checkoutservice's outbound calls to productcatalogservice show a large latency increase (tens of times higher, with retransmission-like long tails) and a raised error rate. checkoutservice's own self-",
+            "rationale": "checkoutservice calls productcatalogservice without going through frontend's network, so a slowdown or errors only on checkout's calls to productcatalogservice would point to productcatalogservice los",
+            "by": "model"
+          },
+          {
+            "eid": "E13",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "service": "productcatalogservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "Failing or retried calls into productcatalogservice show large inbound latency and errors from several callers (recommendationservice, checkoutservice, frontendservice) while productcatalogservice's o",
+            "rationale": "If productcatalogservice's own interface is losing packets, its failing and slow inbound calls should come from several callers such as recommendationservice and checkoutservice; if frontend's network",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "loss",
+        "reason": "rival service from conflicting candidates",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=465.05",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=17.8",
+            "eid": "E7",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-5.76",
+            "eid": "E7",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E4",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.009",
+            "eid": "E4",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "service": "frontend",
+              "level": "error",
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "Many frontend error lines (rpc timeouts, 'transport is closing', connection reset or deadline exceeded) spread across several callees such as adservice, recommendationservice, currencyservice and prod",
+            "rationale": "Packet loss on frontend's interface should produce frontend error logs (timeouts or connection resets) spread across several downstream callees, whereas loss at productcatalogservice should produce er",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "adservice"
+            },
+            "depth": 2,
+            "predicted": "adservice own-span self-time stays flat (~1x), but inbound calls from frontendservice slow down by >=2x and their error rate rises by >=0.05, meaning the fault sits on frontend's side rather than in p",
+            "rationale": "Adservice is called only by frontend and does not depend on productcatalogservice, so caller-observed slowdown and errors on adservice would point to loss on frontend's own network, while productcatal",
+            "by": "model"
+          },
+          {
+            "eid": "E14",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "service": "frontendservice",
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "Failing traces are dominated by frontendservice's own spans, with errors and slowdowns spread across its calls to adservice, recommendationservice and productcatalogservice. productcatalogservice's ow",
+            "rationale": "If the packet loss is on frontend's own interface, failing requests should show errors and retransmit-scale delays on frontend's outbound calls to every callee. If the loss is on productcatalogservice",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "productcatalogservice",
+        "fault_type": "mem",
+        "reason": "top fault types for productcatalogservice by metric signature (score 4)",
+        "status": "open",
+        "close_reason": "",
+        "score": 4,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=10.06",
+            "eid": "E5",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=16885.3",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=7.46",
+            "eid": "E5",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E10",
+            "tool": "log_search",
+            "args": {
+              "query": "memory OR OOM OR GC OR heap OR timeout OR reset",
+              "service": "productcatalogservice",
+              "limit": 30
+            },
+            "depth": 1,
+            "predicted": "If the fault is memory, productcatalogservice logs show memory, GC or heap-pressure (or OOM/restart) lines clustered after 18:20Z, with few or no connection-reset or retransmit timeout lines.",
+            "rationale": "The two faults leave different traces in productcatalogservice's own logs: a memory fault should produce memory, GC or OOM pressure messages, while packet loss would show timeouts or connection resets",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "reason": "top fault types for productcatalogservice by metric signature (score 1)",
+        "status": "pruned",
+        "close_reason": "score 1 (at most 1 if every untested signal held) is 4+ below the best (5)",
+        "score": 1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E5",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=10.06",
+            "eid": "E5",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-6.77",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=7.46",
+            "eid": "E5",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 7,
+    "generator_calls": 7,
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 13,
+    "model_seconds": 73.5,
+    "tool_seconds": 5.4,
+    "prompt_tokens": 21193,
+    "completion_tokens": 6924,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 79.1,
+    "cost_usd": 0.223252
+  }
+}

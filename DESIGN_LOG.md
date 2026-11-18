@@ -440,12 +440,10 @@ Same 30 cases, same v4 code; full tables in `evals/model_comparison_r1.md`.
   correct vs 4 for Opus). Qwen ToT and Opus ToT are level: the shared deterministic critic
   makes much of the fault-type call.
 - New failure (Qwen, productcatalogservice_mem/1): ToT selected the rival
-  `recommendationservice: loss`. The rival's `trace_slow` was confirmed although the trace
-  summary attributes the slowdown to frontendservice, and the suspect's branches were pruned
-  on the score gap while `trace_slow` was still untested. Candidate fixes (not applied, since
-  they would require re-running both models): `trace_slow` should not confirm when the trace
-  tool attributes the slowdown elsewhere; do not prune on gap while a branch has untested
-  signals.
+  `recommendationservice: loss`. (Corrected Nov 8: the rival's trace verdict was right, its own
+  spans slowed 2.33x.) The real cause: the rival was fully tested and scored 5 while the true
+  suspect's trace signal was still untested (score 3), so the suspect was pruned on the gap and
+  out-ranked. Fixed in v5/v6, below.
 - Ops: MLX server crashed twice (Metal buffer limit). Cause: SDK 600 s timeout + 2 retries
   re-sent long generations while the server was still working. Fixed with
   `IC_REQUEST_TIMEOUT` / `IC_MAX_RETRIES` (model.py; defaults unchanged) and a fresh server per
@@ -503,3 +501,24 @@ branches.
 (expect the same diagnoses plus a fix section and contradiction flags; cost +1 call per diagnosed
 case); (2) read the flagged contradictions by hand on a sample, since no label exists for them;
 (3) the T3 trigger question from Nov 5 is now a one-line routing change in `graph.commander`.
+
+## Module 4 — ToT ceiling rule; v6 re-run on frozen 5.1 code (Nov 9)
+Rule: a branch with untested signals is pruned and compared on its ceiling (untested counted as
+confirmed: `signatures.ceiling`), so a less-tested branch cannot lose to a more-tested one.
+`decide` returns None (keep testing; escalate at budget) while any rival's ceiling is within
+MARGIN. Offline check (90 cases, both suspect modes) is unchanged; the bug needs a ReAct phase
+that has already tested one branch, which the offline harness does not create. Regression test
+`test_a_less_tested_branch_is_not_beaten_by_a_more_tested_rival`.
+
+| 30 cases | Opus ToT v4 | Opus ToT v6 | Qwen ToT v4 | Qwen ToT v6 |
+|---|---|---|---|---|
+| correct | 16 | 15 | 17 | 16 |
+| wrong service | 0 | 0 | 1 | 0 |
+| escalated (ties w/ truth) | 14 (8) | 15 (8) | 12 (8) | 14 (9) |
+| cost | $2.49 | $2.73 | $0 | $0 |
+
+The wrong-service case is now a tie containing the truth; each model lost one correct answer to
+a tie where the rival could not be ruled out. With ToT neither model ships a wrong answer.
+A first v5 Qwen run was discarded: the 5.1 edits landed mid-run and each case is a new process.
+Both v6 runs record code fingerprint `f6d377c126c7` (snapshot in `evals/archive/`); the Qwen
+script now stops if `src/` changes. Full tables: `evals/model_comparison_r1.md`.

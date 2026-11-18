@@ -1,0 +1,619 @@
+{
+  "root_cause": {
+    "service": "productcatalogservice",
+    "fault_type": "delay"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); recommendationservice_latency-90 z=455.66 (2278.3%); recommendationservice_latency-50 z=424.71 (2123.5%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); productcatalogservice_workload z=-4.36 (-23.4%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.02ms (1.25x), errors 0.0->0.0; inbound calls self-time p50 2.42->202.98ms (83.7x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "productcatalogservice: loss",
+      "why": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5); contradicted: conn_pressure mem z=0.21 (E3)"
+    },
+    {
+      "candidate": "recommendationservice: delay",
+      "why": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5); contradicted: trace_slow traces flat (E6)"
+    },
+    {
+      "candidate": "productcatalogservice: disk",
+      "why": "score -3 (at most -1 if every untested signal held) is 3+ below the best (2); contradicted: mem_up mem z=0.21 (E3); cpu_up cpu z=-0.64 (E3)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Inspect productcatalogservice's pod network (tc/netem rules, CNI); remove the injected latency",
+    "model_labeled_destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 6,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 93.4,
+        "prompt_tokens": 424,
+        "completion_tokens": 1288,
+        "max_tokens": 8192,
+        "reasoning_chars": 4703,
+        "answer_chars": 242,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify which services are exhibiting anomalies in metrics (latency, errors, etc.) to narrow down the scope.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.34
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 49.8,
+        "prompt_tokens": 565,
+        "completion_tokens": 691,
+        "max_tokens": 8192,
+        "reasoning_chars": 2592,
+        "answer_chars": 293,
+        "finish_reason": "stop"
+      },
+      "thought": "Check service dependencies to determine if recommendationservice latency is a downstream effect of productcatalogservice failure.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.44
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 39.8,
+        "prompt_tokens": 632,
+        "completion_tokens": 535,
+        "max_tokens": 8192,
+        "reasoning_chars": 1789,
+        "answer_chars": 391,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows productcatalogservice has the highest latency deviation and E2 indicates it is a leaf service, so I need to check its resource metrics to identify the specific fault type.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: delay",
+      "thought": "first untested signal of delay",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "heuristic (model fallback: no JSON object in response)",
+      "model_call": {}
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "recommendationservice: delay",
+      "thought": "Examining recommendationservice's own span self-time will distinguish whether the latency originates internally (supporting the hypothesis) or is merely inherited from a slow downstream dependency lik",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 193.2,
+        "prompt_tokens": 886,
+        "completion_tokens": 2601,
+        "max_tokens": 8192,
+        "reasoning_chars": 10361,
+        "answer_chars": 461,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "productcatalogservice: loss",
+      "thought": "Querying socket pressure metrics directly tests the connection exhaustion signature required for the loss hypothesis, which the delay hypothesis lacks.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "metric": "sockets"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 171.6,
+        "prompt_tokens": 1002,
+        "completion_tokens": 2285,
+        "max_tokens": 8192,
+        "reasoning_chars": 8895,
+        "answer_chars": 292,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); recommendationservice_latency-90 z=455.66 (2278.3%); recommendationservice_latency-50 z=424.71 (2123.5%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); productcatalogservice_workload z=-4.36 (-23.4%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=455.66 (2278.3%); recommendationservice_latency-50 z=424.71 (2123.5%); recommendationservice_workload z=-4.02 (-22.9%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.02ms (1.25x), errors 0.0->0.0; inbound calls self-time p50 2.42->202.98ms (83.7x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.0->0.9ms (0.89x), errors 0.0->0.0; inbound calls self-time p50 3.86->3.96ms (1.03x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=productcatalogservice, metric=sockets]; largest is only productcatalogservice_socket z=-2.87 (-14.4%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_socket",
+      "implicates": []
+    }
+  ],
+  "decided_by": "tot",
+  "tot": {
+    "status": "selected",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "productcatalogservice",
+    "rival": "recommendationservice",
+    "selected": {
+      "branch_id": "B1",
+      "service": "productcatalogservice",
+      "fault_type": "delay",
+      "reason": "top fault types for productcatalogservice by metric signature (score 2)",
+      "status": "open",
+      "close_reason": "",
+      "score": 5,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "latency_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "latency z=944.51",
+          "eid": "E1",
+          "must": true,
+          "expect": "latency z >= 3"
+        },
+        {
+          "signal": "resources_flat",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "max resource mem z=0.21",
+          "eid": "E3",
+          "must": true,
+          "expect": "cpu, mem, socket all z < 5"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E5",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        },
+        {
+          "signal": "no_errors",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "span error rate +0.000",
+          "eid": "E5",
+          "must": false,
+          "expect": "span error rate rises < 0.05"
+        }
+      ],
+      "tests": [
+        {
+          "eid": "E5",
+          "tool": "trace_lookup",
+          "args": {
+            "service": "productcatalogservice"
+          },
+          "depth": 1,
+          "predicted": "service's own/inbound spans slow down",
+          "rationale": "first untested signal of delay",
+          "by": "heuristic (model fallback: no JSON object in response)"
+        }
+      ]
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "productcatalogservice",
+        "fault_type": "delay",
+        "reason": "top fault types for productcatalogservice by metric signature (score 2)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=944.51",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=0.21",
+            "eid": "E3",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E5",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E5",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "productcatalogservice"
+            },
+            "depth": 1,
+            "predicted": "service's own/inbound spans slow down",
+            "rationale": "first untested signal of delay",
+            "by": "heuristic (model fallback: no JSON object in response)"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "productcatalogservice",
+        "fault_type": "loss",
+        "reason": "top fault types for productcatalogservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=944.51",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.21",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-0.64",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E5",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E5",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "productcatalogservice",
+              "metric": "sockets"
+            },
+            "depth": 1,
+            "predicted": "sockets z >= 5",
+            "rationale": "Querying socket pressure metrics directly tests the connection exhaustion signature required for the loss hypothesis, which the delay hypothesis lacks.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "recommendationservice",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=455.66",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=0.01",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E6",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E6",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "recommendationservice",
+              "failing_only": true,
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "own spans self-time p50 increases significantly (e.g., >2x) confirming internal processing delay",
+            "rationale": "Examining recommendationservice's own span self-time will distinguish whether the latency originates internally (supporting the hypothesis) or is merely inherited from a slow downstream dependency lik",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "reason": "top fault types for productcatalogservice by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 3+ below the best (2)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.21",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.64",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=-2.87",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 3,
+    "generator_calls": 3,
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 6,
+    "model_seconds": 1144.6,
+    "tool_seconds": 2.5,
+    "prompt_tokens": 4293,
+    "completion_tokens": 15592,
+    "replies_hit_token_limit": 1,
+    "wall_seconds": 1147.1,
+    "cost_usd": 0.0
+  }
+}

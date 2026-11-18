@@ -1,0 +1,514 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "candidates": [
+    "emailservice: delay (score 2, open; confirmed latency_up, resources_flat, no_errors)",
+    "shippingservice: delay (score 2, open; confirmed latency_up, resources_flat, no_errors)",
+    "emailservice: loss (score 0, pruned; confirmed latency_up, cpu_not_up)",
+    "emailservice: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=902.94 (4514.7%); shippingservice_latency-90 z=524.32 (2621.6%); checkoutservice_latency-90 z=351.72 (1758.6%); emailservice_latency-50 z=267.35 (1336.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice",
+        "paymentservice",
+        "shippingservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=902.94 (4514.7%); emailservice_latency-50 z=267.35 (1336.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=shippingservice]: shippingservice_latency-90 z=524.32 (2621.6%)",
+      "source_ref": "simple_metrics.csv:shippingservice_latency-90",
+      "implicates": [
+        "shippingservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.2->0.2ms (0.99x), errors 0.0->0.0; inbound calls self-time p50 3.68->204.09ms (55.44x), errors 0.0->0.0; BUT the inbound slowdown is only on calls from checkoutservice, which is also slow to cartservice, currencyservice, paymentservice, productcatalogservice, shippingservice: likely checkoutservice's own network, not emailservice",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "traces",
+      "summary": "traces for shippingservice: NO significant change (<2x latency, <0.05 error rise); inbound calls self-time p50 2.93->3.23ms (1.1x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=shippingservice",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=cpu]; largest is only emailservice_cpu z=0.21 (2.5%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 100.6,
+        "prompt_tokens": 424,
+        "completion_tokens": 1366,
+        "max_tokens": 8192,
+        "reasoning_chars": 5320,
+        "answer_chars": 298,
+        "finish_reason": "stop"
+      },
+      "thought": "I will query metrics across all services to identify which component is exhibiting the latency or availability anomalies reported in the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 50.1,
+        "prompt_tokens": 576,
+        "completion_tokens": 675,
+        "max_tokens": 8192,
+        "reasoning_chars": 2240,
+        "answer_chars": 353,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to understand the service dependencies to determine if the high latency in emailservice is causing the latency in checkoutservice and shippingservice, or vice versa.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.49
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 157.4,
+        "prompt_tokens": 648,
+        "completion_tokens": 2173,
+        "max_tokens": 8192,
+        "reasoning_chars": 7832,
+        "answer_chars": 331,
+        "finish_reason": "stop"
+      },
+      "thought": "Investigate emailservice logs for errors to confirm if it's the root cause of the latency spike.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "query": "error",
+          "limit": 5
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: delay",
+      "thought": "Since `emailservice` is a dependency of the slow `checkoutservice` (which triggers the alert) while `shippingservice` is not in the dependency map, verifying high latency in `emailservice` traces conf",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 397.6,
+        "prompt_tokens": 767,
+        "completion_tokens": 5425,
+        "max_tokens": 8192,
+        "reasoning_chars": 20064,
+        "answer_chars": 447,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "shippingservice: delay",
+      "thought": "Checking shippingservice traces will reveal if its own execution time is genuinely slow (confirming it as the root cause) or if it merely inherits latency from a slow caller, which would shift blame t",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "shippingservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 185.9,
+        "prompt_tokens": 913,
+        "completion_tokens": 2472,
+        "max_tokens": 8192,
+        "reasoning_chars": 9021,
+        "answer_chars": 492,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: delay",
+      "thought": "Querying emailservice CPU metrics verifies the resources_flat condition required for the delay signature, distinguishing it from resource exhaustion or confirming the delay hypothesis if flat.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 286.1,
+        "prompt_tokens": 990,
+        "completion_tokens": 3850,
+        "max_tokens": 8192,
+        "reasoning_chars": 14926,
+        "answer_chars": 315,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "emailservice",
+    "rival": "shippingservice",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "delay",
+        "reason": "top fault types for emailservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=902.94",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.21",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E6",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E6",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "emailservice"
+            },
+            "depth": 1,
+            "predicted": "emailservice spans show significantly increased latency (z >= 3) with low error rates",
+            "rationale": "Since `emailservice` is a dependency of the slow `checkoutservice` (which triggers the alert) while `shippingservice` is not in the dependency map, verifying high latency in `emailservice` traces conf",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "cpu z < 5",
+            "rationale": "Querying emailservice CPU metrics verifies the resources_flat condition required for the delay signature, distinguishing it from resource exhaustion or confirming the delay hypothesis if flat.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "shippingservice",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=524.32",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=0.38",
+            "eid": "E5",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E7",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E7",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "shippingservice",
+              "failing_only": true,
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "own spans self-time p50 increases significantly (e.g., >2x), confirming shippingservice is the bottleneck",
+            "rationale": "Checking shippingservice traces will reveal if its own execution time is genuinely slow (confirming it as the root cause) or if it merely inherits latency from a slow caller, which would shift blame t",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "loss",
+        "reason": "top fault types for emailservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 2+ below the best (2)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=902.94",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=0.21",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E6",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E6",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "emailservice",
+        "fault_type": "disk",
+        "reason": "top fault types for emailservice by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 3+ below the best (2)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=0.21",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 3,
+    "generator_calls": 7,
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 2469.3,
+    "tool_seconds": 2.6,
+    "prompt_tokens": 8451,
+    "completion_tokens": 33391,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 2472.0,
+    "cost_usd": 0.0
+  }
+}

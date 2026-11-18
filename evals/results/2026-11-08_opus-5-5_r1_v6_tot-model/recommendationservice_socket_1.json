@@ -1,0 +1,259 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%); recommendationservice_cpu z=52.54 (562.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "recommendationservice: network delay",
+      "why": "Latency alone would fit a delay, but socket usage up 535% (z=107) is the largest non-latency deviation (E3), so socket is the more specific explanation. Callers seeing more slowdown (17.84x vs 5.29x own, E2) is also consistent with connections queuing on exhausted sockets."
+    },
+    {
+      "candidate": "recommendationservice: cpu saturation",
+      "why": "CPU deviation (z=52.5) is about half the socket deviation (z=107) in E3, so it is more likely a side effect of connection churn."
+    },
+    {
+      "candidate": "productcatalogservice: downstream dependency",
+      "why": "It does not appear among the top deviations in the all-service ranking (E1); every top signal except the frontend error rate belongs to recommendationservice (E1, E3)."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Restart or roll the recommendationservice pod to clear the leaked or exhausted sockets. Then check connection pooling and socket limits (for example the gRPC channel reuse toward productcatalogservice), and watch frontend error rates recover.",
+    "model_labeled_destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 632,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 209,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00407,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric query that ranks every service and metric by before/after-alert deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.8,
+        "prompt_tokens": 756,
+        "completion_tokens": 282,
+        "max_tokens": 16000,
+        "answer_chars": 634,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00866,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out recommendationservice (latency up ~25-50x, socket up 535%), so I need a second, independent telemetry kind on it; its own vs caller-observed traces would confirm whether it is the origin or a victim.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.81
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 7.9,
+        "prompt_tokens": 1004,
+        "completion_tokens": 721,
+        "max_tokens": 16000,
+        "answer_chars": 806,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01844,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at recommendationservice, but the fault type is still open: the socket deviation suggests socket, while the large inbound-latency jump suggests delay. Its full metric breakdown should separate these and show whether CPU, memory or network-loss signals also moved.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 6.6,
+        "prompt_tokens": 1190,
+        "completion_tokens": 625,
+        "max_tokens": 16000,
+        "answer_chars": 743,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01726,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E3) and traces (E2) already point at recommendationservice, but socket (z=107) and delay (inbound 17.84x vs own 5.29x) are both still plausible, so recommendationservice logs should show which fault type it is before I finish.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 9.9,
+        "prompt_tokens": 1394,
+        "completion_tokens": 1008,
+        "max_tokens": 16000,
+        "answer_chars": 1699,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02574,
+        "finish_reason": "stop"
+      },
+      "thought": "Two independent telemetry kinds point at recommendationservice: metrics show its latency and socket counts jumping (E1, E3) and traces show its spans slowing (E2); the socket metric (z=107) is its strongest non-latency deviation, which most directly suggests a socket fault.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "recommendationservice: network delay",
+              "why": "Latency alone would fit a delay, but socket usage up 535% (z=107) is the largest non-latency deviation (E3), so socket is the more specific explanation. Callers seeing more slowdown (17.84x vs 5.29x own, E2) is also consistent with connections queuing on exhausted sockets."
+            },
+            {
+              "candidate": "recommendationservice: cpu saturation",
+              "why": "CPU deviation (z=52.5) is about half the socket deviation (z=107) in E3, so it is more likely a side effect of connection churn."
+            },
+            {
+              "candidate": "productcatalogservice: downstream dependency",
+              "why": "It does not appear among the top deviations in the all-service ranking (E1); every top signal except the frontend error rate belongs to recommendationservice (E1, E3)."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Restart or roll the recommendationservice pod to clear the leaked or exhausted sockets. Then check connection pooling and socket limits (for example the gRPC channel reuse toward productcatalogservice), and watch frontend error rates recover.",
+            "destructive": true
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%); recommendationservice_cpu z=52.54 (562.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "9895 matching lines; by svc/level {'recommendationservice/INFO': 9895}; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['2ZYFJ3GM2N', 'LS4PSXUNUM', 'OLJCESPC7Z'; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['9SIQT8TOJO', 'OLJCESPC7Z', '6E92ZMYYFZ'",
+      "source_ref": "logs.csv#L88848",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 29.6,
+    "tool_seconds": 0.9,
+    "prompt_tokens": 4976,
+    "completion_tokens": 2713,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 30.6,
+    "cost_usd": 0.074164
+  }
+}

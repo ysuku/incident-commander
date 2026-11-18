@@ -1,0 +1,932 @@
+{
+  "status": "escalated",
+  "reason": "tie: currencyservice: mem or currencyservice: loss, indistinguishable in this data",
+  "candidates": [
+    "currencyservice: mem (score 5, tied; confirmed mem_up, latency_up, socket_not_saturated, trace_slow)",
+    "currencyservice: loss (score 5, tied; confirmed latency_up, conn_pressure, cpu_not_up, trace_slow)",
+    "currencyservice: disk (score 2, pruned; confirmed mem_up, socket_not_saturated, trace_slow)",
+    "frontend: delay (score 2, pruned; confirmed latency_up, resources_flat, no_errors)"
+  ],
+  "notes": [
+    "tot B1 currencyservice:mem depth 3: metric_query(service='currencyservice', metric='net', top=10) failed: unknown metric 'net'; available metrics are ['cpu', 'diskio', 'error', 'latency-50', 'latency-90', 'mem', 'socket', 'workload']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_mem z=43.35 (216.8%); currencyservice_socket z=20.75 (103.7%); productcatalogservice_cpu z=-3.35 (-28.4%); frontend_socket z=3.03 (15.1%)",
+      "source_ref": "simple_metrics.csv:currencyservice_mem",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.1->0.09ms (0.9x), errors 0.0->0.0; inbound calls self-time p50 66.8->293.96ms (4.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_mem z=43.35 (216.8%); currencyservice_latency-90 z=139.61 (698.1%); currencyservice_latency-50 z=79.35 (396.7%); currencyservice_socket z=20.75 (103.7%)",
+      "source_ref": "simple_metrics.csv:currencyservice_mem",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_latency-50 z=60.65 (303.2%); frontend_latency-90 z=28.82 (397.3%); frontend_socket z=3.03 (15.1%)",
+      "source_ref": "simple_metrics.csv:frontend_latency-50",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "10159 traces after alert; worst: frontendservice -> currencyservice -> productcatalogservice 8168.8ms errors=1; frontendservice -> currencyservice -> productcatalogservice 7974.9ms errors=1; frontendservice -> currencyservice -> productcatalogservice 7861.9ms errors=1",
+      "source_ref": "traces.csv:traceID=3218b8663d73577aa1212bd4e1ef936c",
+      "implicates": [
+        "currencyservice",
+        "frontendservice",
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "traces",
+      "summary": "traces for frontendservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 3.02->3.63ms (1.2x), errors 0.0926->0.0918",
+      "source_ref": "traces.csv:serviceName=frontendservice",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "logs",
+      "summary": "0 matching lines; by svc/level {}; no sample",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.1->0.09ms (0.9x), errors 0.0->0.0; inbound calls self-time p50 66.8->293.96ms (4.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=currencyservice, metric=error]; largest is only currencyservice_error z=0.0",
+      "source_ref": "simple_metrics.csv:currencyservice_error",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.2,
+        "prompt_tokens": 632,
+        "completion_tokens": 71,
+        "max_tokens": 16000,
+        "answer_chars": 184,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00395,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 753,
+        "completion_tokens": 228,
+        "max_tokens": 16000,
+        "answer_chars": 529,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00757,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics single out currencyservice memory (z=43), so I need a second, independent telemetry kind; caller-observed traces for currencyservice will show whether its callers actually feel the fault.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.04
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 8.2,
+        "prompt_tokens": 985,
+        "completion_tokens": 850,
+        "max_tokens": 16000,
+        "answer_chars": 1306,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02094,
+        "finish_reason": "stop"
+      },
+      "thought": "Two independent telemetry kinds both implicate currencyservice: memory is the dominant metric deviation (E1) and caller-observed latency to it rose 4.4x (E2), so the evidence is sufficient to finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "mem",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend",
+              "why": "Its socket deviation is small (z=3.03, E1) and matches the slow inbound currency calls in E2, so it is a downstream symptom."
+            },
+            {
+              "candidate": "productcatalogservice",
+              "why": "Its CPU fell (z=-3.35, E1), which suggests less work rather than saturation, and no trace evidence points at it."
+            },
+            {
+              "candidate": "currencyservice (socket/delay fault)",
+              "why": "Socket did rise (z=20.75), but the memory deviation is twice as large (z=43.35, 216.8%, E1). Own-span self-time is flat while callers see 4.4x latency (E2), which fits memory pressure stalling the process (GC or swapping) rather than slow handler logic."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Do a rolling restart of the currencyservice pods to reclaim leaked memory. Temporarily raise the memory limit, then find the leak with heap profiling and roll back the release that introduced it. Watch memory and caller latency afterward.",
+            "destructive": true
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "mem (score 5) vs loss (5) for currencyservice"
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "currencyservice: mem",
+      "thought": "Packet loss would leave network-error traces in currencyservice logs such as timeouts, connection resets, retries or unavailable errors, while a memory fault would show heap or GC pressure and no netw",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "timeout OR reset OR retry OR unavailable OR deadline OR heap OR memory OR GC",
+          "service": "currencyservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.1,
+        "prompt_tokens": 1146,
+        "completion_tokens": 449,
+        "max_tokens": 16000,
+        "answer_chars": 762,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01356,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "currencyservice: loss",
+      "thought": "Packet loss should produce failed or timed-out requests on paths that call currencyservice, whereas a memory fault mainly causes slowness with no errors (E2 showed currencyservice errors at 0.0), so c",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 5.2,
+        "prompt_tokens": 1206,
+        "completion_tokens": 429,
+        "max_tokens": 16000,
+        "answer_chars": 565,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0134,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: delay",
+      "thought": "A frontend-delay fault should show up as slower self-time in frontend's own spans, while a currencyservice memory fault would leave frontend's own self-time flat and push its latency into downstream c",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "frontend"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.7,
+        "prompt_tokens": 1346,
+        "completion_tokens": 290,
+        "max_tokens": 16000,
+        "answer_chars": 547,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01118,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "currencyservice: mem",
+      "thought": "Packet loss on currencyservice should produce gRPC transport errors, timeouts or retries in its callers' logs, whereas memory exhaustion only slows responses, which fits the zero error rate already se",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "currency",
+          "service": "frontend",
+          "level": "error",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 7.5,
+        "prompt_tokens": 1435,
+        "completion_tokens": 618,
+        "max_tokens": 16000,
+        "answer_chars": 681,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.0181,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "currencyservice: loss",
+      "thought": "Packet loss shows up as failed or timed-out inbound calls whose server-side self-time stays normal (E2 own spans 0.1ms, inbound 4.4x), whereas memory exhaustion should slow currencyservice's own proce",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "service": "currencyservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 8.1,
+        "prompt_tokens": 1495,
+        "completion_tokens": 754,
+        "max_tokens": 16000,
+        "answer_chars": 651,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02106,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "currencyservice: mem",
+      "thought": "Packet loss on currencyservice should show up in network-level metrics such as receive/transmit, drops or retransmits, while a memory fault should leave them flat apart from the moderate socket rise w",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "metric": "net",
+          "top": 10
+        }
+      },
+      "outcome": "tot_test_failed",
+      "observed": null,
+      "generator": "model",
+      "model_call": {
+        "seconds": 7.3,
+        "prompt_tokens": 1593,
+        "completion_tokens": 714,
+        "max_tokens": 16000,
+        "answer_chars": 652,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.02065,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "currencyservice: loss",
+      "thought": "Packet loss should raise currencyservice's error metric through dropped or retried connections, while a memory fault would slow it down without errors; the error metric has not been queried yet, and t",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "metric": "error"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 4.5,
+        "prompt_tokens": 1728,
+        "completion_tokens": 342,
+        "max_tokens": 16000,
+        "answer_chars": 497,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01375,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "tied",
+    "trigger": "T1 mem (score 5) vs loss (5) for currencyservice",
+    "suspect": "currencyservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [
+      {
+        "branch_id": "B1",
+        "service": "currencyservice",
+        "fault_type": "mem",
+        "reason": "top fault types for currencyservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=43.35",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=139.61",
+            "eid": "E3",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=20.75",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "log_search",
+            "args": {
+              "query": "timeout OR reset OR retry OR unavailable OR deadline OR heap OR memory OR GC",
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "Few or no network-error lines (timeout, reset, retry, unavailable) for currencyservice after 06:31Z. Any matches are memory or GC related, such as heap growth or garbage-collection pauses. This fits a",
+            "rationale": "Packet loss would leave network-error traces in currencyservice logs such as timeouts, connection resets, retries or unavailable errors, while a memory fault would show heap or GC pressure and no netw",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "currency",
+              "service": "frontend",
+              "level": "error",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "No or very few error lines (no 'unavailable', 'deadline exceeded' or 'connection reset' on currency calls). That would mean the latency rise has no network-loss error signature and is consistent with ",
+            "rationale": "Packet loss on currencyservice should produce gRPC transport errors, timeouts or retries in its callers' logs, whereas memory exhaustion only slows responses, which fits the zero error rate already se",
+            "by": "model"
+          },
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "net",
+              "top": 10
+            },
+            "depth": 3,
+            "predicted": "No significant network rx/tx, drop or retransmit deviations for currencyservice (|z| < 3); the only anomalies stay memory, latency and a sub-25 socket rise, which is consistent with a memory fault rat",
+            "rationale": "Packet loss on currencyservice should show up in network-level metrics such as receive/transmit, drops or retransmits, while a memory fault should leave them flat apart from the moderate socket rise w",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "currencyservice",
+        "fault_type": "loss",
+        "reason": "top fault types for currencyservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=139.61",
+            "eid": "E3",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=43.35",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=0.87",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "If loss is true, failing traces appear (error rate rises to 0.05 or more) with errors or timeouts on frontend->currencyservice calls. If no failing traces turn up, that supports the memory rival inste",
+            "rationale": "Packet loss should produce failed or timed-out requests on paths that call currencyservice, whereas a memory fault mainly causes slowness with no errors (E2 showed currencyservice errors at 0.0), so c",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "Failing traces concentrate on frontend->currencyservice calls, with caller-observed errors or timeouts at a rate of at least 0.05 and multi-second inbound latency, while currencyservice's own span sel",
+            "rationale": "Packet loss shows up as failed or timed-out inbound calls whose server-side self-time stays normal (E2 own spans 0.1ms, inbound 4.4x), whereas memory exhaustion should slow currencyservice's own proce",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "error"
+            },
+            "depth": 3,
+            "predicted": "If loss is the cause, the currencyservice error metric rises clearly (z >= 3, error rate up by at least 0.05). A flat error metric would favour the mem rival.",
+            "rationale": "Packet loss should raise currencyservice's error metric through dropped or retried connections, while a memory fault would slow it down without errors; the error metric has not been queried yet, and t",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "currencyservice",
+        "fault_type": "mem",
+        "reason": "top fault types for currencyservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=43.35",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=139.61",
+            "eid": "E3",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=20.75",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "log_search",
+            "args": {
+              "query": "timeout OR reset OR retry OR unavailable OR deadline OR heap OR memory OR GC",
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "Few or no network-error lines (timeout, reset, retry, unavailable) for currencyservice after 06:31Z. Any matches are memory or GC related, such as heap growth or garbage-collection pauses. This fits a",
+            "rationale": "Packet loss would leave network-error traces in currencyservice logs such as timeouts, connection resets, retries or unavailable errors, while a memory fault would show heap or GC pressure and no netw",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "currency",
+              "service": "frontend",
+              "level": "error",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "No or very few error lines (no 'unavailable', 'deadline exceeded' or 'connection reset' on currency calls). That would mean the latency rise has no network-loss error signature and is consistent with ",
+            "rationale": "Packet loss on currencyservice should produce gRPC transport errors, timeouts or retries in its callers' logs, whereas memory exhaustion only slows responses, which fits the zero error rate already se",
+            "by": "model"
+          },
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "net",
+              "top": 10
+            },
+            "depth": 3,
+            "predicted": "No significant network rx/tx, drop or retransmit deviations for currencyservice (|z| < 3); the only anomalies stay memory, latency and a sub-25 socket rise, which is consistent with a memory fault rat",
+            "rationale": "Packet loss on currencyservice should show up in network-level metrics such as receive/transmit, drops or retransmits, while a memory fault should leave them flat apart from the moderate socket rise w",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "currencyservice",
+        "fault_type": "loss",
+        "reason": "top fault types for currencyservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=139.61",
+            "eid": "E3",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=43.35",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=0.87",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "If loss is true, failing traces appear (error rate rises to 0.05 or more) with errors or timeouts on frontend->currencyservice calls. If no failing traces turn up, that supports the memory rival inste",
+            "rationale": "Packet loss should produce failed or timed-out requests on paths that call currencyservice, whereas a memory fault mainly causes slowness with no errors (E2 showed currencyservice errors at 0.0), so c",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "service": "currencyservice",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "Failing traces concentrate on frontend->currencyservice calls, with caller-observed errors or timeouts at a rate of at least 0.05 and multi-second inbound latency, while currencyservice's own span sel",
+            "rationale": "Packet loss shows up as failed or timed-out inbound calls whose server-side self-time stays normal (E2 own spans 0.1ms, inbound 4.4x), whereas memory exhaustion should slow currencyservice's own proce",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "error"
+            },
+            "depth": 3,
+            "predicted": "If loss is the cause, the currencyservice error metric rises clearly (z >= 3, error rate up by at least 0.05). A flat error metric would favour the mem rival.",
+            "rationale": "Packet loss should raise currencyservice's error metric through dropped or retried connections, while a memory fault would slow it down without errors; the error metric has not been queried yet, and t",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "currencyservice",
+        "fault_type": "disk",
+        "reason": "top fault types for currencyservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=43.35",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=0.87",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=20.75",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=60.65",
+            "eid": "E4",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource socket z=3.03",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E7",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +-0.001",
+            "eid": "E7",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "frontend"
+            },
+            "depth": 1,
+            "predicted": "Frontend's own span self-time p50 rises sharply (well over 2x) after the alert, its error rate stays near 0, and the slowdown is not explained by downstream currencyservice call time alone.",
+            "rationale": "A frontend-delay fault should show up as slower self-time in frontend's own spans, while a currencyservice memory fault would leave frontend's own self-time flat and push its latency into downstream c",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "expansions": 7,
+    "generator_calls": 7,
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 53.4,
+    "tool_seconds": 3.9,
+    "prompt_tokens": 12319,
+    "completion_tokens": 4745,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 57.3,
+    "cost_usd": 0.14417600000000003
+  }
+}

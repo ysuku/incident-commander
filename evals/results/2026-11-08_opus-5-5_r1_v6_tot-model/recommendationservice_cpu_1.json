@@ -1,0 +1,177 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%); frontend_latency-50 z=5.89 (29.5%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.04->2.57ms (2.48x), errors 0.0->0.0; inbound calls self-time p50 3.88->5.43ms (1.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "recommendationservice: injected delay",
+      "why": "Injected delay would not drive CPU up by 655% (z=67.44, E1). Own-span self-time rising 2.48x (E2) fits slower compute from CPU saturation."
+    },
+    {
+      "candidate": "frontend: originating fault",
+      "why": "Frontend's deviation is minor (latency-50 z=5.89, 29.5%) compared with recommendationservice (latency-90 z=173.44, E1). That fits frontend latency being propagated from a slow downstream call (E2 inbound self-time 1.4x), not originating there."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Find the CPU hog in recommendationservice, such as a runaway process or a stress workload. Stop it if it is extraneous. Meanwhile, temporarily scale out replicas or raise CPU limits to restore latency. Confirm that CPU and latency-90 return to baseline.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 632,
+        "completion_tokens": 79,
+        "max_tokens": 16000,
+        "answer_chars": 227,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00411,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet, so start with an unfiltered metric query to rank every service and metric by how far they moved from before to after the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 3.6,
+        "prompt_tokens": 764,
+        "completion_tokens": 261,
+        "max_tokens": 16000,
+        "answer_chars": 551,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.00828,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics show recommendationservice with large CPU and latency deviations; caller-observed traces would add the independent second telemetry kind needed to confirm it.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.12
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 7.2,
+        "prompt_tokens": 1025,
+        "completion_tokens": 709,
+        "max_tokens": 16000,
+        "answer_chars": 1139,
+        "effort": "medium",
+        "served_by": "claude-opus-5-5",
+        "cost_usd": 0.01828,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) independently point at recommendationservice, and its 655% CPU rise points to CPU exhaustion rather than injected delay.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "recommendationservice: injected delay",
+              "why": "Injected delay would not drive CPU up by 655% (z=67.44, E1). Own-span self-time rising 2.48x (E2) fits slower compute from CPU saturation."
+            },
+            {
+              "candidate": "frontend: originating fault",
+              "why": "Frontend's deviation is minor (latency-50 z=5.89, 29.5%) compared with recommendationservice (latency-90 z=173.44, E1). That fits frontend latency being propagated from a slow downstream call (E2 inbound self-time 1.4x), not originating there."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Find the CPU hog in recommendationservice, such as a runaway process or a stress workload. Stop it if it is extraneous. Meanwhile, temporarily scale out replicas or raise CPU limits to restore latency. Confirm that CPU and latency-90 return to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%); frontend_latency-50 z=5.89 (29.5%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.04->2.57ms (2.48x), errors 0.0->0.0; inbound calls self-time p50 3.88->5.43ms (1.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 12.3,
+    "tool_seconds": 1.1,
+    "prompt_tokens": 2421,
+    "completion_tokens": 1049,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 13.5,
+    "cost_usd": 0.030664
+  }
+}

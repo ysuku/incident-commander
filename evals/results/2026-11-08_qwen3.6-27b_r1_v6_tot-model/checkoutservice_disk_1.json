@@ -1,0 +1,448 @@
+{
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "disk"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: checkoutservice_cpu z=231.4 (4267.6%); checkoutservice_mem z=231.21 (1156.0%); checkoutservice_socket z=6.57 (32.9%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_cpu z=231.4 (4267.6%); checkoutservice_mem z=231.21 (1156.0%); checkoutservice_socket z=6.57 (32.9%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "1953 matching lines; by svc/level {'checkoutservice/info': 1953}; [checkoutservice/info] [PlaceOrder] user_id=\"35ffb2b1-bfa2-4fd6-9dc8-a9cc8c8767f5\" user_currency=\"JPY\"; [checkoutservice/info] payment went through (transaction_id: 7d4ecdaf-af34-4771-a0b8-1d932fb6d18f)",
+      "source_ref": "logs.csv#L85056",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "logs",
+    "metrics"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "checkoutservice: cpu",
+      "why": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3); contradicted: mem_not_saturated mem z=231.21 (E1)"
+    },
+    {
+      "candidate": "checkoutservice: mem",
+      "why": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3); contradicted: latency_up latency z=1.81 (E4)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Find the process filling disk I/O on checkoutservice; move scratch writes off the container disk",
+    "model_labeled_destructive": true,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 34.7,
+        "prompt_tokens": 424,
+        "completion_tokens": 438,
+        "max_tokens": 8192,
+        "reasoning_chars": 1615,
+        "answer_chars": 170,
+        "finish_reason": "stop"
+      },
+      "thought": "Querying metrics without filters to identify which services and metrics deviated around the alert time.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.32
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 93.2,
+        "prompt_tokens": 498,
+        "completion_tokens": 1331,
+        "max_tokens": 8192,
+        "reasoning_chars": 4920,
+        "answer_chars": 350,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics show extreme CPU and memory spikes in checkoutservice; querying logs to confirm errors or OOM events and satisfy the two-telemetry requirement.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "checkoutservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 43.4,
+        "prompt_tokens": 666,
+        "completion_tokens": 580,
+        "max_tokens": 8192,
+        "reasoning_chars": 2141,
+        "answer_chars": 297,
+        "finish_reason": "stop"
+      },
+      "thought": "Verify if checkoutservice exhibits high latency or errors in traces to corroborate the CPU/Mem metric spikes.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.9
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 272.4,
+        "prompt_tokens": 775,
+        "completion_tokens": 3835,
+        "max_tokens": 8192,
+        "reasoning_chars": 13760,
+        "answer_chars": 961,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) show extreme CPU/Mem spikes in checkoutservice, and logs (E2) confirm high activity volume, satisfying the two-telemetry requirement for resource exhaustion despite normal trace latency (E3).",
+      "action": {
+        "finish": {
+          "root_cause_service": "checkoutservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "checkoutservice: socket exhaustion",
+              "why": "Socket z-score (6.57) is significantly lower than CPU/Mem (>230) in E1"
+            },
+            {
+              "candidate": "downstream services",
+              "why": "E1 shows no deviations for other services; E3 shows checkoutservice not waiting on downstreams"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Scale up checkoutservice replicas or optimize CPU-intensive code paths",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "cpu (score 0) vs disk (3), mem (0), socket (0) for checkoutservice"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: checkoutservice_cpu z=231.4 (4267.6%); checkoutservice_mem z=231.21 (1156.0%); checkoutservice_socket z=6.57 (32.9%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "1953 matching lines; by svc/level {'checkoutservice/info': 1953}; [checkoutservice/info] [PlaceOrder] user_id=\"35ffb2b1-bfa2-4fd6-9dc8-a9cc8c8767f5\" user_currency=\"JPY\"; [checkoutservice/info] payment went through (transaction_id: 7d4ecdaf-af34-4771-a0b8-1d932fb6d18f)",
+      "source_ref": "logs.csv#L85056",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 3.91->4.83ms (1.23x), errors 0.0->0.0; inbound calls self-time p50 2.82->3.36ms (1.19x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_cpu z=231.4 (4267.6%); checkoutservice_mem z=231.21 (1156.0%); checkoutservice_socket z=6.57 (32.9%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "decided_by": "tot",
+  "tot": {
+    "status": "selected",
+    "trigger": "T1 cpu (score 0) vs disk (3), mem (0), socket (0) for checkoutservice",
+    "suspect": "checkoutservice",
+    "rival": null,
+    "selected": {
+      "branch_id": "B1",
+      "service": "checkoutservice",
+      "fault_type": "disk",
+      "reason": "top fault types for checkoutservice by metric signature (score 3)",
+      "status": "open",
+      "close_reason": "",
+      "score": 3,
+      "kinds": [
+        "metrics"
+      ],
+      "verdicts": [
+        {
+          "signal": "diskio_up",
+          "kind": "metrics",
+          "verdict": "unobservable",
+          "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+          "eid": "E4",
+          "must": true,
+          "expect": "diskio rises"
+        },
+        {
+          "signal": "mem_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "mem z=231.21",
+          "eid": "E1",
+          "must": false,
+          "expect": "mem z >= 15"
+        },
+        {
+          "signal": "cpu_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=231.4",
+          "eid": "E1",
+          "must": false,
+          "expect": "cpu z >= 3"
+        },
+        {
+          "signal": "socket_not_saturated",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=6.57",
+          "eid": "E1",
+          "must": false,
+          "expect": "socket z < 25"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "inconclusive",
+          "observed": "traces flat",
+          "eid": "E3",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        }
+      ],
+      "tests": []
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "checkoutservice",
+        "fault_type": "disk",
+        "reason": "top fault types for checkoutservice by metric signature (score 3)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=231.21",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=231.4",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.57",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B2",
+        "service": "checkoutservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for checkoutservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=231.4",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=231.21",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.57",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "checkoutservice",
+        "fault_type": "mem",
+        "reason": "top fault types for checkoutservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=231.21",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "latency z=1.81",
+            "eid": "E4",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.57",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 0,
+    "generator_calls": 0,
+    "flags": {
+      "B1": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 443.7,
+    "tool_seconds": 1.3,
+    "prompt_tokens": 2363,
+    "completion_tokens": 6184,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 445.0,
+    "cost_usd": 0.0
+  }
+}
