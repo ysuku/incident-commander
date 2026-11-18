@@ -1,9 +1,10 @@
 """ReAct loop tests: happy path on real data, plus the code-enforced guards."""
 import json
+import re
+
 import pytest
 
 from incident_commander import config, loaders, loop
-from incident_commander.model import MockModel
 from incident_commander.scratchpad import Scratchpad
 
 has_data = (config.RCAEVAL_DIR / "RE2-OB").exists()
@@ -28,14 +29,31 @@ class FinishesUncited:
                                "proposed_fix": {"description": "x", "destructive": False}}}})
 
 
+class MetricsThenOwnTraces:
+    """The happy path under the 6.1 gate: the top metric deviation, then THAT
+    service's own spans. (A path-level trace_lookup no longer counts: being on a
+    failing path is a mention, so it cannot pass the gate. MockModel takes the
+    same two steps now; this one names the fault after the metric, unmapped.)"""
+    def complete(self, messages):
+        board = messages[-1]["content"]
+        if "E1" not in board:
+            return json.dumps({"thought": "metrics first", "action": {"tool": "metric_query", "args": {"top": 5}}})
+        svc, metric = re.search(r"deviations in scope \[[^\]]*\]: ([a-z]+)_([a-z0-9-]+)", board).groups()
+        if "E2" not in board:
+            return json.dumps({"thought": "its own spans", "action": {"tool": "trace_lookup", "args": {"service": svc}}})
+        return json.dumps({"thought": "two kinds agree", "action": {"finish": {
+            "root_cause_service": svc, "fault_type": metric, "supporting_evidence": ["E1", "E2"],
+            "proposed_fix": {"description": f"raise the {metric} limit for {svc}", "destructive": True}}}})
+
+
 @needs_data
-def test_mock_agent_diagnoses_real_case():
-    c = loaders.load_case("checkoutservice_cpu/1")
-    brief = loop.diagnose(c, MockModel())
+def test_scripted_agent_diagnoses_real_case():
+    c = loaders.load_case("emailservice_cpu/1")
+    brief = loop.diagnose(c, MetricsThenOwnTraces())
     assert brief["status"] == "diagnosed"
     assert brief["root_cause"] == {"service": c.root_cause_service, "fault_type": c.fault_type}
     assert len(brief["telemetry_kinds"]) >= 2
-    assert brief["proposed_fix"]["requires_approval"] is True  # destructive => gated
+    assert brief["proposed_fix"]["requires_approval"] is True  # every fix => gated
 
 
 @needs_data
@@ -113,8 +131,8 @@ class CutOffThenGarbage:
 
 @needs_data
 def test_every_step_is_recorded_with_usage():
-    c = loaders.load_case("checkoutservice_cpu/1")
-    brief = loop.diagnose(c, MockModel())
+    c = loaders.load_case("emailservice_cpu/1")
+    brief = loop.diagnose(c, MetricsThenOwnTraces())
     assert [e["outcome"] for e in brief["investigation"]] == ["tool_call", "tool_call", "diagnosed"]
     assert brief["usage"]["model_calls"] == 3
     assert "wall_seconds" in brief["usage"]

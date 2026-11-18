@@ -13,12 +13,16 @@ evidence ids) and drops what it cannot trace. Every fix still waits for a human.
 from __future__ import annotations
 
 import logging
+import re
 import time
 
 from . import signatures as sig
 from .loop import _parse
 
 log = logging.getLogger("incident_commander")
+
+# reference tokens as the prompt writes them: R<n> = retrieved runbook, E<n> = evidence id
+REF_TOKEN = re.compile(r"\b([RE]\d+)\b")
 
 PROMPT = """You are the Fix Advisor for one diagnosed microservice incident.
 The diagnosis is settled and is not yours to change: {service} / {fault_type}.
@@ -93,16 +97,54 @@ def advise(brief: dict, toolbox, model, k: int = 4) -> dict:
             elif c.get("evidence") not in eids:
                 advice["dropped"].append(f"contradiction cites {c.get('evidence')!r}: not among the cited evidence")
             else:
-                advice["contradictions"].append({k: str(c.get(k, ""))[:300]
-                                                 for k in ("runbook", "step", "evidence", "why")})
+                flag = {k: str(c.get(k, ""))[:300] for k in ("runbook", "step", "evidence", "why")}
+                if not _quoted_in(flag["step"], refs[flag["runbook"]].get("text", "")):
+                    # a paraphrase is still worth the approver's eye: keep the flag, say so
+                    flag["note"] = f"step not found in {flag['runbook']}'s text; check the runbook itself"
+                advice["contradictions"].append(flag)
+        advice["dropped"] += untraceable(advice["fix"], set(refs), eids)
     except Exception as e:  # an unusable reply never blocks the brief: template fix, no flags
         advice["by"] = f"template (model fallback: {str(e)[:80]})"
         advice["fix"] = {"summary": sig.REMEDIATION.get(fault, "Investigate {svc}").format(svc=service),
                          "steps": [], "preconditions": [], "rollback": ""}
         advice["runbook_refs"] = []
+        # flags collected before the failure were never fully validated: none survive
+        advice["contradictions"], advice["dropped"] = [], []
     log.info("fix advisor: %s | %d runbook refs | %d contradictions flagged | %d dropped",
              advice["by"], len(advice["runbook_refs"]), len(advice["contradictions"]), len(advice["dropped"]))
     return advice
+
+
+def _norm(text) -> str:
+    return " ".join(str(text).lower().split()).strip(" \"'.`")
+
+
+def _quoted_in(step: str, runbook_text: str) -> bool:
+    step = _norm(step)
+    return bool(step) and step in _norm(runbook_text)
+
+
+def untraceable(fix: dict, rids: set, eids: set) -> list[str]:
+    """R<n>/E<n> tokens in the fix's free text that name no retrieved runbook or
+    cited evidence. Recorded for the approver, never cut: editing a step in code
+    could change its meaning."""
+    fields = [("summary", fix.get("summary", "")), ("rollback", fix.get("rollback", ""))]
+    for name in ("steps", "preconditions"):
+        fields += [(f"{name}[{i}]", s) for i, s in enumerate(fix.get(name) or [])]
+    out = []
+    for where, text in fields:
+        for tok in dict.fromkeys(REF_TOKEN.findall(str(text))):
+            if tok not in (rids if tok[0] == "R" else eids):
+                what = "not among the retrieved runbooks" if tok[0] == "R" else "not among the cited evidence"
+                out.append(f"fix.{where} mentions {tok!r}: {what} (text kept)")
+    return out
+
+
+def review_reason(contradictions: list[dict]) -> str:
+    """One short line for the approver: which runbook step, against which evidence."""
+    parts = [f"{c['runbook']} step \"{c['step'][:60]}\" contradicts {c['evidence']}" for c in contradictions[:3]]
+    more = len(contradictions) - len(parts)
+    return "runbook contradicts the evidence: " + "; ".join(parts) + (f" (+{more} more)" if more > 0 else "")
 
 
 def render(rc: dict, cited: list[dict], refs: dict) -> str:
@@ -134,5 +176,10 @@ def apply(brief: dict, advice: dict) -> dict:
         "requires_approval": True,
         "advised_by": advice["by"],
     }
-    brief["fix_advisor"] = {**advice, "commander_draft": old.get("description")}
+    # dropped/contradictions are always present, so "ran, nothing flagged" is not "did not run"
+    brief["fix_advisor"] = {**advice, "dropped": list(advice.get("dropped") or []),
+                            "contradictions": list(advice.get("contradictions") or []),
+                            "commander_draft": old.get("description")}
+    if old.get("dropped_keys"):  # what the gate removed from the Commander's draft stays on record
+        brief["fix_advisor"]["commander_dropped_keys"] = old["dropped_keys"]
     return brief

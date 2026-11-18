@@ -45,6 +45,10 @@ DESCRIPTIONS = {
     "branch_status": "ToT: every branch with score, verdicts and tests, best first",
 }
 BRANCH_TOOLS = ("open_branch", "record_result", "close_branch", "branch_status")
+# The tools that read each telemetry kind (the robustness ablation, 6.1 section 3).
+# service_map is built from traces.csv, so hiding traces must hide it too.
+KIND_TOOLS = {"metrics": ("metric_query",), "logs": ("log_search",),
+              "traces": ("trace_lookup", "service_map")}
 
 
 def build_server(case: IncidentCase) -> FastMCP:
@@ -52,7 +56,9 @@ def build_server(case: IncidentCase) -> FastMCP:
     branch tools over a fresh BranchBoard. Tool errors (unknown service, bad
     args) come back to the client as isError results."""
     server = FastMCP("incident-commander",
-                     instructions=f"Read-only diagnostic tools for recorded incident {case.case_id}.")
+                     instructions=f"Read-only diagnostic tools for recorded incident {case.case_id}, "
+                                  "plus the Tree-of-Thought branch board (in-memory hypothesis "
+                                  "state for this session; nothing writes to the incident).")
 
     @server.tool(description=DESCRIPTIONS["metric_query"])
     def metric_query(service: str | None = None, metric: str | None = None, top: int = 10) -> dict:
@@ -105,6 +111,8 @@ class ToolClient:
     """Sync MCP client for the (sync) ReAct loop: one session, kept open on a
     background event loop until close(). Use as a context manager."""
 
+    hidden: frozenset = frozenset()  # telemetry kinds withheld from this view (none)
+
     def __init__(self, server: FastMCP):
         self._stack = ExitStack()
         self._portal = self._stack.enter_context(start_blocking_portal())
@@ -115,7 +123,15 @@ class ToolClient:
         self.diagnostic = [n for n in self.names if n not in BRANCH_TOOLS]
 
     def call(self, name: str, args: dict):
-        """Call one tool; returns its result as plain Python (dict or list)."""
+        """Call one tool; returns its result as plain Python (dict or list).
+        A misspelled argument name is refused here: FastMCP would drop it and run
+        the call unfiltered, an answer to a question nobody asked."""
+        props = next((list((t.inputSchema or {}).get("properties", {})) for t in self.tools
+                      if t.name == name), None)
+        unknown = [k for k in args if k not in props] if props is not None else []
+        if unknown:
+            raise ToolError(f"unknown argument {', '.join(map(repr, unknown))} for {name}; "
+                            f"arguments are {props}")
         r = self._portal.call(self._session.call_tool, name, args)
         text = " ".join(c.text for c in r.content if getattr(c, "text", None))
         if r.isError:
@@ -168,8 +184,9 @@ class ScopedToolClient:
     runbook_lookup only. Shares the underlying session (one server per incident).
     """
 
-    def __init__(self, client, allowed):
+    def __init__(self, client, allowed, hidden=frozenset()):
         self._client, self.allowed = client, tuple(allowed)
+        self.hidden = frozenset(hidden)  # telemetry kinds withheld; every narrower view inherits it
         self.tools = [t for t in client.tools if t.name in self.allowed]
         self.names = [t.name for t in self.tools]
         self.diagnostic = [n for n in self.names if n not in BRANCH_TOOLS]
@@ -183,7 +200,20 @@ class ScopedToolClient:
         return _describe(self.tools)
 
     def scoped(self, allowed) -> "ScopedToolClient":
-        return ScopedToolClient(self._client, [a for a in allowed if a in self.names])
+        return ScopedToolClient(self._client, [a for a in allowed if a in self.names], self.hidden)
+
+
+def without_kinds(client, hide) -> ScopedToolClient:
+    """The incident with some telemetry kinds missing (--hide): a view of `client`
+    without the tools that read them. Every role's view is cut from this one
+    (scoped() only narrows), so no role on any path can reach a hidden kind.
+    Runbook and branch tools stay."""
+    unknown = sorted(set(hide) - set(KIND_TOOLS))
+    if unknown:
+        raise ValueError(f"cannot hide {unknown}; telemetry kinds are {sorted(KIND_TOOLS)}")
+    gone = {t for k in hide for t in KIND_TOOLS[k]}
+    return ScopedToolClient(client, [n for n in client.names if n not in gone],
+                            frozenset(hide) | client.hidden)
 
 
 def main() -> None:

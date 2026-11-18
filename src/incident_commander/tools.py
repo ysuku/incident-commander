@@ -1,4 +1,4 @@
-"""The five read-only diagnostic tools (Checkpoint 2.1 design).
+"""The five read-only diagnostic tools (Checkpoint 2.1 design; input checks 6.1).
 
 Rules that apply to every tool:
 - Read-only: tools observe the recorded incident, never change anything.
@@ -16,7 +16,16 @@ the implementations it wraps. What the model reads about each tool (name, schema
 one-line description) lives in the server, not in these docstrings.
 """
 from .loaders import (IncidentCase, load_logs, load_simple_metrics,
-                      load_traces)
+                      load_traces, span_callees)
+
+MIN_FRAGMENT = 3  # shorter service/metric fragments match almost everything ('e', 'io')
+LOG_LEVELS = ("debug", "info", "warn", "warning", "error", "fatal", "critical")
+
+
+def _bare(name) -> str:
+    """'frontendservice' and 'frontend' are one service: logs and traces spell it differently."""
+    s = str(name or "").lower().strip()
+    return s[: -len("service")] if s.endswith("service") else s
 
 
 def metric_query(case: IncidentCase, service: str | None = None,
@@ -36,16 +45,25 @@ def metric_query(case: IncidentCase, service: str | None = None,
     services = sorted({c.rpartition("_")[0] for c in series})
     metrics = sorted({c.rpartition("_")[2] for c in series})
 
-    def _match(want: str | None, have: str) -> bool:
+    service, metric = (service or "").strip(), (metric or "").strip()
+    top = max(1, top)  # top=0 would read as "no series in scope", which is false
+
+    def _match(want: str, have: str) -> bool:
         # tolerant: "latency" matches "latency-50"; "frontendservice" matches "frontend"
         if not want:
             return True
         w, h = want.lower(), have.lower()
         return w in h or h in w
 
-    if service and not any(_match(service, s) for s in services):
+    def _known(want: str, names: list[str]) -> bool:
+        # a 1-2 letter fragment is a substring of nearly every name: not a filter
+        if len(want) < MIN_FRAGMENT and want.lower() not in (n.lower() for n in names):
+            return False
+        return any(_match(want, n) for n in names)
+
+    if service and not _known(service, services):
         raise ValueError(f"unknown service {service!r}; metric services are {services}")
-    if metric and not any(_match(metric, m) for m in metrics):
+    if metric and not _known(metric, metrics):
         raise ValueError(f"unknown metric {metric!r}; available metrics are {metrics}")
 
     out = []
@@ -79,15 +97,36 @@ def log_search(case: IncidentCase, query: str = "", service: str | None = None,
                level: str | None = None, limit: int = 20) -> dict:
     """Search the case's logs; always returns counts plus at most `limit` lines.
 
-    query: case-insensitive substring of the message ("" = match all — use with
-    level="error" for a quick error sweep). service matches container_name.
-    Lines nearest the alert time come first; each carries source_ref logs.csv#L<n>.
+    query: case-insensitive LITERAL substring of the message ("" = match all — use
+    with level="error" for a quick error sweep). service matches container_name
+    ("frontendservice" finds "frontend"). Lines nearest the alert time come first;
+    each carries source_ref logs.csv#L<n>.
+    A name this case's logs do not have is an error listing the ones they do: a
+    silent zero would read as "this service logged nothing wrong". The error says
+    which of two things it is: a real service with no log lines here (it has
+    metrics or spans), or a name no telemetry knows. A valid level with no lines
+    is a real zero; scope_lines and levels_present say what was searched.
     """
+    query, limit = query or "", max(1, limit)
+    if "|" in query:
+        raise ValueError(f"query {query!r} is a literal substring, not a regex: "
+                         "'|' is matched as a character; search one term per call")
     df = load_logs(case, columns=["timestamp", "container_name", "message", "level"])
     m = df
     if service:
-        m = m[m["container_name"] == service]
+        names = sorted(str(n) for n in df["container_name"].dropna().unique())
+        match = [n for n in names if n == service] or [n for n in names if _bare(n) == _bare(service)]
+        if not match:
+            if _known_elsewhere(case, service):  # e.g. currencyservice: answers in metrics and traces
+                raise ValueError(f"no log lines from {service!r} in this case (it is a known service: it "
+                                 f"may not log, or it went silent); services with logs in this case are {names}")
+            raise ValueError(f"unknown service {service!r}; services with logs in this case are {names}")
+        m = m[m["container_name"] == match[0]]
+    present = sorted({str(l).lower() for l in m["level"].dropna().unique() if str(l).strip()})
+    scope_lines = int(len(m))
     if level:
+        if level.lower() not in {*LOG_LEVELS, *present}:
+            raise ValueError(f"unknown level {level!r}; valid levels are {sorted({*LOG_LEVELS, *present})}")
         m = m[m["level"].str.lower() == level.lower()]
     if query:
         m = m[m["message"].str.contains(query, case=False, na=False, regex=False)]
@@ -98,6 +137,8 @@ def log_search(case: IncidentCase, query: str = "", service: str | None = None,
     sample = after if len(after) else m.tail(limit)
     return {
         "total_matches": int(len(m)),
+        "scope_lines": scope_lines,        # lines for the service (or the case) before level/query
+        "levels_present": present,
         "matches_by_service_level": {f"{s}/{l}": int(n) for (s, l), n in counts.items()},
         "sample_after_alert": [{
             "ts": int(r.timestamp), "service": r.container_name,
@@ -105,6 +146,19 @@ def log_search(case: IncidentCase, query: str = "", service: str | None = None,
             "source_ref": f"logs.csv#L{idx + 2}",
         } for idx, r in sample.iterrows()],
     }
+
+
+def _known_elsewhere(case: IncidentCase, service: str) -> bool:
+    """Is `service` a name the metrics or the traces of this case have? Only read
+    on the error path of log_search, to word the refusal truthfully."""
+    want = _bare(service)
+    try:
+        cols = load_simple_metrics(case).columns
+        if want in {_bare(c.rpartition("_")[0]) for c in cols if c != "time"}:
+            return True
+        return want in {_bare(n) for n in load_traces(case, columns=["serviceName"])["serviceName"].dropna().unique()}
+    except (OSError, ValueError):  # no such file: nothing vouches for the name
+        return False
 
 
 def trace_lookup(case: IncidentCase, failing_only: bool = True, limit: int = 10,
@@ -120,6 +174,7 @@ def trace_lookup(case: IncidentCase, failing_only: bool = True, limit: int = 10,
     df = load_traces(case, columns=["traceID", "spanID", "serviceName",
                                     "operationName", "startTimeMillis",
                                     "duration", "statusCode", "parentSpanID"])
+    limit = max(1, limit)  # limit=0 would read as "no traces", which is false
     if service:
         return _service_spans(case, df, service, limit)
     df = df[df["startTimeMillis"] >= case.inject_time * 1000]
@@ -158,7 +213,8 @@ def _service_spans(case: IncidentCase, df, service: str, limit: int) -> dict:
     downstream is slow, so raw duration would implicate every caller of the
     faulty service. Self time stays with the service doing the slow work.
     Also "inbound": self time of the CALLERS' client spans that target this
-    service (op names like "hipstershop.CurrencyService/Convert"). Network delay
+    service (loaders.span_callees: the op name on Online Boutique, e.g.
+    "hipstershop.CurrencyService/Convert"; the span graph elsewhere). Network delay
     or loss injected on a pod, or a server span that was never exported, shows
     up there and not in the service's own spans. Calibrated on rep 1 of RE2-OB:
     max(own, inbound) p50 ratio ranks the true service first in most cases.
@@ -170,9 +226,9 @@ def _service_spans(case: IncidentCase, df, service: str, limit: int) -> dict:
     Returns overall/inbound/per-operation median self time and error rate.
     """
     child_us = df[df["parentSpanID"].notna()].groupby("parentSpanID")["duration"].sum()
-    # client spans name their target: "hipstershop.EmailService/Send..." -> emailservice
-    callee = (df["operationName"].str.extract(r"hipstershop\.(\w+?)Service/", expand=False)
-              .str.lower() + "service")
+    # which service each span calls; not tied to Online Boutique's operation names,
+    # so the inbound/outbound views (and the gate's shared-cause rule) work elsewhere
+    callee = span_callees(df).astype(object)  # object: an all-NaN column still has .str
     df = df.assign(self_us=(df["duration"] - df["spanID"].map(child_us).fillna(0)).clip(lower=0),
                    after=df["startTimeMillis"] >= case.inject_time * 1000,
                    err=df["statusCode"] != 0, callee=callee)
@@ -186,7 +242,10 @@ def _service_spans(case: IncidentCase, df, service: str, limit: int) -> dict:
         raise ValueError(f"unknown service {service!r}; trace services are {names}")
     svc = match[0]
     own = df[df["serviceName"] == svc]
-    inbound = calls[calls["callee"] == svc.lower()]
+    # callees are lower-case on Online Boutique (from the op name) and spelled as
+    # serviceName elsewhere: compare both ways without case
+    callee_lc = calls["callee"].str.lower()
+    inbound = calls[callee_lc == svc.lower()]
 
     def side(g) -> dict:
         b, a = g[~g["after"]], g[g["after"]]
@@ -200,7 +259,7 @@ def _service_spans(case: IncidentCase, df, service: str, limit: int) -> dict:
                 "err_rate_after": round(float(a["err"].mean()), 4) if len(a) else None}
 
     def by_callee(caller: str, skip: str = "") -> list[dict]:
-        g = calls[(calls["serviceName"] == caller) & (calls["callee"] != skip)]
+        g = calls[(calls["serviceName"] == caller) & (callee_lc != skip)]
         return [{"callee": c, "p50_ratio": side(h)["p50_ratio"]} for c, h in g.groupby("callee")]
 
     ops = [{"op": op, **side(g)} for op, g in own.groupby("operationName")]

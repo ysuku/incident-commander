@@ -25,7 +25,7 @@ def fake_client():
         yield tc
 
 
-def test_server_exposes_the_five_tools_with_descriptions(fake_client):
+def test_server_exposes_the_nine_tools_with_descriptions(fake_client):
     assert fake_client.names == list(DESCRIPTIONS)
     by_name = {t.name: t for t in fake_client.tools}
     assert all(by_name[n].description == d for n, d in DESCRIPTIONS.items())

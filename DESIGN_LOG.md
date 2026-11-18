@@ -522,3 +522,147 @@ a tie where the rival could not be ruled out. With ToT neither model ships a wro
 A first v5 Qwen run was discarded: the 5.1 edits landed mid-run and each case is a new process.
 Both v6 runs record code fingerprint `f6d377c126c7` (snapshot in `evals/archive/`); the Qwen
 script now stops if `src/` changes. Full tables: `evals/model_comparison_r1.md`.
+
+## Module 6 — Safety guardrails and human intervention implemented (Nov 17): the 6.1 plan in code
+Checkpoint 6.1 listed guardrails, metrics, and escalation rules. An audit of the code against it
+(every 6.1 sentence, each gap re-checked independently) found that most claims were true for
+`metric_query` and the graph path but stated for all tools and all paths. This entry closes the
+gaps. **The linear path changes on purpose here**: safety fixes apply to every architecture, so
+the Module 4-5 numbers describe gate v1 and the numbers below need a re-baseline (local Qwen).
+Code fingerprint `493760396fe8`; tests 72 -> 229.
+
+**5.1 reviewer feedback this answers**
+| Feedback | Answer in code |
+|---|---|
+| "can two supporting sources always be trusted" | implicates tightened; shared-cause rule in the gate |
+| "unfamiliar issues" | `unfamiliar` escalation code; code-level fault scoring (RE3-OB) |
+| "multiple services" | pinned by test: equal evidence -> tie naming both; unequal -> one root cause (limit) |
+| "incomplete and conflicting information" | `--hide` ablation; contradiction -> `approval.review_required` |
+
+**Where each 6.1 guardrail lives, and on which path**
+| 6.1 row | Code | linear | ToT | graph |
+|---|---|---|---|---|
+| Tool access: read-only, one server per incident | `mcp_server.build_server`; snapshot test | yes | yes | yes |
+| Tool access: diagnosis agents cannot read runbooks | `loop.diagnose` scopes to `COMMANDER.tools + BRANCH_TOOLS` | **new** | **new** | yes |
+| Input: unknown names rejected with the valid list | `tools.metric_query/log_search/trace_lookup`; `ToolClient.call` (argument names) | yes | yes | yes |
+| Input: empty filter is not a finding | `loop._summarize` zero-match wording; `failing_only` fallback implicates nobody | yes | yes | yes |
+| Output: two kinds must each implicate | `loop._summarize` implicates + `loop._gate` | yes | yes | yes |
+| Output: shared cause | `loop._shared_cause` (whole board, caller-side trace pattern) | yes | yes | yes |
+| Output: fix references checked | `fix_advisor.advise` (`dropped`, incl. free-text R/E tokens) | n/a | n/a | yes |
+| Reasoning: critic in code, tie stays a tie | `signatures.py`, `tot.decide/close` (`co_leaders`) | n/a | yes | yes |
+| Action: approval pending, nothing executes | `loop._fix` (key whitelist, forced `requires_approval`); `approval.state` | forced flag | forced flag | flag + state |
+| Runtime: budget, repeats refused, per-step log | `loop.Run.think/act`; ToT `tot_no_test` entries, `tool_seconds` | yes | yes | yes |
+| Escalation: structured handover | `brief["escalation"] = {code, reason, hypotheses, note}` | yes | yes | yes |
+| Metrics | `evaluate.metrics_section`, `cli rescore` | yes | yes | yes |
+
+**What "implicates" means now (gate v2).** Before, a log call implicated every service with any
+matching line and a path-level trace call implicated every service on the three slowest traces,
+so the gate accepted frontend with fault type "banana" in a probe. Now: logs implicate only on
+warning/error-level lines; a path-level trace lookup implicates nobody (its error span belongs to
+the caller that recorded the failure: frontend in 30 of 30 rep-1 cases, the true service in 0);
+only a per-service trace lookup counts. The gate also rejects a fault type outside the six, and
+rejects a service when a per-service trace entry anywhere on the board points at its caller.
+
+**Offline re-gate of saved runs** (`scripts/regate_offline.py`: saved tool calls re-run on the
+recorded data through the new code, saved finish re-gated; no model calls; "after" is the
+pessimistic bound where every refused brief becomes an escalation):
+| Run | Diagnosed | Refused now | correct | service_only | wrong | escalated |
+|---|---|---|---|---|---|---|
+| Opus v4 linear (90) | 63 | 1 | 29 -> 29 | 34 -> 33 | 0 -> 0 | 27 -> 28 |
+| Opus v4 ToT (90) | 40 | 3 | 38 -> 35 | 2 -> 2 | 0 -> 0 | 50 -> 53 |
+| Qwen v4 linear (30) | 27 | 7 | 11 -> 9 | 16 -> 11 | 0 -> 0 | 3 -> 10 |
+| Qwen v6 ToT (30) | 16 | 4 | 16 -> 12 | 0 -> 0 | 0 -> 0 | 14 -> 18 |
+
+All 15 refusals are "two kinds unmet": the second kind was info log lines or a place on a slow
+trace. Some of those briefs were correct, so the stricter gate costs correct answers that were
+right for a reason the evidence did not support; a real run has steps left to gather a per-service
+trace instead. The same script on a HEAD checkout shows 0 changes over 1,333 calls (harness check).
+Input rules newly refuse 11 / 45 / 6 / 15 saved calls: a service with no log lines in the case,
+`a|b|c` queries (matched literally before, so they could never hit), and 1-2 letter fragments.
+
+**6.1 metrics, now computed by code.** `cli rescore <folder>` rebuilds `results.csv` and a
+`## 6.1 metrics` section from saved briefs into a sibling folder. It reproduces every 6.1 number:
+| Opus 5.5, gate v1, 90 cases | v4 linear | v4 ToT |
+|---|---|---|
+| Correct | 29 (32%) | 38 (42%) |
+| Wrong service | 0 | 0 |
+| Wrong fault | 34 | 2 |
+| Escalated | 27 | 50 |
+| By code | budget_exhausted 27 | tot_tie 26, budget_exhausted 22, tot_no_branch 2 |
+| Cost per case | $0.066 | $0.092 |
+| Latency mean / median / p95 | 27.8 / 24.7 / 46.6 s | 37.6 / 40.8 / 72.6 s |
+
+Escalation quality (ToT run): the true service is in all 50 handovers. Of the 28 that ran ToT, 24
+are ties containing the truth, 2 ties without it, 2 service-only. Of the 22 budget escalations the
+true fault is the top candidate in 8 (free-text match, approximate). Groundedness has columns
+(`fix_advised`, `fix_dropped`, `fix_flags`) but no data: the Fix Advisor runs only on the graph.
+
+**Telemetry ablation, free offline run** (heuristic generator, suspect = true service, 90 cases;
+reports in `evals/tot_offline_truth_hide-*.md`):
+| Hidden | correct | tie with truth | escalated, truth first | escalated | wrong |
+|---|---|---|---|---|---|
+| nothing | 36 | 22 | 21 | 7 (+2 tie w/o, 2 svc-only) | 0 |
+| logs | 36 | 22 | 21 | 7 | 0 |
+| traces | 0 | 0 | 68 | 22 | 0 |
+| metrics | 0 | 0 | 15 | 75 | 0 |
+
+With a kind missing the system escalates and never guesses. Traces hidden escalates everything
+here only because the heuristic never searches logs; a model may recover some through logs.
+Metrics hidden escalates by design (every must-have signal is a metric); its "truth first" count
+is an ordering artefact and should not be quoted.
+
+**Decisions made while building, beyond the 6.1 text**
+- **Where the code differs from the 6.1 wording (code is right, wording is loose):**
+  - "Only a contradicted signal prunes": the ceiling rule (Nov 9) also closes out-ranked
+    branches. Pruning is unchanged; the docstring now says both.
+  - "Step budget of 8": per phase. Commander 8 + ToT expansions 8 + 1 Fix Advisor call; a test
+    pins the bound.
+  - "A runbook step contradicts the evidence" does not escalate. The brief stays `diagnosed` and
+    carries `approval.review_required` + `review_reason`: flagged to the approver. Detection is
+    proposed by the model and validated in code.
+  - "Every branch is pruned -> unfamiliar" was unreachable: the disk signal can never be
+    contradicted, so a disk branch always survives. Redefined below.
+  - Role allowlists are enforced by the MCP client, not per-role servers (one server per incident).
+- **Unfamiliar fault** (`signatures.unfamiliar`, set in `tot.close`): every fault type with an
+  observable must-have is contradicted, the survivors survive only because their must-have is
+  unobservable, score <= 0, the service has usable cpu/mem/socket series, and two kinds implicate
+  it. Then the code is `unfamiliar` and disk is listed as "not a lead". A first version fired for
+  11 of 90 dev cases with a label-free suspect; after the last two conditions it fires for 0 of 90
+  (and 0 of 75 saved ToT escalations), so it cannot be confirmed on the dev set: RE3-OB is its test.
+- **Code-level fault scoring** (`evaluate._score_unfamiliar`): when the label is outside the six
+  types, `correct_unfamiliar` = escalated with the true service as lead hypothesis; any diagnosis
+  is `wrong`. Six-type scoring is unchanged.
+- **Escalation handover.** Non-ToT escalations build ranked hypotheses in code from the evidence
+  board (no tool calls); a budget that ran out with an empty board is coded `unparseable`, not
+  `budget_exhausted`. `reason` and `candidates` are kept for old readers.
+- **Unusable output.** A malformed `action` / `finish` used to crash the run (status `error`,
+  excluded from scoring); it now counts toward the three-strikes escalation. Unknown-tool and
+  bad-args replies are not merged into that counter. A failing call is remembered, so an identical
+  bad call is refused the second time (it ran 8 times in a probe).
+- **`log_search` on a service with no log lines** is refused with the list of services that have
+  logs, worded "no log lines from X in this case (it is a known service)", not "unknown".
+- **`--hide`** is a scoped client view carrying a `hidden` set; hidden signals are unobservable,
+  not untested; the gate is never relaxed to one kind. With metrics hidden, ToT and graph escalate
+  by design; plain linear still diagnoses and the brief carries `fault_type_unchecked`.
+- **Train Ticket.** Callees come from the span parent graph when the `hipstershop.` regex matches
+  nothing (`loaders.span_callees`; identical on all 90 OB cases, 900 lookups). The held-out run is
+  stamped once every case is saved (`heldout_complete.json`); a second folder is refused; a partial
+  run is not stamped. `_diskio` and all thresholds are untouched: no tuning for the held-out system.
+- **The mock model** used a path-level trace as its second kind and was refused on every case by
+  gate v2; it now uses a per-service lookup. Mock, 90 cases, linear: 20 correct, 26 service-only,
+  5 wrong, 39 escalated.
+
+**Open**
+- **Frontend residual.** Frontend's own per-service trace lookup still implicates frontend in some
+  downstream faults: a probe (unfiltered metrics + `trace_lookup(service=frontend)`) is accepted in
+  5 of 30 rep-1 cases, and these are the mock's 5 wrong answers. Closing it means recalibrating the
+  per-service signal on the dev set. Metrics have the same shared-cause shape and no check. 6.1
+  already states "the shared-cause check covers one known pattern".
+- **Disk metric.** "Unusable" is overstated: the true service's diskio z is huge in 10 of 15 disk
+  cases and 8 of 75 others; the critic discards those values. A dev-set study, not a quick fix.
+- **Multi-service faults**: one root cause per brief; RCAEval has no multi-fault cases.
+- **Parallel Investigators** (promised for Module 6 on Nov 7) and the T3 trigger: not done.
+- **No graph eval and no gate-v2 run yet.** Queue, all on local Qwen3.6-27B via
+  `scripts/local_eval.sh` ($0, about 22 min per ToT case): rep-1 linear and ToT (re-baseline),
+  rep-1 graph (first groundedness numbers), `--hide traces` / `--hide metrics`, RE3-OB (after
+  download), Train Ticket once, last.

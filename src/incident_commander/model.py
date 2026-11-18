@@ -147,12 +147,13 @@ class AnthropicClient:
 
 
 class MockModel:
-    """Deterministic stand-in: investigates metrics, then traces, then finishes
-    on the top metric deviation. Parses the scratchpad text it is shown, exactly
+    """Deterministic stand-in: investigates metrics, then the top service's own
+    traces, then finishes on the top metric deviation. Parses the scratchpad text it is shown, exactly
     like a real model would. Never used for graded numbers — tests and demos only."""
 
     FAULT_BY_METRIC = {"cpu": "cpu", "mem": "mem", "diskio": "disk",
-                       "socket": "socket", "latency-50": "delay", "latency-90": "delay"}
+                       "socket": "socket", "latency-50": "delay", "latency-90": "delay",
+                       "error": "loss"}  # the gate refuses a fault type outside the known six
 
     def __init__(self):
         self.calls = 0
@@ -181,9 +182,10 @@ class MockModel:
         if "E2" not in board:
             m = re.search(r"deviations in scope \[[^\]]*\]: ([a-z]+)_([a-z0-9-]+)", board)
             svc = m.group(1) if m else "unknown"
+            # that service's OWN spans: a path-level lookup implicates nobody (6.1 gate)
             return json.dumps({"thought": "Corroborate with a second telemetry kind.",
                                "candidates": [f"{svc}: resource fault (from metrics)"],
-                               "action": {"tool": "trace_lookup", "args": {"limit": 3}}})
+                               "action": {"tool": "trace_lookup", "args": {"service": svc}}})
         m = re.search(r"deviations in scope \[[^\]]*\]: ([a-z]+)_([a-z0-9-]+)", board)
         svc, metric = (m.group(1), m.group(2)) if m else ("unknown", "cpu")
         fault = self.FAULT_BY_METRIC.get(metric, metric)

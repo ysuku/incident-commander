@@ -7,7 +7,10 @@ bounded validation loops:
                      -> gate -> fix_advisor -> human_approval -> END
                         gate -> commander                (rejected, with the reason on the board)
                         gate -> tot                      (T1: passed, but ambiguous)
-                     -> escalate -> END                  (budget, unparseable, tie, no branch)
+                     -> escalate -> END                  (budget, unparseable, tie, no branch,
+                                                          gate-refused selection, unfamiliar fault;
+                                                          each with brief["escalation"]: code,
+                                                          ranked hypotheses and their evidence)
   tot subgraph: root -> critic <-> investigators, critic -> close; its selected
   branch goes back through the same gate before the Fix Advisor sees it.
 
@@ -150,9 +153,15 @@ def build_graph(run: Run, toolbox: ToolClient):
         """The human in the loop. Nothing is executed by this system: the brief
         leaves here marked pending, for the on-call engineer to approve or reject."""
         brief = state["brief"]
+        flags = brief["proposed_fix"].get("contradictions") or []
         brief["approval"] = {"state": "pending", "approver": "human",
                              "policy": "every proposed fix waits for explicit approval (v1)",
-                             "flags_for_reviewer": len(brief["proposed_fix"].get("contradictions") or [])}
+                             "flags_for_reviewer": len(flags),
+                             # a flagged runbook step is not an escalation: the diagnosis stands,
+                             # the approver is told to read the flag before approving
+                             "review_required": bool(flags)}
+        if flags:
+            brief["approval"]["review_reason"] = advisor.review_reason(flags)
         return {"brief": brief, "path": ["human_approval"]}
 
     def escalate(state: State) -> State:

@@ -18,7 +18,8 @@ held for explicit approval.
 > behind one MCP server, the evidence scratchpad and citation gate (2.1), runbook retrieval (3.1),
 > the dev-set eval runner, Tree-of-Thought hypothesis testing on ambiguity (4.1, `--tot`), and the
 > multi-agent LangGraph architecture with role-scoped tools and a Fix Advisor (5.1, `--arch graph`,
-> not yet evaluated on the dev set). See [DESIGN_LOG.md](DESIGN_LOG.md).
+> not yet evaluated on the dev set), and the 6.1 safety guardrails, structured escalation handover,
+> named safety metrics, and robustness harness (`--hide`, `rescore`). See [DESIGN_LOG.md](DESIGN_LOG.md).
 
 ## Project structure
 ```text
@@ -40,7 +41,9 @@ src/incident_commander/   the capstone system
   cli.py                  list / baseline / diagnose entry points
 src/research_agent/       Module 1 course starter, kept as the design-evolution baseline
 scripts/download_data.py  fetches RCAEval (Zenodo) and the Prometheus runbooks
-scripts/tot_offline.py    ToT over all dev cases with no model calls ($0)
+scripts/tot_offline.py    ToT over all dev cases with no model calls ($0); --hide for the ablation
+scripts/regate_offline.py re-run saved tool calls and finishes through the current gate ($0)
+scripts/local_eval.sh     resumable local-model eval runner (MLX, never touches a paid API)
 data/                     public data only, raw downloads gitignored (see data/README.md)
 evals/                    evaluation cases and results
 tests/                    pytest
@@ -68,6 +71,11 @@ python -m incident_commander.cli diagnose --case <id> --arch graph   # 5.1 multi
 python -m incident_commander.cli eval --model claude-opus-5-5 --tot model --max-usd 20
 python -m incident_commander.cli eval --model claude-opus-5-5 --arch graph --max-usd 20
 python scripts/tot_offline.py --suspect truth                       # ToT critic/controller, $0
+python scripts/tot_offline.py --suspect truth --hide traces         # same, one telemetry kind withheld
+python -m incident_commander.cli eval --model mock --hide metrics   # telemetry ablation on any eval
+python -m incident_commander.cli rescore evals/results/<folder>     # 6.1 metrics from saved briefs, no model
+python scripts/regate_offline.py                                    # saved runs through the current gate, $0
+scripts/local_eval.sh <out_folder> --arch graph --tot model         # local Qwen run, resumable, $0
 python -m incident_commander.graph --mermaid                        # draw the 5.1 graphs
 python -m pytest -q
 ```
@@ -83,6 +91,25 @@ the Commander and Investigators cannot call `runbook_lookup`, the Fix Advisor
 can call nothing else, so a runbook can steer a fix but never a diagnosis. The
 brief carries `path` (nodes visited) and `fix_advisor` (what was retrieved,
 what was flagged as contradicted by the evidence, what was dropped).
+
+## Safety guardrails and human intervention (6.1)
+All enforced in code, on every architecture unless noted:
+- **Tool access.** Read-only tools, one MCP server per incident. Diagnosis agents cannot call
+  `runbook_lookup` (linear, ToT, and graph); only the Fix Advisor can.
+- **Input.** Tools reject unknown service, metric, level, and argument names and list the valid
+  ones. A filter that matched nothing is worded as such, never as a finding.
+- **Output.** The citation gate needs two telemetry kinds that each implicate the claimed service:
+  warning/error log lines, a metric deviation, or a per-service trace view. A mention is not
+  enough. A per-service trace that points at the caller blocks the diagnosis (shared cause). On the
+  graph, fix references are checked and untraceable ones recorded as dropped.
+- **Action.** Every fix has `requires_approval` forced true whatever the model labelled it; the
+  graph also records `approval.state = pending` and `review_required` when a runbook step
+  contradicts the evidence. Nothing executes.
+- **Escalation.** An escalated brief carries `escalation = {code, reason, hypotheses, note}` with
+  code `budget_exhausted`, `unparseable`, `tot_tie`, `tot_no_branch`, `tot_selected_gate_refused`,
+  or `unfamiliar`, and ranked hypotheses with their evidence ids.
+- **Metrics.** `summary.md` has a `## 6.1 metrics` section: correct, wrong-service, wrong-fault,
+  escalations by code, handover quality, groundedness, cost, latency.
 
 ## MCP server
 The agent reaches its tools only through MCP: `loop.diagnose` opens an in-process

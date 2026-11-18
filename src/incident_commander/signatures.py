@@ -7,10 +7,15 @@ classifies every signal against the evidence gathered so far, in code:
   inconclusive  measured, but in the grey zone between noise and a clear signal
   unobservable  the test was run but the series does not exist / is unusable
   untested      no evidence yet speaks to it (the generator should test it)
-Only "contradicted" lowers a score or prunes. That is the 4.1 mitigation for the
-data gaps: diskio exists for 4 of 11 services and is unusable where it exists
-(z of 0, NaN or ~1e12+ in every fault type), and there is no network metric, so
-"no data" must never be read as "no signal".
+Only "contradicted" lowers a score. A branch is closed in two ways (tot.rescore):
+a contradicted must-have signal, or a ceiling (score with every untested signal
+counted as confirmed) that is PRUNE_GAP or more below the best live score, so a
+branch can also be dropped for being out of reach. "No data" does neither. That
+is the 4.1 mitigation for the data gaps: diskio exists for 4 of 11 services and
+is unusable where it exists (z of 0, NaN or ~1e12+ in every fault type), and
+there is no network metric, so "no data" must never be read as "no signal".
+The other side of that rule: disk can never be contradicted, so "every branch
+pruned" cannot happen. `unfamiliar` below is the reachable form of that test.
 
 Calibrated on the RE2-OB dev set (90 cases) by looking at the true service's
 signals per fault type; Train Ticket stays held out. Logs are deliberately NOT
@@ -43,6 +48,7 @@ class Features:
     trace: dict | None = None            # trace_lookup(service=S) result
     trace_eid: str | None = None
     trace_implicates: bool = False       # code-computed (loop._summarize), caller-side logic included
+    hidden: frozenset = frozenset()      # telemetry kinds withheld from this run (--hide): unobservable
 
 
 @dataclass(frozen=True)
@@ -59,7 +65,8 @@ def _metric(f: Features, metric: str) -> tuple[float | None, str | None, bool]:
     if metric in f.z:
         z, eid = f.z[metric]
         return (z if math.isfinite(z) and abs(z) < 1e6 else None), eid, True
-    return None, f.metrics_scoped, f.metrics_scoped is not None
+    # metrics hidden: the series cannot be read at all, which is "no data", not "not yet tested"
+    return None, f.metrics_scoped, f.metrics_scoped is not None or "metrics" in f.hidden
 
 
 def _threshold(metric: str, strong: float, label: str):
@@ -133,6 +140,14 @@ def _conn_pressure(f: Features):
     return (CONFIRMED if z >= FLAT else CONTRADICTED), f"{m} z={z:g}", eid
 
 
+def _no_trace(f: Features) -> tuple[str, str, None]:
+    """No trace result on the board: untested, unless traces are hidden in this
+    run. Then no test can ever speak to the signal, so it is unobservable."""
+    if "traces" in f.hidden:
+        return UNOBSERVABLE, "traces hidden in this run", None
+    return UNTESTED, "", None
+
+
 def _trace_side(f: Features):
     if f.trace is None:
         return None
@@ -148,7 +163,7 @@ def _trace_slow(contradicts: bool):
     a cpu fault on checkout leaves its spans flat (8 of 15 cpu cases)."""
     def judge(f: Features):
         if f.trace is None:
-            return UNTESTED, "", None
+            return _no_trace(f)
         if f.trace_implicates:
             return CONFIRMED, "traces implicate the service", f.trace_eid
         return (CONTRADICTED if contradicts else INCONCLUSIVE), "traces flat", f.trace_eid
@@ -159,7 +174,7 @@ def _errors(want_up: bool):
     def judge(f: Features):
         side = _trace_side(f)
         if side is None:
-            return UNTESTED, "", None
+            return _no_trace(f)
         sides, rise = side
         if not sides:
             return UNOBSERVABLE, "no spans after alert", f.trace_eid
@@ -234,14 +249,16 @@ REMEDIATION = {
 }
 
 
-def features(service: str, observations: dict, implicates: dict) -> Features:
+def features(service: str, observations: dict, implicates: dict,
+             hidden: frozenset = frozenset()) -> Features:
     """Collect one service's features from raw tool results.
 
     observations: eid -> (tool, args, result); implicates: eid -> services the
     evidence implicates (computed by loop._summarize, so the critic and the
-    citation gate agree on what "implicates" means).
+    citation gate agree on what "implicates" means). hidden: telemetry kinds
+    withheld from the run; their signals are judged unobservable.
     """
-    f = Features(service)
+    f = Features(service, hidden=frozenset(hidden))
     want = _norm(service)
     for eid, (name, args, res) in observations.items():
         if name == "metric_query":
@@ -300,3 +317,20 @@ def rank_faults(f: Features) -> list[tuple[str, int, list[Verdict]]]:
     """All six fault types for one service, best first; must-contradicted last."""
     rows = [(fault, score(vs), vs) for fault in FAULT_TYPES for vs in [judge(fault, f)]]
     return sorted(rows, key=lambda r: (not must_contradicted(r[2]), r[1]), reverse=True)
+
+
+def unfamiliar(f: Features) -> bool:
+    """No known fault type fits this service: every type whose must-have signals
+    can be observed is contradicted, and whatever survives does so only because
+    its must-have signals are unobservable (today: disk, which has no usable
+    diskio series) while scoring 0 or less. An untested or inconclusive must-have
+    is NOT unfamiliar: the service has simply not been tested enough. Nor is a
+    run with metrics hidden: every must-have is a metric, so nothing was ruled out.
+    Nor is a service with no usable cpu/mem/socket series (frontend-external): its
+    resource types survive only for want of data, and nothing ruled them out.
+    This says only that no type FITS. Whether the service is the affected one at
+    all is the caller's question (tot.ruled_out_types): a wrong suspect is flat too."""
+    if "metrics" in f.hidden or not _resources(f):
+        return False
+    alive = [(s, vs) for _, s, vs in rank_faults(f) if not must_contradicted(vs)]
+    return all(s <= 0 and all(v.verdict == UNOBSERVABLE for v in vs if v.must) for s, vs in alive)

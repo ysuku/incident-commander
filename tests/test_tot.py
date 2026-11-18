@@ -152,7 +152,7 @@ def test_t2_no_second_kind_escalates_with_ranked_branches():
 @needs_data
 def test_clear_finish_skips_tot():
     from incident_commander.model import MockModel
-    c = loaders.load_case("checkoutservice_cpu/1")
+    c = loaders.load_case("emailservice_cpu/1")  # checkout's own spans stay flat under cpu: no second kind
     brief = loop.diagnose(c, MockModel(), tot="heuristic")
     assert brief["status"] == "diagnosed" and "tot" not in brief
 

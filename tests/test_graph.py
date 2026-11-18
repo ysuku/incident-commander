@@ -75,11 +75,13 @@ def test_commander_cannot_reach_runbooks_even_if_it_asks():
 # ---------------------------------------------------------------- the spine
 @needs_data
 def test_graph_diagnoses_like_the_linear_agent_then_advises_and_waits_for_a_human():
-    c = loaders.load_case("checkoutservice_cpu/1")
+    # emailservice, not checkoutservice: a cpu fault leaves checkout's own spans flat,
+    # so metrics + its own traces cannot pass the 6.1 gate there
+    c = loaders.load_case("emailservice_cpu/1")
     linear = loop.diagnose(c, MockModel())
     brief = graph.diagnose(c, MockModel(), tot="heuristic")
     assert brief["status"] == "diagnosed" and brief["architecture"] == "graph"
-    assert brief["root_cause"] == linear["root_cause"] == {"service": "checkoutservice", "fault_type": "cpu"}
+    assert brief["root_cause"] == linear["root_cause"] == {"service": "emailservice", "fault_type": "cpu"}
     assert brief["path"] == ["commander", "act", "commander", "act", "commander", "gate",
                              "fix_advisor", "human_approval"]
     fix = brief["proposed_fix"]
@@ -107,10 +109,10 @@ def test_gate_rejection_loops_back_to_the_commander_then_escalates_on_budget():
 # ---------------------------------------------------------------- the Fix Advisor
 @needs_data
 def test_fix_advisor_sees_only_the_accepted_diagnosis_and_its_cited_evidence():
-    c = loaders.load_case("checkoutservice_cpu/1")
-    model = Scripted([act("metric_query", top=3), act("service_map", cands=["checkoutservice: cpu", "redis: cache"]),
-                      act("trace_lookup", limit=3),
-                      finish("checkoutservice", "cpu", "E1", "E3")],
+    c = loaders.load_case("emailservice_cpu/1")
+    model = Scripted([act("metric_query", top=3), act("service_map", cands=["emailservice: cpu", "redis: cache"]),
+                      act("trace_lookup", service="emailservice"),
+                      finish("emailservice", "cpu", "E1", "E3")],
                      fix_reply={"rationale": "r", "fix": {"summary": "s", "steps": ["a"]},
                                 "runbook_refs": ["R1", "R9"],
                                 "contradictions": [{"runbook": "R1", "step": "restart", "evidence": "E2", "why": "x"},
@@ -123,7 +125,9 @@ def test_fix_advisor_sees_only_the_accepted_diagnosis_and_its_cited_evidence():
     assert "CANDIDATES" not in shown and "redis" not in shown             # no Commander context
     assert "runbook_lookup" in shown or "RUNBOOKS RETRIEVED" in shown
     fa = brief["fix_advisor"]
-    assert fa["contradictions"] == [{"runbook": "R1", "step": "scale", "evidence": "E1", "why": "cpu"}]
+    # 6.1: a flagged step that is not in R1's text is kept, with a note saying so
+    assert [{k: v for k, v in f.items() if k != "note"} for f in fa["contradictions"]] == [
+        {"runbook": "R1", "step": "scale", "evidence": "E1", "why": "cpu"}]
     assert any("E2" in d for d in fa["dropped"]) and any("R9" in d for d in fa["dropped"])
     assert brief["proposed_fix"]["contradictions"] == fa["contradictions"]
     assert brief["approval"]["flags_for_reviewer"] == 1
@@ -131,9 +135,9 @@ def test_fix_advisor_sees_only_the_accepted_diagnosis_and_its_cited_evidence():
 
 @needs_data
 def test_unusable_fix_advice_falls_back_to_the_template_and_still_needs_approval():
-    c = loaders.load_case("checkoutservice_cpu/1")
-    model = Scripted([act("metric_query", top=3), act("trace_lookup", limit=3),
-                      finish("checkoutservice", "cpu", "E1", "E2")], fix_reply="not json")
+    c = loaders.load_case("emailservice_cpu/1")
+    model = Scripted([act("metric_query", top=3), act("trace_lookup", service="emailservice"),
+                      finish("emailservice", "cpu", "E1", "E2")], fix_reply="not json")
     brief = graph.diagnose(c, model, tot="heuristic")
     fix = brief["proposed_fix"]
     assert fix["advised_by"].startswith("template") and fix["requires_approval"] is True

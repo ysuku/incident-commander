@@ -135,6 +135,28 @@ def load_traces(case: IncidentCase, columns: list[str] | None = None):
     return pd.read_csv(case.path("traces"), usecols=columns)
 
 
+def span_callees(df):
+    """For each span, the service it calls (NaN when it calls no other service).
+
+    Online Boutique client spans name their target in the operation
+    ("hipstershop.EmailService/Send..." -> emailservice); when any span in the
+    case does, that is the whole answer and nothing else is read, so Online
+    Boutique results cannot change. A system whose operations name nobody (Train
+    Ticket) falls back to the span graph: a span's callee is the service of its
+    child spans in another service, when they all agree. A service that exports
+    no spans of its own cannot be found that way. Needs columns spanID,
+    serviceName, operationName, parentSpanID."""
+    callee = (df["operationName"].str.extract(r"hipstershop\.(\w+?)Service/", expand=False)
+              .str.lower() + "service")
+    if callee.notna().any():
+        return callee
+    child = df[df["parentSpanID"].notna()]
+    parent_svc = child["parentSpanID"].map(dict(zip(df["spanID"], df["serviceName"])))
+    cross = child[parent_svc.notna() & (parent_svc != child["serviceName"])]
+    by_parent = cross.groupby("parentSpanID")["serviceName"]
+    return df["spanID"].map(by_parent.first()[by_parent.nunique() == 1])
+
+
 def load_trace_timeseries(case: IncidentCase):
     """(latency_df, errors_df): per-operation time series — small and alert-like."""
     import pandas as pd

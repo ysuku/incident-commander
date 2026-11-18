@@ -23,7 +23,7 @@ import logging
 from dataclasses import asdict, dataclass, field
 
 from . import signatures as sig
-from .loop import _norm, _parse
+from .loop import _model_line, _norm, _parse
 
 log = logging.getLogger("incident_commander")
 
@@ -153,6 +153,7 @@ class ModelGenerator:
 
     def __init__(self, model):
         self.model, self.calls, self.last_calls = model, 0, []
+        self.last_note = ""  # how the last call ended, for the trace when it gave no test
         self.fallback = HeuristicGenerator()
 
     def propose(self, branch: dict, rival: dict | None, ctx: "TotContext") -> Thought | None:
@@ -169,6 +170,7 @@ class ModelGenerator:
             msg = _parse(raw)
             tool, args = msg.get("tool"), msg.get("args") or {}
             if tool is None:
+                self.last_note = "model (no test can add information)"
                 return None
             if tool not in ctx.toolbox.diagnostic or not isinstance(args, dict):
                 raise ValueError(f"unusable tool/args {tool!r}")
@@ -180,6 +182,7 @@ class ModelGenerator:
             t = self.fallback.propose(branch, rival, ctx)
             if t:
                 t.by = f"heuristic (model fallback: {str(e)[:80]})"
+            self.last_note = f"model fallback: {str(e)[:80]}; the heuristic had no test left"
             return t
 
 
@@ -191,10 +194,11 @@ class TotContext:
     def __init__(self, pad, toolbox, observe, observations: dict, already_ran):
         self.pad, self.toolbox, self.observe = pad, toolbox, observe
         self.observations, self.already_ran = observations, already_ran
+        self.hidden = getattr(toolbox, "hidden", frozenset())  # telemetry kinds withheld (--hide)
 
     def features(self, service: str) -> sig.Features:
         implicates = {e.eid: e.implicates for e in self.pad.evidence}
-        return sig.features(service, self.observations, implicates)
+        return sig.features(service, self.observations, implicates, self.hidden)
 
     def implicating_kinds(self, service: str) -> dict[str, list[str]]:
         """telemetry kind -> eids on the board that implicate `service` (the gate's view)."""
@@ -209,14 +213,16 @@ def open_roots(ctx: TotContext, suspect: str, rival: str | None) -> None:
     """Root: the suspect's metric signature, then its top fault types as branches
     (+ one rival-service branch on conflict)."""
     tb = ctx.toolbox
-    ctx.observe("metric_query", {"service": suspect}, "tot root: metric signature of the suspect")
+    if "metrics" not in ctx.hidden:  # hidden: the call would only fail and leave a note
+        ctx.observe("metric_query", {"service": suspect}, "tot root: metric signature of the suspect")
     roots = [r for r in sig.rank_faults(ctx.features(suspect)) if not sig.must_contradicted(r[2])]
     for fault, s, _ in roots[:ROOT_BRANCHES]:
         tb.call("open_branch", {"service": suspect, "fault_type": fault,
                                 "reason": f"top fault types for {suspect} by metric signature (score {s})"})
     if rival and _norm(rival) != _norm(suspect):
         try:
-            ctx.observe("metric_query", {"service": rival}, "tot root: metric signature of the rival")
+            if "metrics" not in ctx.hidden:
+                ctx.observe("metric_query", {"service": rival}, "tot root: metric signature of the rival")
             r = [r for r in sig.rank_faults(ctx.features(rival)) if not sig.must_contradicted(r[2])]
             if r:
                 tb.call("open_branch", {"service": rival, "fault_type": r[0][0],
@@ -260,13 +266,15 @@ def decide(ctx: TotContext, live: list[dict]) -> tuple[str, list[dict]] | None:
     MARGIN (or on telemetry kinds) over every other live branch. A branch with
     untested signals is compared on its ceiling, so it must be tested (or be out
     of reach even if all its signals held) before another can win; None = keep
-    testing (and escalate if the budget runs out)."""
+    testing (and escalate if the budget runs out). With a telemetry kind hidden
+    (--hide), a branch whose must-have signal is in that kind is never selected or
+    tied: the fault type was not checked, so naming it would be a guess."""
     if not live:
         return "escalated", []
     best = live[0]
     gate = ctx.implicating_kinds(best["service"])
     clean = not any(v["verdict"] in (sig.CONTRADICTED, sig.UNTESTED) for v in best["verdicts"])
-    if len(gate) < 2 or not clean:
+    if len(gate) < 2 or not clean or _must_hidden(ctx, best):
         return None
 
     def beaten(o: dict) -> bool:
@@ -283,6 +291,11 @@ def decide(ctx: TotContext, live: list[dict]) -> tuple[str, list[dict]] | None:
                     and len(b["kinds"]) == len(best["kinds"])]
 
 
+def _must_hidden(ctx: TotContext, b: dict) -> bool:
+    return any(v["must"] and v["kind"] in ctx.hidden and v["verdict"] == sig.UNOBSERVABLE
+               for v in b["verdicts"])
+
+
 def expand_beam(ctx: TotContext, generator, live: list[dict], depth: int,
                 expansions: int, trace: list) -> tuple[int, bool]:
     """The investigators: one proposed test per branch in the beam, each run
@@ -294,8 +307,21 @@ def expand_beam(ctx: TotContext, generator, live: list[dict], depth: int,
         if expansions >= MAX_EXPANSIONS:
             break
         rival_b = next((o for o in live if o["branch_id"] != b["branch_id"]), None)
+        hyp = f"{b['service']}: {b['fault_type']}"
+        n_calls = len(getattr(generator, "last_calls", []))
         thought = generator.propose(b, rival_b, ctx)
+        # the model call behind this proposal, if one was made (the heuristic makes none)
+        calls = getattr(generator, "last_calls", [])
+        call = calls[-1] if len(calls) > n_calls else {}
+        if call:
+            log.info("tot %s %s depth %d | %s", b["branch_id"], hyp, depth, _model_line(call))
         if thought is None:
+            if call:  # a paid call that produced no test still leaves a step behind
+                trace.append({"step": len(trace) + 1, "phase": "tot", "branch": b["branch_id"],
+                              "hypothesis": hyp, "outcome": "tot_no_test",
+                              "generator": getattr(generator, "last_note", "") or "model",
+                              "model_call": call})
+                log.info("   -> no test proposed for %s", b["branch_id"])
             continue
         expansions += 1
         eid = ctx.observe(thought.tool, thought.args,
@@ -303,13 +329,16 @@ def expand_beam(ctx: TotContext, generator, live: list[dict], depth: int,
         test = {"eid": eid, "tool": thought.tool, "args": thought.args, "depth": depth,
                 "predicted": thought.predicted, "rationale": thought.rationale, "by": thought.by}
         tb.call("record_result", {"branch_id": b["branch_id"], "verdicts": b["verdicts"], "test": test})
-        trace.append({"step": len(trace) + 1, "phase": "tot", "branch": b["branch_id"],
-                      "hypothesis": f"{b['service']}: {b['fault_type']}", "thought": thought.rationale,
-                      "action": {"tool": thought.tool, "args": thought.args},
-                      "outcome": "tot_test" if eid else "tot_test_failed", "observed": eid,
-                      "generator": thought.by,
-                      "model_call": (generator.last_calls[-1] if getattr(generator, "last_calls", None)
-                                     and thought.by == "model" else {})})
+        entry = {"step": len(trace) + 1, "phase": "tot", "branch": b["branch_id"],
+                 "hypothesis": hyp, "thought": thought.rationale,
+                 "action": {"tool": thought.tool, "args": thought.args},
+                 "outcome": "tot_test" if eid else "tot_test_failed", "observed": eid,
+                 "generator": thought.by, "model_call": call}
+        # None when the call was answered from the board (a repeat) or failed
+        tool_s = getattr(ctx.observe, "last", {}).get("tool_seconds")
+        if tool_s is not None:
+            entry["tool_seconds"] = tool_s
+        trace.append(entry)
         progressed = progressed or bool(eid)
     return expansions, progressed
 
@@ -324,13 +353,61 @@ def close(ctx: TotContext, outcome, trigger: str, suspect: str, rival: str | Non
                                  "reason": "best branch passed the gate" if status == "selected"
                                  else "indistinguishable from another branch in this data"})
     ranked = tb.call("branch_status", {})["branches"]
-    log.info("ToT END %s | %d expansions | ranked: %s", status.upper(), expansions,
+    ruled_out = ruled_out_types(ctx, ranked, suspect) if status == "escalated" else None
+    strange = ruled_out is not None
+    log.info("ToT END %s%s | %d expansions | ranked: %s", status.upper(),
+             " (UNFAMILIAR: no known fault type fits)" if strange else "", expansions,
              "; ".join(f"{b['service']}:{b['fault_type']}={b['score']}({b['status']})" for b in ranked))
     return {"status": status, "trigger": trigger, "suspect": suspect, "rival": rival,
             "selected": chosen[0] if status == "selected" else None,
             "tied": chosen if status == "tied" else [],
             "ranked": ranked, "expansions": expansions,
-            "generator_calls": getattr(generator, "calls", 0)}
+            "generator_calls": getattr(generator, "calls", 0),
+            "unfamiliar": strange,
+            "ruled_out": ruled_out or [],  # when unfamiliar: the contradicted must-haves, with evidence
+            # an escalation whose leaders are level is not status "tied" (that means
+            # the leader passed the gate); the handover still names them together
+            "co_leaders": co_leaders(ranked) if status == "escalated" and not strange else [],
+            # only present under --hide, so results of ordinary runs keep their shape
+            **({"hidden": sorted(ctx.hidden)} if ctx.hidden else {})}
+
+
+def live_branches(ranked: list[dict]) -> list[dict]:
+    """Branches still standing, best first, ordered as decide compares them."""
+    return sorted((b for b in ranked if b["status"] != "pruned"),
+                  key=lambda b: (b["score"], len(b["kinds"])), reverse=True)
+
+
+def co_leaders(ranked: list[dict]) -> list[dict]:
+    """The live branches level with the best on (score, kinds), when there are two or more."""
+    live = live_branches(ranked)
+    top = [b for b in live if (b["score"], len(b["kinds"])) == (live[0]["score"], len(live[0]["kinds"]))]
+    return top if len(top) > 1 else []
+
+
+def ruled_out_types(ctx: TotContext, ranked: list[dict], suspect: str) -> list[dict] | None:
+    """6.1 "every branch is pruned" in a form that can happen (disk is never
+    contradicted): no known fault type fits any service ToT looked at. Read from
+    the critic's ranking of all six types, not only the opened branches. Returns
+    the contradicted must-haves that rule the types out, or None when some type
+    still fits (not unfamiliar).
+
+    "No type fits" is also what a WRONG suspect looks like: its metrics are flat
+    because nothing is wrong with it (11 of 90 dev cases with a label-free
+    suspect, all known faults). So the call also needs the gate's own standard of
+    proof that a service is the affected one: two telemetry kinds implicating
+    it. Only such services are named; without one this is an ordinary
+    no-branch escalation."""
+    services = {_norm(b["service"]): b["service"] for b in ranked} or {_norm(suspect): suspect}
+    feats = {s: ctx.features(s) for s in services.values()}
+    if not all(sig.unfamiliar(f) for f in feats.values()):
+        return None
+    affected = [s for s in feats if len(ctx.implicating_kinds(s)) >= 2]
+    if not affected:
+        return None
+    return [{"service": s, "fault_type": fault, "signal": v.signal, "observed": v.observed, "eid": v.eid}
+            for s in affected for fault, _, vs in sig.rank_faults(feats[s])
+            for v in sig.must_contradicted(vs)]
 
 
 def run_tot(ctx: TotContext, suspect: str, rival: str | None, generator,
