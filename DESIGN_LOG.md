@@ -777,4 +777,32 @@ contradiction flags (1.30 per brief).
 **Caveats.** One repetition of 30 cases. The digest is a fixed first look, so the baseline is
 not shown everything the agent could query. Sonnet at effort medium was not tuned.
 
-**Pending:** the same two baselines on local Qwen3.6-27B (running), RE3-OB, Train Ticket.
+**The same two baselines on local Qwen3.6-27B.** Folders
+`evals/results/2026-11-19_qwen3.6-27b_r1_baseline-{plain,rag}` (fingerprint `befc940f00f5`),
+next to the Qwen agent runs of the previous entry (fingerprint `493760396fe8`; the agent paths
+are the same code in both).
+
+| 30 cases, Qwen3.6-27B | Single prompt | Single prompt + runbooks | Linear agent | Multi-agent graph |
+|---|---|---|---|---|
+| correct (service + fault) | 14 | 7 | 12 | 13 |
+| right service, wrong fault | 15 | 21 | 10 | 0 |
+| wrong service | 1 | 2 | 1 | 0 |
+| escalated | 0 | 0 | 7 | 17 |
+| answers given / of which correct | 30 / 14 (47%) | 30 / 7 (23%) | 23 / 12 (52%) | 13 / 13 (100%) |
+| wall time (30 cases) | 111 min | 113 min | 365 min | 755 min |
+
+7. **The pattern holds on a second model.** A single prompt on Qwen is 14 right and 16 wrong,
+   the same split as on Sonnet. The graph on Qwen answers 13 and all 13 are right. On both
+   models the single prompt and the graph find about the same number of causes; only the graph
+   never hands over a wrong one.
+8. **Runbooks in the diagnosis prompt hurt the weaker model.** Qwen with retrieved runbooks drops
+   from 14 correct to 7. It loses 7 cases and gains none, and 6 of the 7 lost answers change to
+   `socket`: the model calls 14 of 30 cases `socket` with runbooks against 5 without. The
+   retrieved text pulls the fault label toward what the runbook describes. On Sonnet the same
+   text changed one case. This is direct evidence for the design rule that runbooks reach the
+   Fix Advisor only, after the gate, and never the diagnosing agents.
+9. **Both Qwen baselines put `checkoutservice_delay/1` on `emailservice`**, a callee of the true
+   service. On Qwen the linear agent names the right service for that case (with the wrong
+   fault, `socket`) and the graph gets service and fault right.
+
+**Pending:** RE3-OB, Train Ticket.
