@@ -1,0 +1,948 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%); recommendationservice_cpu z=52.54 (562.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%); recommendationservice_cpu z=52.54 (562.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice, metric=socket]: recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_socket",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice, metric=mem]: recommendationservice_mem z=11.68 (58.4%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_mem",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "recommendationservice: cpu",
+      "why": "scored 2 vs 3; contradicted: socket_not_saturated socket z=106.99 (E1)"
+    },
+    {
+      "candidate": "recommendationservice: loss",
+      "why": "scored 2 vs 3; contradicted: cpu_not_up cpu z=52.54 (E1)"
+    },
+    {
+      "candidate": "frontend: delay",
+      "why": "scored 2 vs 3; contradicted: trace_slow traces flat (E11)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Confirm whether recommendationservice is leaking or piling up sockets (connections not closed, or slow downstream calls), then relieve it with a gated, reversible restart or scale-out while the root cause is investigated.",
+    "steps": [
+      "Inspect socket state for the recommendationservice pods (e.g. `kubectl exec <pod> -- ss -s` and `ss -tan | awk '{print $1}' | sort | uniq -c`) to see whether sockets are ESTABLISHED, TIME_WAIT or CLOSE_WAIT.",
+      "Check the pods' logs and outbound connections for unclosed gRPC/HTTP clients, missing connection reuse, or slow upstream dependencies (e.g. productcatalogservice) that would hold sockets open.",
+      "Compare the socket, CPU and memory growth timeline (E1, E9) with recent deploys or config changes to the service; if a recent change correlates, prepare to roll it back.",
+      "With human approval, scale recommendationservice out by one or more replicas to spread load and reduce per-pod socket and CPU pressure.",
+      "If CLOSE_WAIT or leaked sockets are confirmed and latency is still degraded, with human approval do a rolling restart of the recommendationservice pods one at a time, watching socket and latency metrics after each.",
+      "Optionally, check node conntrack usage (R1) only if socket exhaustion is confirmed to be reaching node-level limits."
+    ],
+    "preconditions": [
+      "Confirm the socket spike (E8) is still ongoing and not already recovered.",
+      "Confirm other replicas are healthy and capacity exists in the cluster before scaling or restarting.",
+      "Confirm a human has approved any scale or restart, and that restarting won't drop in-flight traffic beyond what is acceptable (traces show no errors currently, E2).",
+      "Identify the last deployed version so a rollback target is known."
+    ],
+    "rollback": "Scale the deployment back to its original replica count (`kubectl scale`), and if a restart or deploy rollback was performed, use `kubectl rollout undo deployment/recommendationservice` to return to the previous revision.",
+    "runbook_refs": [
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom"
+    ],
+    "contradictions": [],
+    "model_labeled_destructive": true,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 11,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 0.9,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 724,
+        "completion_tokens": 167,
+        "max_tokens": 16000,
+        "answer_chars": 466,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00312,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at recommendationservice with CPU and socket anomalies; I need trace or log evidence from an independent telemetry kind to corroborate and to decide between cpu and socket.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.72
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 934,
+        "completion_tokens": 166,
+        "max_tokens": 16000,
+        "answer_chars": 474,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00353,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice, but cpu vs socket is still ambiguous, so I will check logs for that service to discriminate and add a third independent signal.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.23
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1123,
+        "completion_tokens": 159,
+        "max_tokens": 16000,
+        "answer_chars": 451,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00384,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics, traces and logs all point at recommendationservice, but the fault type is ambiguous between cpu and socket, so I will check its specific metrics to separate them.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1271,
+        "completion_tokens": 174,
+        "max_tokens": 16000,
+        "answer_chars": 480,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00428,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice; the socket vs cpu ambiguity needs checking, so I'll look at its logs for errors that would indicate a socket fault.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1336,
+        "completion_tokens": 151,
+        "max_tokens": 16000,
+        "answer_chars": 440,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00418,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice, but cpu vs socket is still ambiguous, so I'll check the service map to see whether other services show downstream effects before finishing.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.39
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 4.7,
+        "prompt_tokens": 1447,
+        "completion_tokens": 594,
+        "max_tokens": 16000,
+        "answer_chars": 1664,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00883,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice; the fault type is ambiguous between cpu and socket, but cpu rose by 562% (z=52) and socket by 535%, and the own-span self-time rose only 5x while inbound latency rose 17x, which fits a saturated process. Logs show only info lines and implicate nobody, so metrics and traces serve as the two independent kinds. I will finish with cpu.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E4"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontendservice: upstream victim of slow recommendations",
+              "why": "E2 shows the latency increase is on recommendationservice's own spans and inbound calls, and E1 shows no frontend metric deviations among the top-ranked results, so frontend is a caller observing the slowness rather than its source."
+            },
+            {
+              "candidate": "productcatalogservice (downstream dependency of recommendationservice)",
+              "why": "E1 shows no significant deviations for it, and E2 shows recommendationservice's own self-time rose, so the delay is not coming from the downstream call (E6)."
+            },
+            {
+              "candidate": "recommendationservice: socket fault",
+              "why": "The socket metric rose (E1), but the cpu deviation is also strong and own-span self-time rose 5.29x (E2), consistent with compute saturation; socket growth is plausibly a side effect of queued requests. Logs (E5) show no connection errors."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Scale out or increase the CPU limits for recommendationservice and investigate the CPU hot spot; restarting the pods is optional and not required to mitigate.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "cpu (score 2) vs socket (3), loss (2) for recommendationservice"
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: socket",
+      "thought": "Socket z=107 already exceeds the 25 threshold, so the open question is whether the socket anomaly is specific; a metric_query on recommendationservice's socket metric shows its before/after magnitude ",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1441,
+        "completion_tokens": 224,
+        "max_tokens": 16000,
+        "answer_chars": 654,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00512,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "recommendationservice: cpu",
+      "thought": "Memory is the remaining unchecked signature element, so a metric_query for recommendationservice memory checks mem z < 15 and shows whether cpu stands out relative to socket and memory.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.4,
+        "prompt_tokens": 1554,
+        "completion_tokens": 193,
+        "max_tokens": 16000,
+        "answer_chars": 534,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00504,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B3",
+      "hypothesis": "recommendationservice: loss",
+      "thought": "Loss (packet loss) would show network-level symptoms such as retransmits, timeouts or connection errors in logs, while a socket fault would show socket/connection exhaustion messages; searching recomm",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "timeout OR retransmit OR connection reset OR unavailable OR deadline",
+          "service": "recommendationservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 1650,
+        "completion_tokens": 224,
+        "max_tokens": 16000,
+        "answer_chars": 659,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00554,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: delay",
+      "thought": "Frontend's own and inbound span latency before vs after the alert shows whether frontend itself slowed independently of its recommendationservice calls, or only as a victim of the slow downstream call",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "frontend",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1737,
+        "completion_tokens": 196,
+        "max_tokens": 16000,
+        "answer_chars": 571,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00543,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.74
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%); recommendationservice_cpu z=52.54 (562.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "9895 matching lines; by svc/level {'recommendationservice/info': 9895}; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['2ZYFJ3GM2N', 'LS4PSXUNUM', 'OLJCESPC7Z'; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['9SIQT8TOJO', 'OLJCESPC7Z', '6E92ZMYYFZ'",
+      "source_ref": "logs.csv#L88848",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%); recommendationservice_cpu z=52.54 (562.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "checked [service='recommendationservice', level='error']: no log lines at that level (9895 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_latency-50 z=35.19 (269.8%); frontend_latency-90 z=21.65 (143.4%); frontend-external_error z=20.0",
+      "source_ref": "simple_metrics.csv:frontend_latency-50",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice, metric=socket]: recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_socket",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice, metric=mem]: recommendationservice_mem z=11.68 (58.4%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_mem",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='recommendationservice', query='timeout OR retransmit OR connection reset OR unavailable OR deadline']: no line contains that literal text (9895 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E11",
+      "kind": "traces",
+      "summary": "traces for frontendservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 2.99->3.32ms (1.11x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=frontendservice",
+      "implicates": []
+    }
+  ],
+  "decided_by": "tot",
+  "tot": {
+    "status": "selected",
+    "trigger": "T1 cpu (score 2) vs socket (3), loss (2) for recommendationservice",
+    "suspect": "recommendationservice",
+    "rival": "frontend",
+    "selected": {
+      "branch_id": "B1",
+      "service": "recommendationservice",
+      "fault_type": "socket",
+      "reason": "top fault types for recommendationservice by metric signature (score 3)",
+      "status": "open",
+      "close_reason": "",
+      "score": 3,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "socket_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=106.99",
+          "eid": "E1",
+          "must": true,
+          "expect": "socket z >= 25"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E2",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        }
+      ],
+      "tests": [
+        {
+          "eid": "E8",
+          "tool": "metric_query",
+          "args": {
+            "service": "recommendationservice",
+            "metric": "socket"
+          },
+          "depth": 1,
+          "predicted": "socket shows a large sustained increase (z>=25, ~535%) that is much larger relative to baseline than the cpu change, with the shift starting at the alert time, consistent with a socket fault rather th",
+          "rationale": "Socket z=107 already exceeds the 25 threshold, so the open question is whether the socket anomaly is specific; a metric_query on recommendationservice's socket metric shows its before/after magnitude ",
+          "by": "model"
+        }
+      ]
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "recommendationservice",
+        "fault_type": "socket",
+        "reason": "top fault types for recommendationservice by metric signature (score 3)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 3,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=106.99",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "socket"
+            },
+            "depth": 1,
+            "predicted": "socket shows a large sustained increase (z>=25, ~535%) that is much larger relative to baseline than the cpu change, with the shift starting at the alert time, consistent with a socket fault rather th",
+            "rationale": "Socket z=107 already exceeds the 25 threshold, so the open question is whether the socket anomaly is specific; a metric_query on recommendationservice's socket metric shows its before/after magnitude ",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "recommendationservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for recommendationservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=52.54",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=11.68",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "socket z=106.99",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "mem"
+            },
+            "depth": 1,
+            "predicted": "recommendationservice memory z is below 15 (not saturated), which fits the cpu hypothesis alongside cpu z about 52 and socket z about 107 that is below the 25 cutoff only if socket is secondary; no me",
+            "rationale": "Memory is the remaining unchecked signature element, so a metric_query for recommendationservice memory checks mem z < 15 and shows whether cpu stands out relative to socket and memory.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "recommendationservice",
+        "fault_type": "loss",
+        "reason": "top fault types for recommendationservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=1002.19",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=106.99",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=52.54",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E10",
+            "tool": "log_search",
+            "args": {
+              "query": "timeout OR retransmit OR connection reset OR unavailable OR deadline",
+              "service": "recommendationservice",
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "Few or no matching lines in recommendationservice logs (all info-level), so no socket-exhaustion errors; the latency comes from network loss rather than a socket-resource fault, consistent with loss o",
+            "rationale": "Loss (packet loss) would show network-level symptoms such as retransmits, timeouts or connection errors in logs, while a socket fault would show socket/connection exhaustion messages; searching recomm",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=35.19",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource socket z=1.02",
+            "eid": "E7",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E11",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E11",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E11",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "frontend",
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "Frontend's own spans slow significantly (latency z>=3) with no errors, and its self-time rises independent of the recommendationservice child spans, while frontend cpu/mem/socket stay flat.",
+            "rationale": "Frontend's own and inbound span latency before vs after the alert shows whether frontend itself slowed independently of its recommendationservice calls, or only as a victim of the slow downstream call",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "expansions": 4,
+    "generator_calls": 4,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {}
+  },
+  "fix_advisor": {
+    "query": "recommendationservice sockets or connections exhausted, connection errors and timeouts",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "symptom",
+        "distance": 0.454,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "symptom",
+        "distance": 0.475,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeClockSkewDetected",
+        "kind": "action",
+        "distance": 0.631,
+        "source_ref": "runbooks/node/NodeClockSkewDetected.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "KubeletDown",
+        "kind": "action",
+        "distance": 0.648,
+        "source_ref": "runbooks/kubernetes/KubeletDown.md#action"
+      }
+    ],
+    "tool_seconds": 0.02,
+    "model_call": {
+      "seconds": 8.4,
+      "prompt_tokens": 1754,
+      "completion_tokens": 868,
+      "max_tokens": 16000,
+      "answer_chars": 2417,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.01219,
+      "finish_reason": "stop"
+    },
+    "contradictions": [],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Confirm whether recommendationservice is leaking or piling up sockets (connections not closed, or slow downstream calls), then relieve it with a gated, reversible restart or scale-out while the root cause is investigated.",
+      "steps": [
+        "Inspect socket state for the recommendationservice pods (e.g. `kubectl exec <pod> -- ss -s` and `ss -tan | awk '{print $1}' | sort | uniq -c`) to see whether sockets are ESTABLISHED, TIME_WAIT or CLOSE_WAIT.",
+        "Check the pods' logs and outbound connections for unclosed gRPC/HTTP clients, missing connection reuse, or slow upstream dependencies (e.g. productcatalogservice) that would hold sockets open.",
+        "Compare the socket, CPU and memory growth timeline (E1, E9) with recent deploys or config changes to the service; if a recent change correlates, prepare to roll it back.",
+        "With human approval, scale recommendationservice out by one or more replicas to spread load and reduce per-pod socket and CPU pressure.",
+        "If CLOSE_WAIT or leaked sockets are confirmed and latency is still degraded, with human approval do a rolling restart of the recommendationservice pods one at a time, watching socket and latency metrics after each.",
+        "Optionally, check node conntrack usage (R1) only if socket exhaustion is confirmed to be reaching node-level limits."
+      ],
+      "preconditions": [
+        "Confirm the socket spike (E8) is still ongoing and not already recovered.",
+        "Confirm other replicas are healthy and capacity exists in the cluster before scaling or restarting.",
+        "Confirm a human has approved any scale or restart, and that restarting won't drop in-flight traffic beyond what is acceptable (traces show no errors currently, E2).",
+        "Identify the last deployed version so a rollback target is known."
+      ],
+      "rollback": "Scale the deployment back to its original replica count (`kubectl scale`), and if a restart or deploy rollback was performed, use `kubectl rollout undo deployment/recommendationservice` to return to the previous revision."
+    },
+    "rationale": "recommendationservice shows a socket count spike (z=107, E8) alongside large latency, CPU and memory deviations (E1, E4, E9) and slower self-time in traces (E2) with no errors, which points to socket/connection buildup in the service itself. Only R1 is loosely related, and R2-R4 describe node-level ",
+    "runbook_refs": [
+      "R1"
+    ],
+    "commander_draft": "Check recommendationservice for leaked connections; raise the socket/file-descriptor limit only after"
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 0,
+    "review_required": false
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 12,
+    "model_seconds": 34.7,
+    "tool_seconds": 2.3,
+    "prompt_tokens": 15560,
+    "completion_tokens": 3193,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 37.1,
+    "cost_usd": 0.06305000000000001
+  }
+}

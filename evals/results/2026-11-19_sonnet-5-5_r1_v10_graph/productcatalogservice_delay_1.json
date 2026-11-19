@@ -1,0 +1,521 @@
+{
+  "root_cause": {
+    "service": "productcatalogservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); recommendationservice_latency-90 z=455.66 (2278.3%); recommendationservice_latency-50 z=424.71 (2123.5%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.02ms (1.25x), errors 0.0->0.0; inbound calls self-time p50 2.42->202.98ms (83.7x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); productcatalogservice_workload z=-4.36 (-23.4%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); productcatalogservice_workload z=-4.36 (-23.4%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "recommendationservice",
+      "why": "Its own spans and inbound latency are unchanged (E6: 0.89x own, 1.03x inbound, no errors). Its metric latency rise in E1 is inherited via the recommendationservice->productcatalogservice dependency (E4)."
+    },
+    {
+      "candidate": "frontend",
+      "why": "It sits upstream of productcatalogservice (E4) and shows no independent deviation in E1. It is a symptom of the slow downstream calls, not a source."
+    },
+    {
+      "candidate": "productcatalogservice: cpu fault",
+      "why": "Own span self-time is essentially flat (E2: 0.01->0.02ms) and workload dropped (E3), which does not fit CPU saturation. The slowness appears on inbound calls, which fits network delay."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Locate where the inbound-call delay is introduced (network path, sidecar, or node-level contention) and apply a gated, reversible mitigation such as rescheduling or restarting the affected pod only after a human approves.",
+    "steps": [
+      "Compare productcatalogservice inbound span durations by caller and by pod/node to see whether the ~200ms delay is uniform or concentrated on one pod, node, or caller (E2).",
+      "Check for a recent change (deploy, config, mesh/network policy, injected fault) affecting productcatalogservice around the onset of the latency jump (E1, E3).",
+      "Inspect node-level network health (receive errors, drops, conntrack usage) on the nodes hosting productcatalogservice pods; only act on R2/R3 if those metrics are actually abnormal.",
+      "If a single pod or node is the outlier, cordon that node or delete that pod so it reschedules (human-approved); one replica at a time.",
+      "If a recent change is identified, roll it back through the normal deploy process after approval.",
+      "Watch productcatalogservice latency-50/90 and recommendationservice latency (E1) for recovery after each action."
+    ],
+    "preconditions": [
+      "Confirm the latency deviation is still ongoing and not already recovered.",
+      "Confirm other healthy replicas exist so removing one pod does not reduce capacity (workload is already down 23.4%, E3).",
+      "Obtain on-call approval before any cordon, pod deletion, or rollback.",
+      "Record current pod/node placement and config version so the state can be restored."
+    ],
+    "rollback": "Uncordon any cordoned node, let the scheduler restore pod placement (or redeploy the previous replica count), and re-apply the prior config/deploy version if a rollback was performed; each step is individually reversible.",
+    "runbook_refs": [
+      "runbooks/node/NodeNetworkReceiveErrs.md#action",
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+    ],
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Kubelet Pod startup 99th percentile latency is XX seconds on node. Slow pod starts.",
+        "evidence": "E2",
+        "why": "Traces show delay in inbound call self-time on a running service with no errors, not slow pod startup, so this symptom is not supported and is left out."
+      },
+      {
+        "runbook": "R4",
+        "step": "Horizontal Pod Autoscaler has been running at max replicas for longer than 15 minutes.",
+        "evidence": "E3",
+        "why": "Workload for productcatalogservice fell 23.4%, so there is no load pressure indicating HPA saturation; scaling is not supported as a fix and is left out."
+      }
+    ],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 8,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.1,
+        "prompt_tokens": 589,
+        "completion_tokens": 91,
+        "max_tokens": 16000,
+        "answer_chars": 244,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00209,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 774,
+        "completion_tokens": 157,
+        "max_tokens": 16000,
+        "answer_chars": 426,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00312,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at productcatalogservice latency, but recommendationservice may just be a downstream caller; I need trace evidence to separate them.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.93
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 949,
+        "completion_tokens": 216,
+        "max_tokens": 16000,
+        "answer_chars": 639,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00406,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but its own span self-time is flat while inbound calls jumped 83.7x, which suggests the delay is on the network path or the pod rather than in app code. I need a third check, so I'll search its logs for corroboration and to separate delay from other fault types.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "productcatalogservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "bad_args",
+      "detail": "no log lines from 'productcatalogservice' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 's"
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1079,
+        "completion_tokens": 198,
+        "max_tokens": 16000,
+        "answer_chars": 573,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00414,
+        "finish_reason": "stop"
+      },
+      "thought": "Need a second independent telemetry kind for productcatalogservice; logs from it don't exist, so check the service map to confirm recommendationservice's latency is inherited and look for other metric signals (e.g., CPU/mem/socket) on productcatalogservice to determine fault type.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1211,
+        "completion_tokens": 159,
+        "max_tokens": 16000,
+        "answer_chars": 476,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00401,
+        "finish_reason": "stop"
+      },
+      "thought": "Productcatalogservice has no logs, so I need a second independent telemetry kind; the service map will show whether recommendationservice and frontend are downstream callers, and logs from those callers can corroborate.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.44
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 1322,
+        "completion_tokens": 196,
+        "max_tokens": 16000,
+        "answer_chars": 532,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0046,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but a fault type needs discriminating evidence; I'll check metrics for productcatalogservice resource signals (cpu/mem/disk/socket) to separate delay from cpu.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "top": 15
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 1461,
+        "completion_tokens": 180,
+        "max_tokens": 16000,
+        "answer_chars": 504,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00472,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but I still need to test whether recommendationservice, its caller, has its own fault, so I'll check its traces for own-span slowdown versus inbound.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.86
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 5.4,
+        "prompt_tokens": 1593,
+        "completion_tokens": 547,
+        "max_tokens": 16000,
+        "answer_chars": 1441,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00866,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E3) and traces (E2) both point at productcatalogservice with a delay signature: own spans are fast while inbound calls are 83.7x slower, and recommendationservice shows no change of its own (E6). Both telemetry kinds are covered, so I can finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "productcatalogservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3",
+            "E5"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "recommendationservice",
+              "why": "Its own spans and inbound latency are unchanged (E6: 0.89x own, 1.03x inbound, no errors). Its metric latency rise in E1 is inherited via the recommendationservice->productcatalogservice dependency (E4)."
+            },
+            {
+              "candidate": "frontend",
+              "why": "It sits upstream of productcatalogservice (E4) and shows no independent deviation in E1. It is a symptom of the slow downstream calls, not a source."
+            },
+            {
+              "candidate": "productcatalogservice: cpu fault",
+              "why": "Own span self-time is essentially flat (E2: 0.01->0.02ms) and workload dropped (E3), which does not fit CPU saturation. The slowness appears on inbound calls, which fits network delay."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Investigate network path and latency to productcatalogservice (e.g. network policy, tc/netem rules, or node networking), remove the injected delay, and verify that p50/p90 latency returns to baseline. Restarting the pod only if the network fix fails.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); recommendationservice_latency-90 z=455.66 (2278.3%); recommendationservice_latency-50 z=424.71 (2123.5%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.02ms (1.25x), errors 0.0->0.0; inbound calls self-time p50 2.42->202.98ms (83.7x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); productcatalogservice_workload z=-4.36 (-23.4%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=944.51 (4722.6%); productcatalogservice_latency-50 z=520.78 (2603.9%); productcatalogservice_workload z=-4.36 (-23.4%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.0->0.9ms (0.89x), errors 0.0->0.0; inbound calls self-time p50 3.86->3.96ms (1.03x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": []
+    }
+  ],
+  "fix_advisor": {
+    "query": "productcatalogservice network latency injected on its pod, every call slow, resources normal",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "KubeletPodStartUpLatencyHigh",
+        "kind": "symptom",
+        "distance": 0.402,
+        "source_ref": "runbooks/kubernetes/KubeletPodStartUpLatencyHigh.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "action",
+        "distance": 0.474,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#action"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "action",
+        "distance": 0.442,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "KubeHpaMaxedOut",
+        "kind": "symptom",
+        "distance": 0.499,
+        "source_ref": "runbooks/kubernetes/KubeHpaMaxedOut.md#symptom"
+      }
+    ],
+    "tool_seconds": 0.03,
+    "model_call": {
+      "seconds": 7.8,
+      "prompt_tokens": 1730,
+      "completion_tokens": 932,
+      "max_tokens": 16000,
+      "answer_chars": 2709,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.01278,
+      "finish_reason": "stop"
+    },
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Kubelet Pod startup 99th percentile latency is XX seconds on node. Slow pod starts.",
+        "evidence": "E2",
+        "why": "Traces show delay in inbound call self-time on a running service with no errors, not slow pod startup, so this symptom is not supported and is left out."
+      },
+      {
+        "runbook": "R4",
+        "step": "Horizontal Pod Autoscaler has been running at max replicas for longer than 15 minutes.",
+        "evidence": "E3",
+        "why": "Workload for productcatalogservice fell 23.4%, so there is no load pressure indicating HPA saturation; scaling is not supported as a fix and is left out."
+      }
+    ],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Locate where the inbound-call delay is introduced (network path, sidecar, or node-level contention) and apply a gated, reversible mitigation such as rescheduling or restarting the affected pod only after a human approves.",
+      "steps": [
+        "Compare productcatalogservice inbound span durations by caller and by pod/node to see whether the ~200ms delay is uniform or concentrated on one pod, node, or caller (E2).",
+        "Check for a recent change (deploy, config, mesh/network policy, injected fault) affecting productcatalogservice around the onset of the latency jump (E1, E3).",
+        "Inspect node-level network health (receive errors, drops, conntrack usage) on the nodes hosting productcatalogservice pods; only act on R2/R3 if those metrics are actually abnormal.",
+        "If a single pod or node is the outlier, cordon that node or delete that pod so it reschedules (human-approved); one replica at a time.",
+        "If a recent change is identified, roll it back through the normal deploy process after approval.",
+        "Watch productcatalogservice latency-50/90 and recommendationservice latency (E1) for recovery after each action."
+      ],
+      "preconditions": [
+        "Confirm the latency deviation is still ongoing and not already recovered.",
+        "Confirm other healthy replicas exist so removing one pod does not reduce capacity (workload is already down 23.4%, E3).",
+        "Obtain on-call approval before any cordon, pod deletion, or rollback.",
+        "Record current pod/node placement and config version so the state can be restored."
+      ],
+      "rollback": "Uncordon any cordoned node, let the scheduler restore pod placement (or redeploy the previous replica count), and re-apply the prior config/deploy version if a rollback was performed; each step is individually reversible."
+    },
+    "rationale": "productcatalogservice shows a large latency increase (E1, E3) that traces attribute to inbound call time rather than its own span self-time (E2), so the delay sits in the call path or dependency, not in CPU work inside the service; none of the retrieved runbooks directly match this pattern, so the f",
+    "runbook_refs": [
+      "R2",
+      "R3"
+    ],
+    "commander_draft": "Investigate network path and latency to productcatalogservice (e.g. network policy, tc/netem rules, or node networking), remove the injected delay, and verify that p50/p90 latency returns to baseline. Restarting the pod only if the network fix fails."
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 2,
+    "review_required": true,
+    "review_reason": "runbook contradicts the evidence: R1 step \"Kubelet Pod startup 99th percentile latency is XX seconds on\" contradicts E2; R4 step \"Horizontal Pod Autoscaler has been running at max replicas f\" contradicts E3"
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 26.0,
+    "tool_seconds": 2.3,
+    "prompt_tokens": 10708,
+    "completion_tokens": 2676,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 28.7,
+    "cost_usd": 0.048176
+  }
+}

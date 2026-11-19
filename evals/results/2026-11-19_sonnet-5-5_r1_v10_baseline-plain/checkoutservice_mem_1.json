@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2738,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "mem"
+  },
+  "confidence": "medium",
+  "rationale": "checkoutservice has the largest anomalies in the digest: memory rose about 19x (z=+375) and CPU about 45x (z=+220), and its latency-90 and latency-50 rose with them, while its downstream services (paymentservice, emailservice, currencyservice) show negligible changes. Memory has the highest z-score and a plausible leak or allocation pattern, with CPU likely a secondary effect such as GC pressure, but the digest has no logs or errors to separate mem from cpu definitively.",
+  "proposed_fix": {
+    "description": "Restart or roll the checkoutservice pods to reclaim memory and restore latency, then inspect a heap profile and recent deploys for a leak, and set a memory limit and alert. Restarting drops in-flight checkout requests, so drain traffic first.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.4,
+    "prompt_tokens": 1464,
+    "completion_tokens": 315,
+    "tool_seconds": 1.2,
+    "wall_seconds": 4.6,
+    "cost_usd": 0.006078
+  }
+}

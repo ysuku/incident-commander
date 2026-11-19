@@ -1,0 +1,408 @@
+{
+  "root_cause": {
+    "service": "productcatalogservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_latency-50 z=714.54 (3572.7%); productcatalogservice_latency-90 z=411.88 (2059.4%); recommendationservice_latency-90 z=175.24 (876.2%); productcatalogservice_socket z=170.74 (853.7%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-50",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.54x), errors 0.0->0.0; inbound calls self-time p50 2.46->96.25ms (39.08x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-50 z=714.54 (3572.7%); productcatalogservice_latency-90 z=411.88 (2059.4%); productcatalogservice_socket z=170.74 (853.7%); productcatalogservice_cpu z=50.63 (418.0%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-50",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "recommendationservice",
+      "why": "It calls productcatalogservice (E3), and its latency-90 rise (E1) is consistent with inheriting that slowness. Its own metrics are not the top deviation."
+    },
+    {
+      "candidate": "frontend",
+      "why": "It sits upstream of productcatalogservice (E3) and only observes the latency. Inbound-call latency on productcatalogservice rose 39x (E2) while its own span self-time did not change."
+    },
+    {
+      "candidate": "productcatalogservice cpu fault",
+      "why": "CPU deviation (z=50.63, E4) is much smaller than the socket deviation (z=170.74, E4). Own-span self-time is unchanged (0.54x, E2), which is inconsistent with CPU saturation."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Verify whether socket/connection exhaustion on productcatalogservice or its node (e.g. conntrack pressure) is causing the latency, then relieve it with gated, reversible actions.",
+    "steps": [
+      "Inspect socket state on the productcatalogservice pod(s): count of ESTABLISHED/TIME_WAIT/CLOSE_WAIT connections and open file descriptors, compared with the pre-incident baseline.",
+      "Check node conntrack usage (nf_conntrack_count vs nf_conntrack_max) on the node(s) hosting productcatalogservice to confirm or rule out R1.",
+      "Identify which clients hold the most connections to productcatalogservice (e.g. recommendationservice, frontend) and check whether they are leaking or not reusing connections.",
+      "If conntrack is near its limit, request approval to raise nf_conntrack_max on the affected node as a temporary measure.",
+      "If connections are leaking in a specific client, request approval for a rolling restart of that client deployment, one replica at a time, watching latency-50/90 and the socket metric.",
+      "Keep investigating the CPU rise (z=50.63) in parallel, since E4 shows it also deviated, to see whether it is a cause or a side effect of connection churn."
+    ],
+    "preconditions": [
+      "Confirm the socket metric deviation is still present at action time and not a transient spike.",
+      "Confirm conntrack usage is actually high before touching sysctl settings; otherwise skip that step.",
+      "Confirm there is spare capacity in the client deployments before any rolling restart.",
+      "Get explicit human approval for every change to the node or a deployment."
+    ],
+    "rollback": "Restore nf_conntrack_max to its previous recorded value, and if a rolling restart makes things worse, stop it and redeploy the previous revision with kubectl rollout undo; no other state is changed.",
+    "runbook_refs": [
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom"
+    ],
+    "contradictions": [],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 6,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 729,
+        "completion_tokens": 155,
+        "max_tokens": 16000,
+        "answer_chars": 434,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00301,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at productcatalogservice; I need an independent kind of evidence (traces) scoped to that service to corroborate before concluding.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.97
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 943,
+        "completion_tokens": 171,
+        "max_tokens": 16000,
+        "answer_chars": 485,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0036,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but I need a log check to confirm the socket fault type and see whether logs implicate it, so I'm searching its logs for errors.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "productcatalogservice",
+          "limit": 10
+        }
+      },
+      "outcome": "bad_args",
+      "detail": "no log lines from 'productcatalogservice' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 's"
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1075,
+        "completion_tokens": 154,
+        "max_tokens": 16000,
+        "answer_chars": 458,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00369,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but I want to check the call graph to confirm recommendationservice and frontend are callers (victims) and not a competing source before finishing.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.46
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1186,
+        "completion_tokens": 173,
+        "max_tokens": 16000,
+        "answer_chars": 482,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0041,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but the fault type needs confirming. Next I'll query productcatalogservice metrics to check whether socket, delay or loss fits best.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 3.9,
+        "prompt_tokens": 1339,
+        "completion_tokens": 473,
+        "max_tokens": 16000,
+        "answer_chars": 1247,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00741,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E4) and traces (E2) both point at productcatalogservice, so I'll finish with socket as the fault type, since its socket metric deviates far more than cpu.",
+      "action": {
+        "finish": {
+          "root_cause_service": "productcatalogservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E4"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "recommendationservice",
+              "why": "It calls productcatalogservice (E3), and its latency-90 rise (E1) is consistent with inheriting that slowness. Its own metrics are not the top deviation."
+            },
+            {
+              "candidate": "frontend",
+              "why": "It sits upstream of productcatalogservice (E3) and only observes the latency. Inbound-call latency on productcatalogservice rose 39x (E2) while its own span self-time did not change."
+            },
+            {
+              "candidate": "productcatalogservice cpu fault",
+              "why": "CPU deviation (z=50.63, E4) is much smaller than the socket deviation (z=170.74, E4). Own-span self-time is unchanged (0.54x, E2), which is inconsistent with CPU saturation."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Inspect and restore productcatalogservice network/socket connectivity, for example by restarting the affected pod after confirming connection state, and watch latency-50/90 recover.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_latency-50 z=714.54 (3572.7%); productcatalogservice_latency-90 z=411.88 (2059.4%); recommendationservice_latency-90 z=175.24 (876.2%); productcatalogservice_socket z=170.74 (853.7%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-50",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.54x), errors 0.0->0.0; inbound calls self-time p50 2.46->96.25ms (39.08x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-50 z=714.54 (3572.7%); productcatalogservice_latency-90 z=411.88 (2059.4%); productcatalogservice_socket z=170.74 (853.7%); productcatalogservice_cpu z=50.63 (418.0%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-50",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    }
+  ],
+  "fix_advisor": {
+    "query": "productcatalogservice sockets or connections exhausted, connection errors and timeouts",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "symptom",
+        "distance": 0.52,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "KubeDeploymentGenerationMismatch",
+        "kind": "symptom",
+        "distance": 0.616,
+        "source_ref": "runbooks/kubernetes/KubeDeploymentGenerationMismatch.md#symptom"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeClockSkewDetected",
+        "kind": "action",
+        "distance": 0.645,
+        "source_ref": "runbooks/node/NodeClockSkewDetected.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "symptom",
+        "distance": 0.547,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom"
+      }
+    ],
+    "tool_seconds": 0.04,
+    "model_call": {
+      "seconds": 7.4,
+      "prompt_tokens": 1459,
+      "completion_tokens": 769,
+      "max_tokens": 16000,
+      "answer_chars": 2194,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.01061,
+      "finish_reason": "stop"
+    },
+    "contradictions": [],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Verify whether socket/connection exhaustion on productcatalogservice or its node (e.g. conntrack pressure) is causing the latency, then relieve it with gated, reversible actions.",
+      "steps": [
+        "Inspect socket state on the productcatalogservice pod(s): count of ESTABLISHED/TIME_WAIT/CLOSE_WAIT connections and open file descriptors, compared with the pre-incident baseline.",
+        "Check node conntrack usage (nf_conntrack_count vs nf_conntrack_max) on the node(s) hosting productcatalogservice to confirm or rule out R1.",
+        "Identify which clients hold the most connections to productcatalogservice (e.g. recommendationservice, frontend) and check whether they are leaking or not reusing connections.",
+        "If conntrack is near its limit, request approval to raise nf_conntrack_max on the affected node as a temporary measure.",
+        "If connections are leaking in a specific client, request approval for a rolling restart of that client deployment, one replica at a time, watching latency-50/90 and the socket metric.",
+        "Keep investigating the CPU rise (z=50.63) in parallel, since E4 shows it also deviated, to see whether it is a cause or a side effect of connection churn."
+      ],
+      "preconditions": [
+        "Confirm the socket metric deviation is still present at action time and not a transient spike.",
+        "Confirm conntrack usage is actually high before touching sysctl settings; otherwise skip that step.",
+        "Confirm there is spare capacity in the client deployments before any rolling restart.",
+        "Get explicit human approval for every change to the node or a deployment."
+      ],
+      "rollback": "Restore nf_conntrack_max to its previous recorded value, and if a rolling restart makes things worse, stop it and redeploy the previous revision with kubectl rollout undo; no other state is changed."
+    },
+    "rationale": "productcatalogservice shows a socket metric deviation (z=170.74) and a large latency rise seen by callers (inbound self-time p50 2.46->96.25ms) while its own span self-time is flat, which points to connection or socket-level saturation rather than slow in-process work; only R1 (conntrack exhaustion)",
+    "runbook_refs": [
+      "R1"
+    ],
+    "commander_draft": "Inspect and restore productcatalogservice network/socket connectivity, for example by restarting the affected pod after confirming connection state, and watch latency-50/90 recover."
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 0,
+    "review_required": false
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 7,
+    "model_seconds": 20.0,
+    "tool_seconds": 1.5,
+    "prompt_tokens": 7320,
+    "completion_tokens": 1972,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 21.8,
+    "cost_usd": 0.03436
+  }
+}

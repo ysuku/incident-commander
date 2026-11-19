@@ -805,4 +805,87 @@ are the same code in both).
    service. On Qwen the linear agent names the right service for that case (with the wrong
    fault, `socket`) and the graph gets service and fault right.
 
-**Pending:** RE3-OB, Train Ticket.
+## Module 7 — Code-level faults (RE3-OB): a fault type the agent was never told about
+
+**What was run.** RE3-OB: 30 cases (10 fault folders x 3 repetitions) on the same Online Boutique
+system, where the injected fault is a code change (labels `f1`-`f5`), not one of the six
+resource/network types. The right answer is a handover that names the true service first
+(`correct_unfamiliar`); naming a known fault type is scored as confident and wrong. Claude
+Sonnet 5.5, folders `evals/results/2026-11-19_sonnet-5-5_re3_v9_*` (fingerprint of commit
+`8488a29`), $1.46.
+
+**Loader change this needed.** RE3 logs have no `level` column and no severity in the text.
+`loaders.load_logs` gives every line the level `unknown`; no line counts as a warning or error,
+so on this set the gate can only be met by metrics plus traces.
+
+| 30 cases, Sonnet 5.5 | Single prompt | Multi-agent graph |
+|---|---|---|
+| handed over, true service first | 2 | 22 |
+| handed over, true service not first | 0 | 4 |
+| diagnosed as a known fault type (confident and wrong) | 28 | 4 |
+| cost | $0.19 | $1.27 |
+
+**What this shows**
+1. **The graph says "I do not know this one" 26 times of 30; the single prompt 2 times.** Given
+   six labels to choose from, one prompt picks one (delay 11, socket 8, cpu 5, mem 3, loss 1).
+   All 28 name the right service, so the service is findable; the fault label is the invention.
+2. **The four graph answers that got through** are `adservice_f3` (cpu, loss), `cartservice_f1`
+   (socket) and `emailservice_f4` (cpu): the code fault produced a resource signature that fits
+   a known type and passed the critic. The no-model check predicted 6 such cases
+   (`evals/tot_offline_truth_re3.md`).
+3. **The `unfamiliar` code itself fired once**, and about the wrong service. Most handovers are
+   `tot_no_branch` (15) and `budget_exhausted` (10): the agent stops for want of a second
+   telemetry kind, not because it recognised a new fault type. The handover is right; the
+   reason given is weaker than the design intended.
+
+## Module 7 — Pre-flight audit before the held-out run
+
+**Why.** The Train Ticket run is one-shot. Before opening it, the code was audited for anything
+that only works on Online Boutique, by reviewers who could read the code and the dev data but
+not the held-out data. Each finding was reproduced by a second reviewer before it was accepted;
+the fixes were then reviewed the same way. Nothing here was tuned on held-out data: none was
+read.
+
+**Defects found and fixed** (commit `855658e`; tests in `tests/test_preflight_fixes.py`)
+
+| Defect | Effect | Fix |
+|---|---|---|
+| `statusCode != 0` counted a missing status and HTTP 200 as an error | every Online Boutique trace looked failed (frontend HTTP spans have no status); on an HTTP system the error rate would read 100% before and after, and a `loss` could not be told from a `delay` | error = non-zero gRPC code or HTTP >= 400 |
+| a metric with no data before the alert has z = NaN, and NaN broke the sort | the "top 10 deviations" could miss the largest ones in 8 of 90 dev cases | NaN ranks last; "absent before, present after" is read as a baseline of 0 |
+| a metric flat at 0 before the alert got z = value x 1e9 | such a row sat in the top 10 in 31 of 90 dev cases and pushed the faulty service's own metric down in 12 | bounded z of +/-20; the fault signatures still treat such a series as unusable |
+| any warning/error log line implicated a service, including lines from before the alert | a service that always logs warnings would hold a permanent "logs" kind, halving the two-kinds gate | implicates only on a rise after the alert (none before, or twice the rate) |
+| a level filter on logs with no severity read "checked: no lines at that level" | a false clean bill on RE3 and for `cartservice`/`redis` on RE2 | worded "NOT checked", with the count of unlevelled lines |
+| cited log line numbers ignored multi-line fields | wrong `logs.csv#L<n>` in 3 dev cases and most RE3 cases | line numbers taken from the file itself |
+| a tool that crashed on the data was caught as "bad arguments" | an unreadable case would spend its budget and be scored as an ordinary escalation | `ToolCrash` reaches the runner and is recorded as an error row |
+| an error row (API down) was final, and was sealed by the held-out stamp | a network failure during the one-shot run could not be retried | error rows are run again in the same folder; cost carried; spend cap counts the folder total |
+
+Also added: `scripts/preflight.py`, a $0 check that every tool can read every case, which prints
+pass/fail only and is run on the held-out set right before its run.
+
+**The wrong-service case, explained.** The one wrong-service answer in the Qwen linear run
+(`productcatalogservice_loss/1` -> `frontend`) came from two of these defects together:
+`frontend_error` went from 0 to 0.021 and scored z = 2.1e7, while the faulty service's own error
+series had no samples before the alert and scored NaN. The first metrics call pointed at the
+caller. On the fixed code the faulty service's latency is the top row in that case.
+
+**What the fixes change, measured with no model calls**
+- Tree-of-Thought with the true service given: identical outcome in all 90 RE2-OB and all 30
+  RE3-OB cases. The critic did not move.
+- Tree-of-Thought with the tool's own top suspect (no label): RE2-OB correct 23 -> 32, wrong
+  5 -> 3, escalated without the truth 22 -> 12.
+- Four saved runs (Sonnet and Qwen, linear and graph) replayed through the new tools and gate:
+  same outcomes, no finish newly refused.
+- 265 tests pass.
+
+**Found and left as documented limits**
+- ToT can select a fault type whose must-have metric does not exist for the service (it wins on
+  trace signals alone). On Online Boutique this is how `disk` is diagnosed, by elimination, so
+  the rule was not changed.
+- The per-service trace view uses the median self time over all of a service's spans; an
+  orchestrating service with many fast outbound calls can hide a slow handler.
+- Without client spans, a slow caller can make its single callee look slow from the inbound view.
+- The log-rise rule compares whole-window rates; no dev case has warnings before the alert, so
+  its first real use is on the held-out system.
+- Lines with an empty level are counted but not listed per service.
+
+**Pending:** dev set and RE3-OB again on the fixed code (Sonnet), then Train Ticket.

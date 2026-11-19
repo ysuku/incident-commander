@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2752,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice_latency-90 has the largest shift (0.0046 to 0.2134 s, z=+903), and it is a leaf callee of checkoutservice, whose latency rose to 4.1 s; CPU on checkoutservice and cartservice is flat, and there are no errors in the logs or traces, which fits an added delay and not cpu, mem or loss. Shippingservice and paymentservice latency-90 also rose, but shippingservice latency-50 is flat, so these look like secondary effects or tail noise. The service map has no shippingservice edge, so I cannot fully rule out shippingservice or paymentservice, which is why confidence is medium.",
+  "proposed_fix": {
+    "description": "Inspect emailservice for injected network delay or slow dependencies, and if confirmed remove the delay rule or restart the affected emailservice pod. Add a timeout and async handling for the email call in checkoutservice.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.8,
+    "prompt_tokens": 1465,
+    "completion_tokens": 350,
+    "tool_seconds": 1.1,
+    "wall_seconds": 4.9,
+    "cost_usd": 0.00643
+  }
+}

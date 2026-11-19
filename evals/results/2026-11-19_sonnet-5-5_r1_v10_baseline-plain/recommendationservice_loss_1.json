@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 4825,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "recommendationservice has the largest anomalies (latency-50 z=+773, latency-90 z=+700), and its socket count rose from 4 to 21.4 while workload dropped 77%; frontend warnings 'failed to get product recommendations' match this, and recommendationservice has no downstream anomaly beyond productcatalogservice, whose changes are small. Memory also rose (+205%), which makes mem a competing explanation, but the socket increase is much larger relative to baseline, and mem growth could be a symptom of piled-up connections. The worst traces involve checkoutservice errors, which are not explained by this and are unresolved.",
+  "proposed_fix": {
+    "description": "Restart or roll the recommendationservice pods to clear leaked or stuck connections, then investigate its connection handling and socket limits; non-destructive, as pods are stateless.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.6,
+    "prompt_tokens": 2301,
+    "completion_tokens": 330,
+    "tool_seconds": 0.9,
+    "wall_seconds": 4.5,
+    "cost_usd": 0.007902
+  }
+}

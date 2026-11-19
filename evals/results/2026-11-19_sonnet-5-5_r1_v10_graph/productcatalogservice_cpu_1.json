@@ -1,0 +1,892 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "productcatalogservice",
+        "fault_type": "cpu",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed cpu_up (cpu z=36.22), mem_not_saturated (mem z=9.13), socket_not_saturated (socket z=9.94); inconclusive trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E6",
+          "E10",
+          "E12"
+        ]
+      },
+      {
+        "service": "recommendationservice",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=97.94), resources_flat (max resource cpu z=0.36), no_errors (span error rate +0.000); contradicted trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E3",
+          "E5",
+          "E7",
+          "E11",
+          "E13"
+        ]
+      },
+      {
+        "service": "productcatalogservice",
+        "fault_type": "mem",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "inconclusive mem_up (mem z=9.13), trace_slow (traces flat); confirmed latency_up (latency z=182.68), socket_not_saturated (socket z=9.94)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E8"
+        ]
+      },
+      {
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)); inconclusive mem_up (mem z=9.13), trace_slow (traces flat); confirmed cpu_up (cpu z=36.22), socket_not_saturated (socket z=9.94)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E9"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "productcatalogservice: cpu (score 3, open; confirmed cpu_up, mem_not_saturated, socket_not_saturated)",
+    "productcatalogservice: mem (score 2, open; confirmed latency_up, socket_not_saturated)",
+    "productcatalogservice: disk (score 2, open; confirmed cpu_up, socket_not_saturated)",
+    "recommendationservice: delay (score 2, open; confirmed latency_up, resources_flat, no_errors)"
+  ],
+  "notes": [
+    "step 3: bad args for log_search: no log lines from 'productcatalogservice' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 's"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_latency-90 z=182.68 (913.4%); recommendationservice_latency-90 z=97.94 (489.7%); recommendationservice_latency-50 z=59.14 (295.7%); productcatalogservice_cpu z=36.22 (607.1%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.01->0.01ms (1.11x), errors 0.0->0.0; inbound calls self-time p50 2.31->2.77ms (1.2x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.07->1.23ms (1.16x), errors 0.0->0.0; inbound calls self-time p50 3.8->3.83ms (1.01x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=182.68 (913.4%); productcatalogservice_cpu z=36.22 (607.1%); productcatalogservice_latency-50 z=10.84 (77.7%); productcatalogservice_socket z=9.94 (49.7%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=97.94 (489.7%); recommendationservice_latency-50 z=59.14 (295.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='recommendationservice', query='timeout OR slow OR deadline OR latency']: no line contains that literal text (12881 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice, metric=mem]: productcatalogservice_mem z=9.13 (45.6%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_mem",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=productcatalogservice, metric=diskio]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice, metric=cpu]: productcatalogservice_cpu z=36.22 (607.1%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_cpu",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E11",
+      "kind": "traces",
+      "summary": "11903 traces after alert; worst: frontendservice -> currencyservice -> productcatalogservice 2289.3ms errors=0; frontendservice -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 1988.7ms errors=0; frontendservice -> currencyservice -> productcatalogservice 1815.7ms errors=0",
+      "source_ref": "traces.csv:traceID=abf41be049ada05c6e1880eff9857cb6",
+      "implicates": []
+    },
+    {
+      "eid": "E12",
+      "kind": "traces",
+      "summary": "traces for currencyservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.1->0.1ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 77.07->48.05ms (0.62x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": []
+    },
+    {
+      "eid": "E13",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=recommendationservice, metric=cpu]; largest is only recommendationservice_cpu z=0.36 (3.3%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_cpu",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 727,
+        "completion_tokens": 159,
+        "max_tokens": 16000,
+        "answer_chars": 435,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00304,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at productcatalogservice (latency and CPU); I need trace evidence to confirm it is the source and not just a victim of a caller.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.01
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 953,
+        "completion_tokens": 168,
+        "max_tokens": 16000,
+        "answer_chars": 467,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00359,
+        "finish_reason": "stop"
+      },
+      "thought": "Traces show no change for productcatalogservice, so I need an independent signal; check logs for productcatalogservice to corroborate or refute the CPU hypothesis.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "productcatalogservice",
+          "limit": 10
+        }
+      },
+      "outcome": "bad_args",
+      "detail": "no log lines from 'productcatalogservice' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 's"
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1085,
+        "completion_tokens": 191,
+        "max_tokens": 16000,
+        "answer_chars": 553,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00408,
+        "finish_reason": "stop"
+      },
+      "thought": "Traces for productcatalogservice show no change, and it has no logs, so I need a second independent telemetry kind; checking the service map and then recommendationservice traces/logs to see whether the latency is intrinsic or downstream.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.92
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: cpu",
+      "thought": "service_map shows whether recommendationservice calls productcatalogservice, which tells us whether recommendation's latency can be a downstream effect of productcatalogservice's CPU saturation rather",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1405,
+        "completion_tokens": 155,
+        "max_tokens": 16000,
+        "answer_chars": 476,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00436,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.48
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "recommendationservice: delay",
+      "thought": "Recommendationservice logs may show delay/timeouts or slow calls attributable to itself versus its productcatalog dependency; searching its logs for slow/timeout/latency messages tests whether the del",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "timeout OR slow OR deadline OR latency",
+          "service": "recommendationservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 1520,
+        "completion_tokens": 225,
+        "max_tokens": 16000,
+        "answer_chars": 670,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00529,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.1
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "productcatalogservice: mem",
+      "thought": "E1 and E4 list productcatalogservice cpu but no memory deviation, so a memory-specific metric query on this service tests whether mem rose (z>=15) or stayed flat, which separates mem from cpu.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1606,
+        "completion_tokens": 165,
+        "max_tokens": 16000,
+        "answer_chars": 433,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00486,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B3",
+      "hypothesis": "productcatalogservice: disk",
+      "thought": "Disk hypothesis requires diskio to rise for productcatalogservice; a metric query on its diskio separates it from the CPU-only rival (cpu is already up, mem z is only 9, below the 15 threshold).",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1702,
+        "completion_tokens": 171,
+        "max_tokens": 16000,
+        "answer_chars": 448,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00511,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: cpu",
+      "thought": "Trace-level evidence for productcatalogservice shows no slowdown, so the CPU hypothesis needs a check on the CPU metric itself, and the rival (recommendationservice delay) predicts no CPU rise in prod",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.0,
+        "prompt_tokens": 1740,
+        "completion_tokens": 232,
+        "max_tokens": 16000,
+        "answer_chars": 624,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0058,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "recommendationservice: delay",
+      "thought": "Recommendationservice's resources are flat while its latency rose, and its only dependency is productcatalogservice; checking the recommendationservice's outbound spans to productcatalogservice via a ",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1829,
+        "completion_tokens": 223,
+        "max_tokens": 16000,
+        "answer_chars": 689,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00589,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.32
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: cpu",
+      "thought": "Rival says recommendationservice is the origin; since recommendationservice calls productcatalogservice, checking whether productcatalogservice's own CPU/latency shift precedes or is independent of re",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": false,
+          "limit": 10,
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E12",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 2009,
+        "completion_tokens": 293,
+        "max_tokens": 16000,
+        "answer_chars": 888,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00695,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.97
+    },
+    {
+      "step": 12,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "recommendationservice: delay",
+      "thought": "Recommendationservice's own CPU, memory and socket metrics are flat while latency rises. A metric_query scoped to recommendationservice with metric=cpu confirms the resources_flat part of the signatur",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E13",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.7,
+        "prompt_tokens": 2144,
+        "completion_tokens": 255,
+        "max_tokens": 16000,
+        "answer_chars": 734,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00684,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 4 steps",
+    "suspect": "productcatalogservice",
+    "rival": "recommendationservice",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "productcatalogservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for productcatalogservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=36.22",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=9.13",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=9.94",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "service_map",
+            "args": {},
+            "depth": 1,
+            "predicted": "recommendationservice calls productcatalogservice, so its latency rise is explained by the productcatalogservice CPU saturation, with no independent delay in recommendationservice.",
+            "rationale": "service_map shows whether recommendationservice calls productcatalogservice, which tells us whether recommendation's latency can be a downstream effect of productcatalogservice's CPU saturation rather",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "productcatalogservice",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "productcatalogservice_cpu z>=3 (about 36) with a large rise after the alert, while mem and socket stay below saturation thresholds, consistent with CPU saturation rather than a recommendationservice-o",
+            "rationale": "Trace-level evidence for productcatalogservice shows no slowdown, so the CPU hypothesis needs a check on the CPU metric itself, and the rival (recommendationservice delay) predicts no CPU rise in prod",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": false,
+              "limit": 10,
+              "service": "currencyservice"
+            },
+            "depth": 3,
+            "predicted": "Paths through currencyservice->productcatalogservice that never touch recommendationservice are also slow after the alert, showing productcatalogservice slowness is independent of recommendationservic",
+            "rationale": "Rival says recommendationservice is the origin; since recommendationservice calls productcatalogservice, checking whether productcatalogservice's own CPU/latency shift precedes or is independent of re",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "productcatalogservice",
+        "fault_type": "mem",
+        "reason": "top fault types for productcatalogservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=9.13",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=182.68",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=9.94",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "productcatalogservice",
+              "metric": "mem"
+            },
+            "depth": 1,
+            "predicted": "productcatalogservice_mem shows a large positive deviation (z>=15) alongside the latency rise, with socket not saturated",
+            "rationale": "E1 and E4 list productcatalogservice cpu but no memory deviation, so a memory-specific metric query on this service tests whether mem rose (z>=15) or stayed flat, which separates mem from cpu.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "reason": "top fault types for productcatalogservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=9.13",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=36.22",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=9.94",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "productcatalogservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "productcatalogservice_diskio shows a large positive deviation after the alert, supporting disk; if it is flat, the CPU rival wins.",
+            "rationale": "Disk hypothesis requires diskio to rise for productcatalogservice; a metric query on its diskio separates it from the CPU-only rival (cpu is already up, mem z is only 9, below the 15 threshold).",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "recommendationservice",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=97.94",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.36",
+            "eid": "E5",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E3",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "query": "timeout OR slow OR deadline OR latency",
+              "service": "recommendationservice",
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "Few or no timeout/error lines in recommendationservice logs and no productcatalog failures; its latency rises with flat CPU/mem/socket, consistent with an injected delay in recommendationservice itsel",
+            "rationale": "Recommendationservice logs may show delay/timeouts or slow calls attributable to itself versus its productcatalog dependency; searching its logs for slow/timeout/latency messages tests whether the del",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Slowest request paths go through recommendationservice with its own span self-time inflated while its child productcatalogservice spans stay fast, so the delay sits inside recommendationservice rather",
+            "rationale": "Recommendationservice's resources are flat while its latency rose, and its only dependency is productcatalogservice; checking the recommendationservice's outbound spans to productcatalogservice via a ",
+            "by": "model"
+          },
+          {
+            "eid": "E13",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "cpu"
+            },
+            "depth": 3,
+            "predicted": "recommendationservice_cpu shows no significant deviation (z<5), so its resources are flat while its latency-50 and latency-90 are sharply up; this fits an injected delay rather than resource saturatio",
+            "rationale": "Recommendationservice's own CPU, memory and socket metrics are flat while latency rises. A metric_query scoped to recommendationservice with metric=cpu confirms the resources_flat part of the signatur",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "expansions": 8,
+    "generator_calls": 8,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 12,
+    "model_seconds": 28.6,
+    "tool_seconds": 3.9,
+    "prompt_tokens": 17309,
+    "completion_tokens": 2314,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 33.0,
+    "cost_usd": 0.057758000000000004
+  }
+}

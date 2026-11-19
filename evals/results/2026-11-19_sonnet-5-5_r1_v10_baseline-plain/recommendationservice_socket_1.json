@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2530,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "recommendationservice has the largest anomalies in the digest: latency-90 rose about 51x (z=+1002), CPU rose from 2.8 to 18.6 (+563%), and sockets and memory also increased, while its downstream productcatalogservice is essentially flat (latency-50 +20%, CPU -8.7%). Frontend latency and errors rise after it, and every worst trace passes through recommendationservice. CPU, socket and memory all moved together, so cpu vs socket is not fully separable; I chose cpu because the saturation signature (latency up with CPU up) fits best and no logs exist to confirm.",
+  "proposed_fix": {
+    "description": "Inspect recommendationservice for CPU contention or a runaway workload, then restart or scale out its replicas and add CPU limits/autoscaling. This is a non-destructive step; confirm the cause from profiling before changing anything else.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 4.0,
+    "prompt_tokens": 1364,
+    "completion_tokens": 347,
+    "tool_seconds": 0.9,
+    "wall_seconds": 4.8,
+    "cost_usd": 0.006198
+  }
+}
