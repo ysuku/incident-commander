@@ -3,6 +3,7 @@
 Layout on disk:  data/rcaeval/RE2-OB/<service>_<fault>/<run>/
   inject_time.txt     unix timestamp of fault injection
   logs.csv            time, timestamp(ns), container_name, message, level, req_path, error, cluster_id, log_template
+                      (RE3-OB: time, timestamp, container_name, message, pod_name, node_name; no level)
   logts.csv           log-template counts per 15s bucket; ids map via cluster_info.json
   simple_metrics.csv  wide: time + <service>_<metric> columns (cpu, mem, diskio, socket, ...)
   metrics.csv         full metrics (large)
@@ -27,6 +28,8 @@ DATASET_BY_SYSTEM = {
     "train-ticket": "RE2-TT",       # held-out: guarded below
     "online-boutique-re3": "RE3-OB",  # harder code-level faults (eval week)
 }
+
+NO_LEVEL = "unknown"   # log level for a dataset whose logs carry no severity (RE3)
 
 CASE_FILES = {
     "inject_time": "inject_time.txt",
@@ -118,9 +121,20 @@ def load_case(case_id: str, system: str = "online-boutique") -> IncidentCase:
 # --- lazy data helpers (pandas imported on use, so listing works without it) ---
 
 def load_logs(case: IncidentCase, columns: list[str] | None = None):
-    """Full log table — can be tens of MB; tools must filter/summarize, never dump."""
+    """Full log table — can be tens of MB; tools must filter/summarize, never dump.
+
+    RE3 logs have no `level` column (time, timestamp, container_name, message,
+    pod_name, node_name) and no severity in the message text. When `level` is
+    asked for and the file has none, every line gets the level "unknown": the
+    line counts stay true, a search for level="error" finds nothing and says the
+    only level present is "unknown", and no line counts as a warning or error."""
     import pandas as pd
-    return pd.read_csv(case.path("logs"), usecols=columns)
+    path = case.path("logs")
+    if columns and "level" in columns and "level" not in pd.read_csv(path, nrows=0).columns:
+        df = pd.read_csv(path, usecols=[c for c in columns if c != "level"])
+        df["level"] = NO_LEVEL
+        return df[columns]
+    return pd.read_csv(path, usecols=columns)
 
 
 def load_simple_metrics(case: IncidentCase):

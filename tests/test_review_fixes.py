@@ -396,3 +396,43 @@ def test_linear_diagnosis_with_metrics_hidden_is_marked_as_an_unchecked_fault_ty
     evaluate.run_eval([FAKE], lambda: None, tmp_path / "l", hide=("logs",))
     assert "fault_type_unchecked" not in json.loads((tmp_path / "l" / "x_cpu_1.json").read_text())
     assert "- metrics hidden" not in (tmp_path / "l" / "summary.md").read_text()
+
+
+# --- logs without a level column (the RE3 code-level fault set) ---
+
+def _case_with_logs(tmp_path, header, rows):
+    (tmp_path / "logs.csv").write_text("\n".join([header, *rows]) + "\n")
+    return loaders.IncidentCase("emailservice_f1/1", "online-boutique-re3", "1", 1000, tmp_path, "emailservice", "f1")
+
+
+def test_logs_without_a_level_column_are_searchable_and_implicate_nobody(tmp_path):
+    ns = 1000 * 1_000_000_000
+    case = _case_with_logs(tmp_path, "time,timestamp,container_name,message,pod_name,node_name", [
+        f"999,{ns - 5},frontend,request complete,p1,n1",
+        f"1001,{ns + 5},emailservice,Traceback (most recent call last),p2,n1",
+        f"1002,{ns + 9},emailservice,sent,p2,n1"])
+    df = loaders.load_logs(case, columns=["timestamp", "container_name", "message", "level"])
+    assert list(df.columns) == ["timestamp", "container_name", "message", "level"]
+    assert set(df["level"]) == {loaders.NO_LEVEL}
+
+    hit = tools.log_search(case, query="Traceback")
+    assert hit["total_matches"] == 1 and hit["levels_present"] == ["unknown"]
+    assert hit["matches_by_service_level"] == {"emailservice/unknown": 1}
+    assert hit["sample_after_alert"][0]["source_ref"] == "logs.csv#L3"
+    json.dumps(hit)  # the tool result must serialize
+    # a matched line with no severity is a mention, not a symptom: nobody is implicated
+    assert loop._summarize("log_search", hit, {"query": "Traceback"})[3] == []
+
+    errors = tools.log_search(case, level="error")
+    assert errors["total_matches"] == 0 and errors["scope_lines"] == 3
+    assert errors["levels_present"] == ["unknown"]
+    kind, text, _, implicated = loop._summarize("log_search", errors, {"level": "error"})
+    assert kind == "logs" and implicated == [] and "unknown" in text
+
+
+def test_logs_with_a_level_column_load_as_before(tmp_path):
+    case = _case_with_logs(tmp_path, "time,timestamp,container_name,message,level", [
+        "1001,1000000000005,emailservice,boom,error"])
+    df = loaders.load_logs(case, columns=["timestamp", "container_name", "message", "level"])
+    assert list(df["level"]) == ["error"]
+    assert tools.log_search(case, level="error")["matches_by_service_level"] == {"emailservice/error": 1}
