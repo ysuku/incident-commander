@@ -211,7 +211,13 @@ def tot_outcome(case, brief: dict) -> str:
 def diagnose(case, model, tot: str | None = None, arch: str = "linear", hide=()) -> dict:
     """Dispatch on architecture: the linear 4.1 agent, or the 5.1 graph.
     hide: telemetry kinds to withhold (the 6.1 robustness ablation); empty = the
-    ordinary run, on the ordinary code path."""
+    ordinary run, on the ordinary code path. arch "plain" / "rag" are the non-agent
+    baselines (baselines.py): one prompt, no tools, no gate."""
+    from . import baselines
+    if arch in baselines.KINDS:
+        if tot or hide:
+            raise ValueError(f"the {arch!r} baseline takes no --tot and no --hide")
+        return baselines.diagnose(case, model, arch)
     if hide:
         return _diagnose_hidden(case, model, tot, arch, hide)
     if arch == "graph":

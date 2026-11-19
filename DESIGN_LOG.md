@@ -22,6 +22,8 @@ One entry per module. This feeds the final report's "Design evolution across the
 diagnose recorded RCAEval failures, propose fixes gated on human approval. The generic
 research-agent starter stays in `src/research_agent/` as the Module 1 baseline for the
 "design evolution" story; new work happens in `src/incident_commander/`.
+(The starter was removed from the tree before the final submission, once the baselines in
+`baselines.py` replaced it as the comparison point; it remains in the git history.)
 
 **Scaffold added**
 - `config.py` — dev system (Online Boutique) vs held-out test system (Train Ticket, test-only).

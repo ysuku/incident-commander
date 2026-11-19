@@ -1,13 +1,14 @@
 """CLI entry points.
 
   python -m incident_commander.cli list --system online-boutique
-  python -m incident_commander.cli baseline --kind plain --case <id>
+  python -m incident_commander.cli baseline --kind plain|rag --case <id>   (non-agent baselines)
   python -m incident_commander.cli diagnose --case <id>        (agent; M2+)
   python -m incident_commander.cli eval --model claude-opus-5-5 --runs 1 --max-usd 20
   python -m incident_commander.cli rescore <results_dir>       (re-score saved briefs; no model calls)
   add --tot model|heuristic to diagnose/eval for Tree-of-Thought (Checkpoint 4.1)
   add --arch graph to diagnose/eval for the multi-agent LangGraph architecture (Checkpoint 5.1)
   add --hide metrics|logs|traces to diagnose/eval to withhold one telemetry kind (6.1 robustness)
+  add --arch plain|rag to eval to score a baseline over many cases
 """
 import argparse
 from datetime import datetime, timezone
@@ -58,6 +59,7 @@ def default_out_name(model_name: str, tot: str | None, arch: str, system: str = 
     return (f"{day or f'{datetime.now():%Y-%m-%d}'}_{model_name}"
             + (f"_{system}" if system != DEV_SYSTEM else "")
             + (f"_tot-{tot}" if tot else "") + ("_graph" if arch == "graph" else "")
+            + (f"_baseline-{arch}" if arch in ("plain", "rag") else "")
             + (f"_hide-{hide}" if hide else ""))
 
 
@@ -139,6 +141,7 @@ def cmd_diagnose(args) -> None:
     tot = args.tot or ("model" if args.arch == "graph" else None)
     stem = (f"{datetime.now():%Y-%m-%d_%H%M}_{model_name}{'_tot' if tot else ''}"
             f"{'_graph' if args.arch == 'graph' else ''}{f'_hide-{args.hide}' if args.hide else ''}"
+            f"{f'_baseline-{args.arch}' if args.arch in ('plain', 'rag') else ''}"
             f"_{case.case_id.replace('/', '_')}")
     run_dir = REPO_ROOT / "evals" / "runs"
     run_dir.mkdir(parents=True, exist_ok=True)
@@ -164,9 +167,13 @@ def main() -> None:
     lp.set_defaults(fn=cmd_list)
 
     bp = sub.add_parser("baseline", help="Run a non-agent baseline on one case")
-    bp.add_argument("--kind", choices=["plain", "cot"], required=True)
+    bp.add_argument("--kind", choices=["plain", "rag"], required=True, dest="arch",
+                    help="'plain' = one prompt over a fixed telemetry digest; 'rag' = the same "
+                         "plus retrieved runbook chunks. One model call, no tools, no gate")
     bp.add_argument("--case", required=True)
     bp.add_argument("--system", default="online-boutique")
+    bp.add_argument("--model", default="env", help="same choices as diagnose --model")
+    bp.set_defaults(fn=cmd_diagnose, tot=None, hide=None)
 
     dp = sub.add_parser("diagnose", help="Run the agent on one case")
     dp.add_argument("--case", required=True)
@@ -198,8 +205,9 @@ def main() -> None:
     ep.add_argument("--tot", choices=["model", "heuristic"],
                     help="Tree-of-Thought on ambiguity (4.1): 'model' = LLM thought generator, "
                          "'heuristic' = code picks each test (no extra model calls)")
-    ep.add_argument("--arch", choices=["linear", "graph"], default="linear",
-                    help="same choices as diagnose --arch")
+    ep.add_argument("--arch", choices=["linear", "graph", "plain", "rag"], default="linear",
+                    help="same choices as diagnose --arch, plus the non-agent baselines: 'plain' "
+                         "(single prompt) and 'rag' (single prompt + retrieved runbooks)")
     ep.add_argument("--hide", choices=["metrics", "logs", "traces"],
                     help="robustness ablation (6.1): withhold one telemetry kind from every role; "
                          "the two-kinds gate is NOT relaxed, so expect more escalations")

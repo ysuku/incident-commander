@@ -37,9 +37,8 @@ src/incident_commander/   the capstone system
   scratchpad.py           evidence board (short-term memory)
   model.py                OpenRouter/OpenAI-compatible client + keyless MockModel
   retrieval.py            runbook chunking, Chroma index, MMR
-  baselines.py            plain-prompt and chain-of-thought baselines
-  cli.py                  list / baseline / diagnose entry points
-src/research_agent/       Module 1 course starter, kept as the design-evolution baseline
+  baselines.py            non-agent baselines: single prompt, and single prompt + retrieved runbooks
+  cli.py                  list / baseline / diagnose / eval / rescore entry points
 scripts/download_data.py  fetches RCAEval (Zenodo) and the Prometheus runbooks
 scripts/tot_offline.py    ToT over all dev cases with no model calls ($0); --hide for the ablation
 scripts/regate_offline.py re-run saved tool calls and finishes through the current gate ($0)
@@ -63,7 +62,8 @@ python scripts/download_data.py --runbooks
 ## Run
 ```bash
 python -m incident_commander.cli list --system online-boutique
-python -m incident_commander.cli baseline --kind plain --case <id>
+python -m incident_commander.cli baseline --kind plain --case <id>   # single prompt, no tools, no gate
+python -m incident_commander.cli baseline --kind rag --case <id>     # same + retrieved runbooks
 python -m incident_commander.cli diagnose --case <id>
 python -m incident_commander.cli diagnose --case <id> --model mock   # keyless demo
 python -m incident_commander.cli diagnose --case <id> --tot model    # + Tree-of-Thought on ambiguity
@@ -76,6 +76,7 @@ python -m incident_commander.cli eval --model mock --hide metrics   # telemetry 
 python -m incident_commander.cli rescore evals/results/<folder>     # safety metrics from saved briefs, no model
 python scripts/regate_offline.py                                    # saved runs through the current gate, $0
 scripts/local_eval.sh <out_folder> --arch graph --tot model         # local Qwen run, resumable, $0
+scripts/local_eval.sh <out_folder> --arch plain                     # a baseline over the same cases
 python -m incident_commander.graph --mermaid                        # draw the graphs
 python -m pytest -q
 ```
