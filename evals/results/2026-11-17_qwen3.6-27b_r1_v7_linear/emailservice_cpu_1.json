@@ -1,0 +1,156 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=589.02 (6545.5%); emailservice_latency-90 z=82.21 (411.0%); emailservice_latency-50 z=57.85 (289.2%); cartservice_latency-90 z=16.66 (191.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "cartservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.18->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.48->10.01ms (2.87x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "cartservice: latency degradation",
+      "why": "E1 shows moderate latency increase but lacks the extreme CPU anomaly of emailservice, and E2 does not highlight cartservice"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Scale up emailservice instances or optimize CPU-intensive operations",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 3,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 46.3,
+        "prompt_tokens": 400,
+        "completion_tokens": 614,
+        "max_tokens": 8192,
+        "reasoning_chars": 2174,
+        "answer_chars": 266,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify which services showed anomalous behavior around the alert time to narrow down the investigation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.32
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 67.1,
+        "prompt_tokens": 526,
+        "completion_tokens": 937,
+        "max_tokens": 8192,
+        "reasoning_chars": 3246,
+        "answer_chars": 366,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows extreme CPU and latency spikes in emailservice; querying traces for emailservice will provide independent evidence of its impact on request paths.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.84
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 183.4,
+        "prompt_tokens": 632,
+        "completion_tokens": 2569,
+        "max_tokens": 8192,
+        "reasoning_chars": 9280,
+        "answer_chars": 637,
+        "finish_reason": "stop"
+      },
+      "thought": "The extreme CPU spike and latency increase in emailservice (E1), corroborated by trace-observed inbound latency degradation (E2), confirm it as the root cause.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "cartservice: latency degradation",
+              "why": "E1 shows moderate latency increase but lacks the extreme CPU anomaly of emailservice, and E2 does not highlight cartservice"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Scale up emailservice instances or optimize CPU-intensive operations",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=589.02 (6545.5%); emailservice_latency-90 z=82.21 (411.0%); emailservice_latency-50 z=57.85 (289.2%); cartservice_latency-90 z=16.66 (191.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "cartservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.18->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.48->10.01ms (2.87x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 3,
+    "model_seconds": 296.8,
+    "tool_seconds": 1.2,
+    "prompt_tokens": 1558,
+    "completion_tokens": 4120,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 298.0,
+    "cost_usd": 0.0
+  }
+}

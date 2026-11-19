@@ -1,0 +1,828 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "loss"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=1054947994.06; frontend_error z=812786032.69; recommendationservice_latency-50 z=773.71 (44400.8%); recommendationservice_latency-90 z=700.32 (80358.5%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "frontend",
+        "frontend-external",
+        "paymentservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-50 z=773.71 (44400.8%); recommendationservice_latency-90 z=700.32 (80358.5%); recommendationservice_socket z=86.98 (434.9%); recommendationservice_mem z=41.08 (205.4%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-50",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.03->2.54ms (2.46x), errors 0.0->0.0; inbound calls self-time p50 3.85->4.29ms (1.11x), errors 0.0->0.5095",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "checkoutservice: loss",
+      "why": "score 3 (at most 3 if every untested signal held) is 3+ below the best (6); contradicted: conn_pressure mem z=0.28 (E4)"
+    },
+    {
+      "candidate": "checkoutservice: delay",
+      "why": "score 2 (at most 2 if every untested signal held) is 4+ below the best (6); contradicted: no_errors span error rate +0.221 (E7)"
+    },
+    {
+      "candidate": "checkoutservice: disk",
+      "why": "score -3 (at most -1 if every untested signal held) is 4+ below the best (3); contradicted: mem_up mem z=0.28 (E4); cpu_up cpu z=-0.85 (E4)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Rolling restart the recommendationservice pods to clear memory pressure and reset connections, then conditionally scale based on metric recovery.",
+    "steps": [
+      "Verify current recommendationservice pod memory usage and socket error rates match E5/E6 thresholds; await human confirmation to proceed.",
+      "Await human approval, then execute a rolling restart of the recommendationservice deployment to clear memory and reset connections.",
+      "Monitor latency and error rates for 10 minutes; if metrics normalize, await human approval to scale replicas by 2.",
+      "If metrics do not normalize, await human approval to trigger heap dumps and pause further scaling."
+    ],
+    "preconditions": [
+      "Confirm recommendationservice deployment is not in a CrashLoopBackOff state",
+      "Verify no active database migration or critical batch job is running",
+      "Ensure monitoring dashboards for latency and error rates are active"
+    ],
+    "rollback": "Immediately revert the rolling restart by re-applying the previous stable deployment revision and scale replicas back to the original count if latency or error rates worsen.",
+    "runbook_refs": [],
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Check physical cables, check networking firewall rules and so on",
+        "evidence": "E5",
+        "why": "Evidence shows service-level memory pressure and socket errors, not node-level physical network failures."
+      },
+      {
+        "runbook": "R2",
+        "step": "A number of pods of daemonset are not scheduled",
+        "evidence": "E6",
+        "why": "Traces confirm the service is actively processing requests with measurable latency, contradicting a scheduling failure."
+      },
+      {
+        "runbook": "R3",
+        "step": "Bump conntrack limit directly on the node",
+        "evidence": "E5",
+        "why": "Telemetry indicates application memory exhaustion and socket errors, not node-level connection tracking limits."
+      },
+      {
+        "runbook": "R4",
+        "step": "Network interface is reporting many receive errors",
+        "evidence": "E5",
+        "why": "Metrics show service-level socket errors and memory spikes, not node NIC receive errors."
+      }
+    ],
+    "model_labeled_destructive": true,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 6,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 73.0,
+        "prompt_tokens": 400,
+        "completion_tokens": 906,
+        "max_tokens": 8192,
+        "reasoning_chars": 3233,
+        "answer_chars": 258,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify which services and metrics deviated around the alert time to narrow down the scope.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.32
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 72.1,
+        "prompt_tokens": 529,
+        "completion_tokens": 956,
+        "max_tokens": 8192,
+        "reasoning_chars": 3439,
+        "answer_chars": 346,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows massive latency spikes in recommendationservice and high error rates in frontend; traces will identify the specific request path and confirm if recommendationservice is the bottleneck.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.45
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 209.3,
+        "prompt_tokens": 631,
+        "completion_tokens": 2894,
+        "max_tokens": 8192,
+        "reasoning_chars": 11146,
+        "answer_chars": 411,
+        "finish_reason": "stop"
+      },
+      "thought": "E2 traces indicate errors in checkoutservice, while E1 metrics show frontend errors and recommendationservice latency; checking checkoutservice logs will confirm if it is the source of the failures.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "recommendationservice: loss",
+      "thought": "Querying recommendationservice traces directly verifies the required latency spike and error rate increase that distinguish a loss fault from a mere delay in checkoutservice.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 99.6,
+        "prompt_tokens": 910,
+        "completion_tokens": 1245,
+        "max_tokens": 8192,
+        "reasoning_chars": 4490,
+        "answer_chars": 402,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.69
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "checkoutservice: delay",
+      "thought": "Querying checkoutservice traces will confirm latency increases with negligible error rate rise, validating the delay signature and distinguishing it from recommendationservice's high-error loss patter",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 167.9,
+        "prompt_tokens": 1005,
+        "completion_tokens": 2169,
+        "max_tokens": 8192,
+        "reasoning_chars": 8335,
+        "answer_chars": 374,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.66
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: loss",
+      "thought": "Querying checkoutservice's socket metrics will verify if it exhibits the connection pressure (z >= 5) required for the loss hypothesis, which would be absent if recommendationservice is the true root ",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 256.6,
+        "prompt_tokens": 1113,
+        "completion_tokens": 3082,
+        "max_tokens": 8192,
+        "reasoning_chars": 11744,
+        "answer_chars": 355,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=1054947994.06; frontend_error z=812786032.69; recommendationservice_latency-50 z=773.71 (44400.8%); recommendationservice_latency-90 z=700.32 (80358.5%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "frontend",
+        "frontend-external",
+        "paymentservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "9728 traces after alert; worst: frontendservice -> checkoutservice 33.2ms errors=4; frontendservice -> checkoutservice 8.2ms errors=4; frontendservice -> checkoutservice 6.5ms errors=4",
+      "source_ref": "traces.csv:traceID=9e9ad2c8d75a1535d13d3bcd14d73cec",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "1579 matching lines; by svc/level {'checkoutservice/info': 1579}; [checkoutservice/info] [PlaceOrder] user_id=\"f1e8598c-1238-49ca-9934-128fbb2a848a\" user_currency=\"USD\"; [checkoutservice/info] payment went through (transaction_id: a0364cab-5516-4331-902b-5537d52703d1)",
+      "source_ref": "logs.csv#L84985",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-50 z=3.03 (47.7%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-50",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-50 z=773.71 (44400.8%); recommendationservice_latency-90 z=700.32 (80358.5%); recommendationservice_socket z=86.98 (434.9%); recommendationservice_mem z=41.08 (205.4%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-50",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.03->2.54ms (2.46x), errors 0.0->0.0; inbound calls self-time p50 3.85->4.29ms (1.11x), errors 0.0->0.5095",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.88->3.9ms (1.0x), errors 0.0->0.0357; inbound calls self-time p50 2.87->2.88ms (1.0x), errors 0.0->0.2205",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice, metric=socket]; largest is only checkoutservice_socket z=0.0 (0.0%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_socket",
+      "implicates": []
+    }
+  ],
+  "decided_by": "tot",
+  "tot": {
+    "status": "selected",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "checkoutservice",
+    "rival": "recommendationservice",
+    "selected": {
+      "branch_id": "B4",
+      "service": "recommendationservice",
+      "fault_type": "loss",
+      "reason": "rival service from conflicting candidates",
+      "status": "open",
+      "close_reason": "",
+      "score": 6,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "latency_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "latency z=773.71",
+          "eid": "E1",
+          "must": true,
+          "expect": "latency z >= 3"
+        },
+        {
+          "signal": "conn_pressure",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=86.98",
+          "eid": "E1",
+          "must": false,
+          "expect": "mem or socket z >= 5"
+        },
+        {
+          "signal": "cpu_not_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=-0.47",
+          "eid": "E5",
+          "must": false,
+          "expect": "cpu z < 3"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E6",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        },
+        {
+          "signal": "errors_up",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "span error rate +0.509",
+          "eid": "E6",
+          "must": false,
+          "expect": "span error rate rises >= 0.05"
+        }
+      ],
+      "tests": [
+        {
+          "eid": "E6",
+          "tool": "trace_lookup",
+          "args": {
+            "service": "recommendationservice",
+            "failing_only": true,
+            "limit": 10
+          },
+          "depth": 1,
+          "predicted": "recommendationservice spans show significantly increased latency and error rate >= 0.05",
+          "rationale": "Querying recommendationservice traces directly verifies the required latency spike and error rate increase that distinguish a loss fault from a mere delay in checkoutservice.",
+          "by": "model"
+        }
+      ]
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B4",
+        "service": "recommendationservice",
+        "fault_type": "loss",
+        "reason": "rival service from conflicting candidates",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 6,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=773.71",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=86.98",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-0.47",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E6",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.509",
+            "eid": "E6",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "recommendationservice",
+              "failing_only": true,
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "recommendationservice spans show significantly increased latency and error rate >= 0.05",
+            "rationale": "Querying recommendationservice traces directly verifies the required latency spike and error rate increase that distinguish a loss fault from a mere delay in checkoutservice.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "checkoutservice",
+        "fault_type": "loss",
+        "reason": "top fault types for checkoutservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 3 (at most 3 if every untested signal held) is 3+ below the best (6)",
+        "score": 3,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=3.03",
+            "eid": "E4",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.28",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-0.85",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E7",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.221",
+            "eid": "E7",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "socket"
+            },
+            "depth": 1,
+            "predicted": "checkoutservice_socket z >= 5",
+            "rationale": "Querying checkoutservice's socket metrics will verify if it exhibits the connection pressure (z >= 5) required for the loss hypothesis, which would be absent if recommendationservice is the true root ",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B1",
+        "service": "checkoutservice",
+        "fault_type": "delay",
+        "reason": "top fault types for checkoutservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 4+ below the best (6)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=3.03",
+            "eid": "E4",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=0.28",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E7",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "span error rate +0.221",
+            "eid": "E7",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "checkoutservice"
+            },
+            "depth": 1,
+            "predicted": "own and inbound spans show increased latency with error rate rise < 0.05",
+            "rationale": "Querying checkoutservice traces will confirm latency increases with negligible error rate rise, validating the delay signature and distinguishing it from recommendationservice's high-error loss patter",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "checkoutservice",
+        "fault_type": "disk",
+        "reason": "top fault types for checkoutservice by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 4+ below the best (3)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.28",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.85",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 3,
+    "generator_calls": 3,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "fix_advisor": {
+    "query": "recommendationservice packet loss on its pod network, retries and connections held open",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "action",
+        "distance": 0.456,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#action"
+      },
+      {
+        "id": "R2",
+        "alert": "KubeDaemonSetNotScheduled",
+        "kind": "symptom",
+        "distance": 0.498,
+        "source_ref": "runbooks/kubernetes/KubeDaemonSetNotScheduled.md#symptom"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "action",
+        "distance": 0.457,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "symptom",
+        "distance": 0.525,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom"
+      }
+    ],
+    "tool_seconds": 0.6,
+    "model_call": {
+      "seconds": 329.5,
+      "prompt_tokens": 1026,
+      "completion_tokens": 4095,
+      "max_tokens": 8192,
+      "reasoning_chars": 14911,
+      "answer_chars": 2513,
+      "finish_reason": "stop"
+    },
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Check physical cables, check networking firewall rules and so on",
+        "evidence": "E5",
+        "why": "Evidence shows service-level memory pressure and socket errors, not node-level physical network failures."
+      },
+      {
+        "runbook": "R2",
+        "step": "A number of pods of daemonset are not scheduled",
+        "evidence": "E6",
+        "why": "Traces confirm the service is actively processing requests with measurable latency, contradicting a scheduling failure."
+      },
+      {
+        "runbook": "R3",
+        "step": "Bump conntrack limit directly on the node",
+        "evidence": "E5",
+        "why": "Telemetry indicates application memory exhaustion and socket errors, not node-level connection tracking limits."
+      },
+      {
+        "runbook": "R4",
+        "step": "Network interface is reporting many receive errors",
+        "evidence": "E5",
+        "why": "Metrics show service-level socket errors and memory spikes, not node NIC receive errors."
+      }
+    ],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Rolling restart the recommendationservice pods to clear memory pressure and reset connections, then conditionally scale based on metric recovery.",
+      "steps": [
+        "Verify current recommendationservice pod memory usage and socket error rates match E5/E6 thresholds; await human confirmation to proceed.",
+        "Await human approval, then execute a rolling restart of the recommendationservice deployment to clear memory and reset connections.",
+        "Monitor latency and error rates for 10 minutes; if metrics normalize, await human approval to scale replicas by 2.",
+        "If metrics do not normalize, await human approval to trigger heap dumps and pause further scaling."
+      ],
+      "preconditions": [
+        "Confirm recommendationservice deployment is not in a CrashLoopBackOff state",
+        "Verify no active database migration or critical batch job is running",
+        "Ensure monitoring dashboards for latency and error rates are active"
+      ],
+      "rollback": "Immediately revert the rolling restart by re-applying the previous stable deployment revision and scale replicas back to the original count if latency or error rates worsen."
+    },
+    "rationale": "The retrieved runbooks target node-level network or scheduling issues, which contradict the service-level evidence showing memory pressure, socket errors, and application trace degradation, so no runbook applies and the fix is based directly on the telemetry.",
+    "runbook_refs": [],
+    "commander_draft": "Inspect recommendationservice's pod network for packet loss (tc/netem, NIC errors); fix before retrying"
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 4,
+    "review_required": true,
+    "review_reason": "runbook contradicts the evidence: R1 step \"Check physical cables, check networking firewall rules and s\" contradicts E5; R2 step \"A number of pods of daemonset are not scheduled\" contradicts E6; R3 step \"Bump conntrack limit directly on the node\" contradicts E5 (+1 more)"
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 7,
+    "model_seconds": 1208.0,
+    "tool_seconds": 2.8,
+    "prompt_tokens": 5614,
+    "completion_tokens": 15347,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 1210.9,
+    "cost_usd": 0.0
+  }
+}

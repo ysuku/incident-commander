@@ -1,0 +1,547 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "emailservice",
+        "fault_type": "socket",
+        "score": 1,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed socket_up (socket z=40.63); inconclusive trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E3",
+          "E6"
+        ]
+      },
+      {
+        "service": "emailservice",
+        "fault_type": "cpu",
+        "score": 0,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed cpu_up (cpu z=304.99), mem_not_saturated (mem z=4.27); contradicted socket_not_saturated (socket z=40.63); inconclusive trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E3",
+          "E5"
+        ]
+      },
+      {
+        "service": "emailservice",
+        "fault_type": "loss",
+        "score": 0,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=170.86), conn_pressure (socket z=40.63); contradicted cpu_not_up (cpu z=304.99); inconclusive trace_slow (traces flat), errors_up (span error rate +0.000)",
+        "evidence": [
+          "E1",
+          "E3"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "emailservice: socket (score 1, open; confirmed socket_up)",
+    "emailservice: cpu (score 0, open; confirmed cpu_up, mem_not_saturated)",
+    "emailservice: loss (score 0, open; confirmed latency_up, conn_pressure)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=304.99 (2593.0%); emailservice_latency-90 z=170.86 (854.3%); emailservice_latency-50 z=50.05 (250.2%); emailservice_socket z=40.63 (203.1%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "checked [service='emailservice', level='error']: no log lines at that level (668 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for emailservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.2->0.21ms (1.03x), errors 0.0->0.0; inbound calls self-time p50 3.64->3.76ms (1.03x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_cpu z=304.99 (2593.0%); emailservice_latency-90 z=170.86 (854.3%); emailservice_latency-50 z=50.05 (250.2%); emailservice_socket z=40.63 (203.1%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice, metric=memory]: emailservice_mem z=4.27 (21.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_mem",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for emailservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.2->0.21ms (1.03x), errors 0.0->0.0; inbound calls self-time p50 3.64->3.76ms (1.03x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 36.7,
+        "prompt_tokens": 400,
+        "completion_tokens": 480,
+        "max_tokens": 8192,
+        "reasoning_chars": 1727,
+        "answer_chars": 166,
+        "finish_reason": "stop"
+      },
+      "thought": "Query metrics without filters to identify the most deviated services and metrics across the system.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.27
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 67.8,
+        "prompt_tokens": 500,
+        "completion_tokens": 966,
+        "max_tokens": 8192,
+        "reasoning_chars": 3421,
+        "answer_chars": 340,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows extreme CPU and latency spikes in emailservice; querying logs for this service to gather a second independent telemetry signal.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 81.2,
+        "prompt_tokens": 577,
+        "completion_tokens": 1139,
+        "max_tokens": 8192,
+        "reasoning_chars": 4055,
+        "answer_chars": 370,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics indicate severe CPU and latency spikes in emailservice, but I need trace data to confirm it is the bottleneck and satisfy the two-telemetry requirement.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.84
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: socket",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'failing_only': True, 'service': 'emailservice'}) already on the b; the heuristic had no test left",
+      "model_call": {
+        "seconds": 276.4,
+        "prompt_tokens": 722,
+        "completion_tokens": 3687,
+        "max_tokens": 8192,
+        "reasoning_chars": 15194,
+        "answer_chars": 354,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: cpu",
+      "thought": "Check memory saturation to rule out memory pressure as a confounding factor causing both CPU and socket spikes, thereby isolating socket exhaustion as the likely root cause if memory is low.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "memory"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 361.0,
+        "prompt_tokens": 745,
+        "completion_tokens": 4845,
+        "max_tokens": 8192,
+        "reasoning_chars": 18487,
+        "answer_chars": 339,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B3",
+      "hypothesis": "emailservice: loss",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'failing_only': True, 'service': 'emailservice', 'limit': 10}) alr; the heuristic had no test left",
+      "model_call": {
+        "seconds": 284.0,
+        "prompt_tokens": 802,
+        "completion_tokens": 3747,
+        "max_tokens": 8192,
+        "reasoning_chars": 14191,
+        "answer_chars": 408,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: socket",
+      "thought": "Socket exhaustion typically manifests as connection errors or timeouts in failing traces, whereas CPU saturation primarily increases latency without errors; examining failing traces will distinguish b",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "service": "emailservice",
+          "limit": 50
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 421.5,
+        "prompt_tokens": 768,
+        "completion_tokens": 5806,
+        "max_tokens": 8192,
+        "reasoning_chars": 24177,
+        "answer_chars": 503,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.82
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: cpu",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'failing_only': True, 'service': 'emailservice'}) already on the b; the heuristic had no test left",
+      "model_call": {
+        "seconds": 260.9,
+        "prompt_tokens": 898,
+        "completion_tokens": 3347,
+        "max_tokens": 8192,
+        "reasoning_chars": 13293,
+        "answer_chars": 380,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: socket",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'failing_only': True, 'service': 'emailservice'}) already on the b; the heuristic had no test left",
+      "model_call": {
+        "seconds": 185.3,
+        "prompt_tokens": 875,
+        "completion_tokens": 2460,
+        "max_tokens": 8192,
+        "reasoning_chars": 10401,
+        "answer_chars": 451,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: cpu",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'failing_only': True, 'service': 'emailservice'}) already on the b; the heuristic had no test left",
+      "model_call": {
+        "seconds": 247.6,
+        "prompt_tokens": 898,
+        "completion_tokens": 3347,
+        "max_tokens": 8192,
+        "reasoning_chars": 13293,
+        "answer_chars": 380,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "emailservice",
+    "rival": null,
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "socket",
+        "reason": "top fault types for emailservice by metric signature (score 1)",
+        "status": "open",
+        "close_reason": "",
+        "score": 1,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=40.63",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "service": "emailservice",
+              "limit": 50
+            },
+            "depth": 2,
+            "predicted": "A significant number of failing traces with connection-related errors or timeouts",
+            "rationale": "Socket exhaustion typically manifests as connection errors or timeouts in failing traces, whereas CPU saturation primarily increases latency without errors; examining failing traces will distinguish b",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for emailservice by metric signature (score 0)",
+        "status": "open",
+        "close_reason": "",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=304.99",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=4.27",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "socket z=40.63",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "memory"
+            },
+            "depth": 1,
+            "predicted": "mem z < 15",
+            "rationale": "Check memory saturation to rule out memory pressure as a confounding factor causing both CPU and socket spikes, thereby isolating socket exhaustion as the likely root cause if memory is low.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "emailservice",
+        "fault_type": "loss",
+        "reason": "top fault types for emailservice by metric signature (score 0)",
+        "status": "open",
+        "close_reason": "",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=170.86",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=40.63",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=304.99",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E3",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 2,
+    "generator_calls": 7,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {}
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 2222.4,
+    "tool_seconds": 2.0,
+    "prompt_tokens": 7185,
+    "completion_tokens": 29824,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 2224.6,
+    "cost_usd": 0.0
+  }
+}

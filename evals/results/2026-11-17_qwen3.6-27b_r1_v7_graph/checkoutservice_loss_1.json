@@ -1,0 +1,835 @@
+{
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "loss"
+  },
+  "confidence": "medium",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=36054091.54; frontend-external_error z=36054091.54; checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "checkoutservice",
+        "emailservice",
+        "frontend",
+        "frontend-external",
+        "paymentservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%); checkoutservice_socket z=6.69 (33.4%); checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-50",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice, metric=mem]: checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_mem",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.98->126.32ms (31.72x), errors 0.0->0.0025; inbound calls self-time p50 2.83->3.43ms (1.21x), errors 0.0->0.1014; outbound calls slowed to 6 callees (cartservice, currencyservice, emailservice, paymentservice, productcatalogservice, shippingservice): delay on checkoutservice's own network",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "checkoutservice: mem",
+      "why": "score 4 (at most 4 if every untested signal held) is 2+ below the best (6)"
+    },
+    {
+      "candidate": "checkoutservice: socket",
+      "why": "score 0 (at most 1 if every untested signal held) is 2+ below the best (3)"
+    },
+    {
+      "candidate": "productcatalogservice: disk",
+      "why": "score -3 (at most -1 if every untested signal held) is 4+ below the best (3); contradicted: mem_up mem z=0.16 (E4); cpu_up cpu z=-1.19 (E4)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Temporarily scale out checkoutservice replicas and increase memory/socket limits to alleviate latency and network delay, pending human approval.",
+    "steps": [
+      "Verify current checkoutservice replica count and memory limits via cluster dashboard.",
+      "Submit a gated change request to increase checkoutservice memory limits and scale replicas by 50%, requiring human approval before execution.",
+      "Check node conntrack usage and, if >80%, request a temporary conntrack limit increase on affected nodes pending human approval.",
+      "Monitor latency and error rates for 15 minutes post-approval and execution."
+    ],
+    "preconditions": [
+      "Confirm no active CI/CD pipelines or maintenance windows are running.",
+      "Verify current conntrack table usage on nodes hosting checkoutservice pods.",
+      "Ensure cluster autoscaler or node capacity can support additional replicas."
+    ],
+    "rollback": "Revert replica count and memory limits to baseline values and restore original conntrack settings if metrics do not improve within 15 minutes.",
+    "runbook_refs": [
+      "runbooks/node/NodeNetworkReceiveErrs.md#action",
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action",
+      "runbooks/kubernetes/KubePodCrashLooping.md#action"
+    ],
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Replace physical cable",
+        "evidence": "E7",
+        "why": "E7 indicates service-level network delay and E3/E6 show memory/socket pressure, ruling out physical hardware failure."
+      },
+      {
+        "runbook": "R4",
+        "step": "Check pod events via `kubectl -n $NAMESPACE describe pod $POD`",
+        "evidence": "E3",
+        "why": "E3 shows sustained latency and memory usage without restart indicators, contradicting crash-loop troubleshooting."
+      }
+    ],
+    "model_labeled_destructive": true,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 7,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 38.8,
+        "prompt_tokens": 400,
+        "completion_tokens": 498,
+        "max_tokens": 8192,
+        "reasoning_chars": 1797,
+        "answer_chars": 197,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to survey the system to identify which services are showing abnormal latency or availability metrics around the alert time.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.32
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 75.9,
+        "prompt_tokens": 497,
+        "completion_tokens": 1059,
+        "max_tokens": 8192,
+        "reasoning_chars": 3727,
+        "answer_chars": 436,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows extreme frontend error rates and checkoutservice latency; tracing failing requests will determine if checkoutservice slowness is the root cause of frontend failures.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.55
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 97.2,
+        "prompt_tokens": 637,
+        "completion_tokens": 1333,
+        "max_tokens": 8192,
+        "reasoning_chars": 5011,
+        "answer_chars": 409,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows a massive latency spike in checkoutservice; querying its full metrics will identify the specific resource or dependency causing the degradation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "checkoutservice: loss",
+      "thought": "Querying CPU usage validates the `cpu_not_up` condition for the loss hypothesis, distinguishing network packet loss (low CPU) from memory pressure that typically spikes CPU due to garbage collection.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 189.4,
+        "prompt_tokens": 780,
+        "completion_tokens": 2528,
+        "max_tokens": 8192,
+        "reasoning_chars": 9483,
+        "answer_chars": 341,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: mem",
+      "thought": "Directly querying the memory metric verifies whether the z-score meets the >=15 threshold required for the memory hypothesis, which would remain low under a packet loss scenario.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 275.0,
+        "prompt_tokens": 825,
+        "completion_tokens": 3716,
+        "max_tokens": 8192,
+        "reasoning_chars": 14492,
+        "answer_chars": 306,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "checkoutservice: loss",
+      "thought": "Examining checkoutservice-specific traces for latency spikes and error rate increases directly validates the connection-loss signature (timeouts/retries) over a pure memory-pressure explanation.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10,
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 129.9,
+        "prompt_tokens": 885,
+        "completion_tokens": 1693,
+        "max_tokens": 8192,
+        "reasoning_chars": 6381,
+        "answer_chars": 414,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.88
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: mem",
+      "thought": "Searching for OOM/GC logs directly confirms memory pressure, whereas their absence would point to network packet loss as the cause of the latency spike.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "checkoutservice",
+          "query": "OOM|GC|memory"
+        }
+      },
+      "outcome": "tot_test_failed",
+      "observed": null,
+      "generator": "model",
+      "model_call": {
+        "seconds": 311.5,
+        "prompt_tokens": 1020,
+        "completion_tokens": 4183,
+        "max_tokens": 8192,
+        "reasoning_chars": 15105,
+        "answer_chars": 317,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=36054091.54; frontend-external_error z=36054091.54; checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "checkoutservice",
+        "emailservice",
+        "frontend",
+        "frontend-external",
+        "paymentservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "11312 traces after alert; worst: frontendservice -> productcatalogservice 994.7ms errors=2; frontendservice -> productcatalogservice 697.1ms errors=2; frontendservice 3.1ms errors=2",
+      "source_ref": "traces.csv:traceID=65c953df7af99f9fa9b2199e1e817f02",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%); checkoutservice_socket z=6.69 (33.4%); checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-50",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=productcatalogservice]; largest is only productcatalogservice_workload z=-1.26 (-8.0%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_workload",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice, metric=cpu]; largest is only checkoutservice_cpu z=-1.52 (-30.0%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice, metric=mem]: checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_mem",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.98->126.32ms (31.72x), errors 0.0->0.0025; inbound calls self-time p50 2.83->3.43ms (1.21x), errors 0.0->0.1014; outbound calls slowed to 6 callees (cartservice, currencyservice, emailservice, paymentservice, productcatalogservice, shippingservice): delay on checkoutservice's own network",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "decided_by": "tot",
+  "tot": {
+    "status": "selected",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "checkoutservice",
+    "rival": "productcatalogservice",
+    "selected": {
+      "branch_id": "B1",
+      "service": "checkoutservice",
+      "fault_type": "loss",
+      "reason": "top fault types for checkoutservice by metric signature (score 3)",
+      "status": "open",
+      "close_reason": "",
+      "score": 6,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "latency_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "latency z=117.63",
+          "eid": "E1",
+          "must": true,
+          "expect": "latency z >= 3"
+        },
+        {
+          "signal": "conn_pressure",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=6.69",
+          "eid": "E1",
+          "must": false,
+          "expect": "mem or socket z >= 5"
+        },
+        {
+          "signal": "cpu_not_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=-1.52",
+          "eid": "E3",
+          "must": false,
+          "expect": "cpu z < 3"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E7",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        },
+        {
+          "signal": "errors_up",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "span error rate +0.101",
+          "eid": "E7",
+          "must": false,
+          "expect": "span error rate rises >= 0.05"
+        }
+      ],
+      "tests": [
+        {
+          "eid": "E5",
+          "tool": "metric_query",
+          "args": {
+            "service": "checkoutservice",
+            "metric": "cpu"
+          },
+          "depth": 1,
+          "predicted": "checkoutservice_cpu z < 3",
+          "rationale": "Querying CPU usage validates the `cpu_not_up` condition for the loss hypothesis, distinguishing network packet loss (low CPU) from memory pressure that typically spikes CPU due to garbage collection.",
+          "by": "model"
+        },
+        {
+          "eid": "E7",
+          "tool": "trace_lookup",
+          "args": {
+            "failing_only": true,
+            "limit": 10,
+            "service": "checkoutservice"
+          },
+          "depth": 2,
+          "predicted": "checkoutservice spans exhibit significantly increased latency and error rates >= 0.05",
+          "rationale": "Examining checkoutservice-specific traces for latency spikes and error rate increases directly validates the connection-loss signature (timeouts/retries) over a pure memory-pressure explanation.",
+          "by": "model"
+        }
+      ]
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "checkoutservice",
+        "fault_type": "loss",
+        "reason": "top fault types for checkoutservice by metric signature (score 3)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 6,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=117.63",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.69",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-1.52",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E7",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.101",
+            "eid": "E7",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "checkoutservice_cpu z < 3",
+            "rationale": "Querying CPU usage validates the `cpu_not_up` condition for the loss hypothesis, distinguishing network packet loss (low CPU) from memory pressure that typically spikes CPU due to garbage collection.",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "limit": 10,
+              "service": "checkoutservice"
+            },
+            "depth": 2,
+            "predicted": "checkoutservice spans exhibit significantly increased latency and error rates >= 0.05",
+            "rationale": "Examining checkoutservice-specific traces for latency spikes and error rate increases directly validates the connection-loss signature (timeouts/retries) over a pure memory-pressure explanation.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "checkoutservice",
+        "fault_type": "mem",
+        "reason": "top fault types for checkoutservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 4 (at most 4 if every untested signal held) is 2+ below the best (6)",
+        "score": 4,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=6.26",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=117.63",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.69",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E7",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "mem"
+            },
+            "depth": 1,
+            "predicted": "mem z >= 15",
+            "rationale": "Directly querying the memory metric verifies whether the z-score meets the >=15 threshold required for the memory hypothesis, which would remain low under a packet loss scenario.",
+            "by": "model"
+          },
+          {
+            "eid": null,
+            "tool": "log_search",
+            "args": {
+              "service": "checkoutservice",
+              "query": "OOM|GC|memory"
+            },
+            "depth": 2,
+            "predicted": "Multiple hits indicating OOM or GC pauses",
+            "rationale": "Searching for OOM/GC logs directly confirms memory pressure, whereas their absence would point to network packet loss as the cause of the latency spike.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "checkoutservice",
+        "fault_type": "socket",
+        "reason": "top fault types for checkoutservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 1 if every untested signal held) is 2+ below the best (3)",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=6.69",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 4+ below the best (3)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.16",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-1.19",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 4,
+    "generator_calls": 4,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B4": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "fix_advisor": {
+    "query": "checkoutservice packet loss on its pod network, retries and connections held open",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "action",
+        "distance": 0.439,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#action"
+      },
+      {
+        "id": "R2",
+        "alert": "KubeProxyDown",
+        "kind": "symptom",
+        "distance": 0.5,
+        "source_ref": "runbooks/kubernetes/KubeProxyDown.md#symptom"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "action",
+        "distance": 0.459,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "KubePodCrashLooping",
+        "kind": "action",
+        "distance": 0.485,
+        "source_ref": "runbooks/kubernetes/KubePodCrashLooping.md#action"
+      }
+    ],
+    "tool_seconds": 0.56,
+    "model_call": {
+      "seconds": 359.3,
+      "prompt_tokens": 1279,
+      "completion_tokens": 4808,
+      "max_tokens": 8192,
+      "reasoning_chars": 18334,
+      "answer_chars": 1949,
+      "finish_reason": "stop"
+    },
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Replace physical cable",
+        "evidence": "E7",
+        "why": "E7 indicates service-level network delay and E3/E6 show memory/socket pressure, ruling out physical hardware failure."
+      },
+      {
+        "runbook": "R4",
+        "step": "Check pod events via `kubectl -n $NAMESPACE describe pod $POD`",
+        "evidence": "E3",
+        "why": "E3 shows sustained latency and memory usage without restart indicators, contradicting crash-loop troubleshooting."
+      }
+    ],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Temporarily scale out checkoutservice replicas and increase memory/socket limits to alleviate latency and network delay, pending human approval.",
+      "steps": [
+        "Verify current checkoutservice replica count and memory limits via cluster dashboard.",
+        "Submit a gated change request to increase checkoutservice memory limits and scale replicas by 50%, requiring human approval before execution.",
+        "Check node conntrack usage and, if >80%, request a temporary conntrack limit increase on affected nodes pending human approval.",
+        "Monitor latency and error rates for 15 minutes post-approval and execution."
+      ],
+      "preconditions": [
+        "Confirm no active CI/CD pipelines or maintenance windows are running.",
+        "Verify current conntrack table usage on nodes hosting checkoutservice pods.",
+        "Ensure cluster autoscaler or node capacity can support additional replicas."
+      ],
+      "rollback": "Revert replica count and memory limits to baseline values and restore original conntrack settings if metrics do not improve within 15 minutes."
+    },
+    "rationale": "The evidence indicates service-level memory pressure and network delay rather than node hardware failure or pod crash loops, so the fix focuses on scaling and resource limits while excluding hardware and crash-loop troubleshooting steps.",
+    "runbook_refs": [
+      "R1",
+      "R3",
+      "R4"
+    ],
+    "commander_draft": "Inspect checkoutservice's pod network for packet loss (tc/netem, NIC errors); fix before retrying"
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 2,
+    "review_required": true,
+    "review_reason": "runbook contradicts the evidence: R1 step \"Replace physical cable\" contradicts E7; R4 step \"Check pod events via `kubectl -n $NAMESPACE describe pod $PO\" contradicts E3"
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 1477.0,
+    "tool_seconds": 2.3,
+    "prompt_tokens": 6323,
+    "completion_tokens": 19818,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 1479.5,
+    "cost_usd": 0.0
+  }
+}

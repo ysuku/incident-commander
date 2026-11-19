@@ -15,10 +15,10 @@ alternatives considered and rejected, and a proposed fix with any risky action
 held for explicit approval.
 
 > Status: **working agent, under evaluation.** Implemented: the ReAct loop, five read-only tools
-> behind one MCP server, the evidence scratchpad and citation gate (2.1), runbook retrieval (3.1),
-> the dev-set eval runner, Tree-of-Thought hypothesis testing on ambiguity (4.1, `--tot`), and the
-> multi-agent LangGraph architecture with role-scoped tools and a Fix Advisor (5.1, `--arch graph`,
-> not yet evaluated on the dev set), and the 6.1 safety guardrails, structured escalation handover,
+> behind one MCP server, the evidence scratchpad and citation gate, runbook retrieval,
+> the dev-set eval runner, Tree-of-Thought hypothesis testing on ambiguity (`--tot`), and the
+> multi-agent LangGraph architecture with role-scoped tools and a Fix Advisor (`--arch graph`),
+> and the safety guardrails, structured escalation handover,
 > named safety metrics, and robustness harness (`--hide`, `rescore`). See [DESIGN_LOG.md](DESIGN_LOG.md).
 
 ## Project structure
@@ -29,11 +29,11 @@ src/incident_commander/   the capstone system
   tools.py                the five read-only diagnostic tools
   mcp_server.py           FastMCP server wrapping them (one server per incident) + sync client
   loop.py                 ReAct loop (Run: the step primitives), citation gate, escalation, ToT triggers
-  tot.py                  Tree-of-Thought: beam controller, generators, branch state (4.1)
-  signatures.py           fault signature table + deterministic critic (4.1)
-  graph.py                LangGraph coordination: spine + conditional ToT subgraph + validation loops (5.1)
-  roles.py                Commander / Investigator / Fix Advisor: goals and tool allowlists (5.1)
-  fix_advisor.py          runbooks only after the gate; conditional fix + contradiction flags (5.1)
+  tot.py                  Tree-of-Thought: beam controller, generators, branch state
+  signatures.py           fault signature table + deterministic critic
+  graph.py                LangGraph coordination: spine + conditional ToT subgraph + validation loops
+  roles.py                Commander / Investigator / Fix Advisor: goals and tool allowlists
+  fix_advisor.py          runbooks only after the gate; conditional fix + contradiction flags
   scratchpad.py           evidence board (short-term memory)
   model.py                OpenRouter/OpenAI-compatible client + keyless MockModel
   retrieval.py            runbook chunking, Chroma index, MMR
@@ -67,20 +67,20 @@ python -m incident_commander.cli baseline --kind plain --case <id>
 python -m incident_commander.cli diagnose --case <id>
 python -m incident_commander.cli diagnose --case <id> --model mock   # keyless demo
 python -m incident_commander.cli diagnose --case <id> --tot model    # + Tree-of-Thought on ambiguity
-python -m incident_commander.cli diagnose --case <id> --arch graph   # 5.1 multi-agent graph (ToT on by default)
+python -m incident_commander.cli diagnose --case <id> --arch graph   # multi-agent graph (ToT on by default)
 python -m incident_commander.cli eval --model claude-opus-5-5 --tot model --max-usd 20
 python -m incident_commander.cli eval --model claude-opus-5-5 --arch graph --max-usd 20
 python scripts/tot_offline.py --suspect truth                       # ToT critic/controller, $0
 python scripts/tot_offline.py --suspect truth --hide traces         # same, one telemetry kind withheld
 python -m incident_commander.cli eval --model mock --hide metrics   # telemetry ablation on any eval
-python -m incident_commander.cli rescore evals/results/<folder>     # 6.1 metrics from saved briefs, no model
+python -m incident_commander.cli rescore evals/results/<folder>     # safety metrics from saved briefs, no model
 python scripts/regate_offline.py                                    # saved runs through the current gate, $0
 scripts/local_eval.sh <out_folder> --arch graph --tot model         # local Qwen run, resumable, $0
-python -m incident_commander.graph --mermaid                        # draw the 5.1 graphs
+python -m incident_commander.graph --mermaid                        # draw the graphs
 python -m pytest -q
 ```
 
-## Multi-agent architecture (5.1)
+## Multi-agent architecture
 `--arch graph` runs the same investigation as a LangGraph state graph: Commander
 (LLM) -> citation gate (code) -> Fix Advisor (LLM) -> human approval, with a
 conditional edge into the Tree-of-Thought subgraph (Investigators, one LLM call
@@ -92,7 +92,7 @@ can call nothing else, so a runbook can steer a fix but never a diagnosis. The
 brief carries `path` (nodes visited) and `fix_advisor` (what was retrieved,
 what was flagged as contradicted by the evidence, what was dropped).
 
-## Safety guardrails and human intervention (6.1)
+## Safety guardrails and human intervention
 All enforced in code, on every architecture unless noted:
 - **Tool access.** Read-only tools, one MCP server per incident. Diagnosis agents cannot call
   `runbook_lookup` (linear, ToT, and graph); only the Fix Advisor can.
@@ -108,7 +108,7 @@ All enforced in code, on every architecture unless noted:
 - **Escalation.** An escalated brief carries `escalation = {code, reason, hypotheses, note}` with
   code `budget_exhausted`, `unparseable`, `tot_tie`, `tot_no_branch`, `tot_selected_gate_refused`,
   or `unfamiliar`, and ranked hypotheses with their evidence ids.
-- **Metrics.** `summary.md` has a `## 6.1 metrics` section: correct, wrong-service, wrong-fault,
+- **Metrics.** `summary.md` has a safety-metrics section: correct, wrong-service, wrong-fault,
   escalations by code, handover quality, groundedness, cost, latency.
 
 ## MCP server

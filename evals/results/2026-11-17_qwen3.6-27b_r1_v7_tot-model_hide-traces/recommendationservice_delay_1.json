@@ -1,0 +1,562 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate; leaders level: recommendationservice: delay or frontend: delay (score 2, 1 telemetry kind(s) each)",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate; leaders level: recommendationservice: delay or frontend: delay (score 2, 1 telemetry kind(s) each)",
+    "hypotheses": [
+      {
+        "service": "recommendationservice",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=893.38), resources_flat (max resource cpu z=0.69); unobservable trace_slow (traces hidden in this run), no_errors (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E3"
+        ]
+      },
+      {
+        "service": "frontend",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=69.42), resources_flat (max resource mem z=0.44); unobservable trace_slow (traces hidden in this run), no_errors (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E4"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "recommendationservice: delay (score 2, open; confirmed latency_up, resources_flat)",
+    "frontend: delay (score 2, open; confirmed latency_up, resources_flat)",
+    "recommendationservice: loss (score 0, pruned; confirmed latency_up, cpu_not_up)",
+    "recommendationservice: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=893.38 (4466.9%); recommendationservice_latency-50 z=619.15 (3095.7%); frontend_latency-50 z=69.42 (516.8%); frontend_latency-90 z=44.58 (222.9%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "paymentservice",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "13060 matching lines; by svc/level {'recommendationservice/INFO': 13060}; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['9SIQT8TOJO', '0PUK6V6EV0', '6E92ZMYYFZ'; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['66VCHSJNUP', 'OLJCESPC7Z', '9SIQT8TOJO'",
+      "source_ref": "logs.csv#L89134",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=893.38 (4466.9%); recommendationservice_latency-50 z=619.15 (3095.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_latency-50 z=69.42 (516.8%); frontend_latency-90 z=44.58 (222.9%)",
+      "source_ref": "simple_metrics.csv:frontend_latency-50",
+      "implicates": [
+        "frontend"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 41.6,
+        "prompt_tokens": 348,
+        "completion_tokens": 558,
+        "max_tokens": 8192,
+        "reasoning_chars": 1951,
+        "answer_chars": 231,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify the specific service causing the alert by querying all metrics to find deviations.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 109.6,
+        "prompt_tokens": 478,
+        "completion_tokens": 1547,
+        "max_tokens": 8192,
+        "reasoning_chars": 5942,
+        "answer_chars": 309,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows extreme latency spikes in recommendationservice; querying its logs provides the second telemetry type needed to confirm the root cause.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.09
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 124.5,
+        "prompt_tokens": 610,
+        "completion_tokens": 1730,
+        "max_tokens": 8192,
+        "reasoning_chars": 6760,
+        "answer_chars": 291,
+        "finish_reason": "stop"
+      },
+      "thought": "Querying recommendationservice metrics to identify the specific resource or connection fault type driving the extreme latency deviations.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: no JSON object in response; the heuristic had no test left",
+      "model_call": {
+        "seconds": 598.0,
+        "prompt_tokens": 713,
+        "completion_tokens": 8192,
+        "max_tokens": 8192,
+        "reasoning_chars": 33666,
+        "answer_chars": 0,
+        "finish_reason": "length"
+      }
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: no JSON object in response; the heuristic had no test left",
+      "model_call": {
+        "seconds": 597.1,
+        "prompt_tokens": 713,
+        "completion_tokens": 8192,
+        "max_tokens": 8192,
+        "reasoning_chars": 32565,
+        "answer_chars": 0,
+        "finish_reason": "length"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "recommendationservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "recommendationservice",
+        "fault_type": "delay",
+        "reason": "top fault types for recommendationservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=893.38",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.69",
+            "eid": "E3",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=69.42",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=0.44",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B2",
+        "service": "recommendationservice",
+        "fault_type": "loss",
+        "reason": "top fault types for recommendationservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 2+ below the best (2)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=893.38",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.08",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=0.69",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "recommendationservice",
+        "fault_type": "disk",
+        "reason": "top fault types for recommendationservice by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -3 if every untested signal held) is 5+ below the best (2)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.08",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=0.69",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 0,
+    "generator_calls": 2,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [
+      {
+        "branch_id": "B1",
+        "service": "recommendationservice",
+        "fault_type": "delay",
+        "reason": "top fault types for recommendationservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=893.38",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.69",
+            "eid": "E3",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=69.42",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=0.44",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "hidden": [
+      "traces"
+    ],
+    "flags": {
+      "B1": [
+        "trace_slow: traces hidden in this run",
+        "no_errors: traces hidden in this run"
+      ],
+      "B4": [
+        "trace_slow: traces hidden in this run",
+        "no_errors: traces hidden in this run"
+      ],
+      "B2": [
+        "trace_slow: traces hidden in this run",
+        "errors_up: traces hidden in this run"
+      ],
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+        "trace_slow: traces hidden in this run"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 1470.8,
+    "tool_seconds": 0.4,
+    "prompt_tokens": 2862,
+    "completion_tokens": 20219,
+    "replies_hit_token_limit": 2,
+    "wall_seconds": 1471.2,
+    "cost_usd": 0.0
+  },
+  "telemetry_hidden": [
+    "traces"
+  ]
+}

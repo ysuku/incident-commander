@@ -1,0 +1,889 @@
+{
+  "status": "escalated",
+  "reason": "tie: emailservice: mem or emailservice: disk, indistinguishable in this data",
+  "escalation": {
+    "code": "tot_tie",
+    "reason": "tie: emailservice: mem or emailservice: disk, indistinguishable in this data",
+    "hypotheses": [
+      {
+        "service": "emailservice",
+        "fault_type": "mem",
+        "score": 5,
+        "status": "tied",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed mem_up (mem z=41.89), latency_up (latency z=72.32), socket_not_saturated (socket z=0), trace_slow (traces implicate the service)",
+        "evidence": [
+          "E1",
+          "E3",
+          "E4",
+          "E5",
+          "E6",
+          "E8"
+        ]
+      },
+      {
+        "service": "emailservice",
+        "fault_type": "disk",
+        "score": 5,
+        "status": "tied",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)); confirmed mem_up (mem z=41.89), cpu_up (cpu z=525.45), socket_not_saturated (socket z=0), trace_slow (traces implicate the service)",
+        "evidence": [
+          "E1",
+          "E3",
+          "E4",
+          "E7",
+          "E9"
+        ]
+      }
+    ],
+    "note": "the tied branches passed the gate and cannot be told apart in this data; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "emailservice: mem (score 5, tied; confirmed mem_up, latency_up, socket_not_saturated, trace_slow)",
+    "emailservice: disk (score 5, tied; confirmed mem_up, cpu_up, socket_not_saturated, trace_slow)",
+    "emailservice: cpu (score 2, pruned; confirmed cpu_up, socket_not_saturated, trace_slow)"
+  ],
+  "notes": [
+    "tot B2 emailservice:disk depth 1: metric_query(service='emailservice', metric='swap') failed: unknown metric 'swap'; available metrics are ['cpu', 'diskio', 'error', 'latency-50', 'latency-90', 'mem', 'socket', 'workload']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "checked [service='emailservice', level='error']: no log lines at that level (605 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice, metric=mem]: emailservice_mem z=41.89 (209.5%)",
+      "source_ref": "simple_metrics.csv:emailservice_mem",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=socket]; largest is only emailservice_socket z=0.0 (0.0%)",
+      "source_ref": "simple_metrics.csv:emailservice_socket",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=workload]; largest is only emailservice_workload z=-0.33 (-9.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_workload",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', level='info', query='gc']: no line contains that literal text (605 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', level='info', query='disk']: no line contains that literal text (605 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 66.3,
+        "prompt_tokens": 400,
+        "completion_tokens": 869,
+        "max_tokens": 8192,
+        "reasoning_chars": 3267,
+        "answer_chars": 228,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to survey the system-wide metrics to identify which services are exhibiting the latency or availability anomalies reported in the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.36
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 111.2,
+        "prompt_tokens": 510,
+        "completion_tokens": 1522,
+        "max_tokens": 8192,
+        "reasoning_chars": 5235,
+        "answer_chars": 313,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows extreme CPU and disk IO spikes in emailservice; querying logs to find corroborating error messages.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 97.9,
+        "prompt_tokens": 588,
+        "completion_tokens": 1338,
+        "max_tokens": 8192,
+        "reasoning_chars": 4925,
+        "answer_chars": 279,
+        "finish_reason": "stop"
+      },
+      "thought": "Need trace evidence to corroborate metric anomalies in emailservice.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.82
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 152.4,
+        "prompt_tokens": 685,
+        "completion_tokens": 2073,
+        "max_tokens": 8192,
+        "reasoning_chars": 7334,
+        "answer_chars": 690,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics reveal an extreme disk I/O anomaly while traces show increased inbound latency with unchanged self-time, confirming an I/O wait bottleneck rather than CPU saturation.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "disk",
+          "supporting_evidence": [
+            "E1",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: cpu saturation",
+              "why": "Trace self-time remained flat despite high CPU metric, indicating requests were blocked on I/O wait rather than compute (E3)"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Optimize emailservice disk write patterns or migrate to higher-throughput storage to resolve I/O bottleneck.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "disk (score 5) vs mem (5) for emailservice"
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: mem",
+      "thought": "Querying emailservice memory metrics directly tests the mem_up condition (z >= 15) required for the memory hypothesis, distinguishing it from the disk IO bottleneck.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 193.6,
+        "prompt_tokens": 754,
+        "completion_tokens": 2505,
+        "max_tokens": 8192,
+        "reasoning_chars": 9367,
+        "answer_chars": 303,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: disk",
+      "thought": "Query swap metrics to determine if the high disk IO is due to memory swapping (supporting mem) or actual disk operations (supporting disk).",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "swap"
+        }
+      },
+      "outcome": "tot_test_failed",
+      "observed": null,
+      "generator": "model",
+      "model_call": {
+        "seconds": 284.2,
+        "prompt_tokens": 810,
+        "completion_tokens": 3626,
+        "max_tokens": 8192,
+        "reasoning_chars": 12313,
+        "answer_chars": 321,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: mem",
+      "thought": "Querying socket utilization verifies the 'socket_not_saturated' condition required by the memory hypothesis, which distinguishes it from disk I/O bottlenecks that typically drive higher socket usage.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 177.8,
+        "prompt_tokens": 875,
+        "completion_tokens": 2295,
+        "max_tokens": 8192,
+        "reasoning_chars": 8194,
+        "answer_chars": 329,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: disk",
+      "thought": "Querying the workload metric rules out a traffic spike as the driver for the high disk I/O and memory usage, confirming a genuine disk bottleneck if request volume remains normal.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "workload"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 435.3,
+        "prompt_tokens": 938,
+        "completion_tokens": 5819,
+        "max_tokens": 8192,
+        "reasoning_chars": 21637,
+        "answer_chars": 406,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: mem",
+      "thought": "Memory pressure typically triggers frequent garbage collection logged at info level, distinguishing it from a pure disk IO bottleneck.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "gc",
+          "service": "emailservice",
+          "level": "info"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 331.2,
+        "prompt_tokens": 989,
+        "completion_tokens": 4338,
+        "max_tokens": 8192,
+        "reasoning_chars": 15964,
+        "answer_chars": 281,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: disk",
+      "thought": "Searching for disk-related log entries will confirm whether the extreme disk IO spike is the active bottleneck causing latency, rather than memory pressure which would typically show GC or OOM warning",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk",
+          "service": "emailservice",
+          "level": "info"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 266.1,
+        "prompt_tokens": 1056,
+        "completion_tokens": 3598,
+        "max_tokens": 8192,
+        "reasoning_chars": 13296,
+        "answer_chars": 389,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.06
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "tied",
+    "trigger": "T1 disk (score 5) vs mem (5) for emailservice",
+    "suspect": "emailservice",
+    "rival": null,
+    "selected": null,
+    "tied": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "mem",
+        "reason": "top fault types for emailservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=72.32",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "mem"
+            },
+            "depth": 1,
+            "predicted": "emailservice_mem z >= 15",
+            "rationale": "Querying emailservice memory metrics directly tests the mem_up condition (z >= 15) required for the memory hypothesis, distinguishing it from the disk IO bottleneck.",
+            "by": "model"
+          },
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "socket"
+            },
+            "depth": 2,
+            "predicted": "socket z < 25",
+            "rationale": "Querying socket utilization verifies the 'socket_not_saturated' condition required by the memory hypothesis, which distinguishes it from disk I/O bottlenecks that typically drive higher socket usage.",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "gc",
+              "service": "emailservice",
+              "level": "info"
+            },
+            "depth": 3,
+            "predicted": "GC log lines present",
+            "rationale": "Memory pressure typically triggers frequent garbage collection logged at info level, distinguishing it from a pure disk IO bottleneck.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "disk",
+        "reason": "top fault types for emailservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=525.45",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "swap"
+            },
+            "depth": 1,
+            "predicted": "emailservice_swap z-score is low (e.g., < 15)",
+            "rationale": "Query swap metrics to determine if the high disk IO is due to memory swapping (supporting mem) or actual disk operations (supporting disk).",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "workload"
+            },
+            "depth": 2,
+            "predicted": "workload z-score is low (< 3), indicating normal traffic and isolating the disk I/O spike as the root cause.",
+            "rationale": "Querying the workload metric rules out a traffic spike as the driver for the high disk I/O and memory usage, confirming a genuine disk bottleneck if request volume remains normal.",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "emailservice",
+              "level": "info"
+            },
+            "depth": 3,
+            "predicted": "log lines mentioning disk operations or IO waits are found",
+            "rationale": "Searching for disk-related log entries will confirm whether the extreme disk IO spike is the active bottleneck causing latency, rather than memory pressure which would typically show GC or OOM warning",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "mem",
+        "reason": "top fault types for emailservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=72.32",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "mem"
+            },
+            "depth": 1,
+            "predicted": "emailservice_mem z >= 15",
+            "rationale": "Querying emailservice memory metrics directly tests the mem_up condition (z >= 15) required for the memory hypothesis, distinguishing it from the disk IO bottleneck.",
+            "by": "model"
+          },
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "socket"
+            },
+            "depth": 2,
+            "predicted": "socket z < 25",
+            "rationale": "Querying socket utilization verifies the 'socket_not_saturated' condition required by the memory hypothesis, which distinguishes it from disk I/O bottlenecks that typically drive higher socket usage.",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "gc",
+              "service": "emailservice",
+              "level": "info"
+            },
+            "depth": 3,
+            "predicted": "GC log lines present",
+            "rationale": "Memory pressure typically triggers frequent garbage collection logged at info level, distinguishing it from a pure disk IO bottleneck.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "disk",
+        "reason": "top fault types for emailservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=525.45",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "swap"
+            },
+            "depth": 1,
+            "predicted": "emailservice_swap z-score is low (e.g., < 15)",
+            "rationale": "Query swap metrics to determine if the high disk IO is due to memory swapping (supporting mem) or actual disk operations (supporting disk).",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "workload"
+            },
+            "depth": 2,
+            "predicted": "workload z-score is low (< 3), indicating normal traffic and isolating the disk I/O spike as the root cause.",
+            "rationale": "Querying the workload metric rules out a traffic spike as the driver for the high disk I/O and memory usage, confirming a genuine disk bottleneck if request volume remains normal.",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "emailservice",
+              "level": "info"
+            },
+            "depth": 3,
+            "predicted": "log lines mentioning disk operations or IO waits are found",
+            "rationale": "Searching for disk-related log entries will confirm whether the extreme disk IO spike is the active bottleneck causing latency, rather than memory pressure which would typically show GC or OOM warning",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "emailservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for emailservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=525.45",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 2116.0,
+    "tool_seconds": 1.4,
+    "prompt_tokens": 7605,
+    "completion_tokens": 27983,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 2117.4,
+    "cost_usd": 0.0
+  }
+}

@@ -1,0 +1,344 @@
+{
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "delay"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E2",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-50 z=408.44 (2042.2%); currencyservice_latency-90 z=29.0 (319.0%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.14ms (0.99x), errors 0.0->0.0; inbound calls self-time p50 5.13->204.83ms (39.9x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "currencyservice: cpu",
+      "why": "E3 shows self-time unchanged (0.99x), ruling out compute saturation"
+    },
+    {
+      "candidate": "checkoutservice: delay",
+      "why": "E1 shows high latency but E3 proves currencyservice is the upstream bottleneck causing the cascade"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Conditionally investigate and mitigate node-level network and connection bottlenecks affecting inbound traffic to currencyservice.",
+    "steps": [
+      "[Human Approval Required] Review node network error counters and conntrack table utilization; if conntrack is near capacity, temporarily migrate currencyservice pods to nodes with lower connection counts.",
+      "[Human Approval Required] If network receive errors are elevated, temporarily increase the TX queue length on affected nodes and monitor latency improvement.",
+      "[Human Approval Required] If latency persists, temporarily spread currencyservice pods across additional node pools to distribute inbound connection load."
+    ],
+    "preconditions": [
+      "Verify current inbound latency metrics and confirm no active deployments or rollouts are in progress.",
+      "Check node network error counters and conntrack table utilization for nodes hosting currencyservice pods.",
+      "Document current node configurations and pod scheduling policies to ensure safe rollback capability."
+    ],
+    "rollback": "Revert node network and TX queue configurations to defaults, migrate pods back to their original nodes, and restore original conntrack limits if modified.",
+    "runbook_refs": [
+      "runbooks/node/NodeNetworkReceiveErrs.md#action",
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+    ],
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Kubelet Pod startup 99th percentile latency is XX seconds on node. Slow pod starts.",
+        "evidence": "E3",
+        "why": "E3 shows unchanged service self-time and zero errors, indicating running pods are healthy and not delayed by startup."
+      },
+      {
+        "runbook": "R4",
+        "step": "Check if CPU resource requests are adjusted to the app usage... Add more nodes to the cluster",
+        "evidence": "E3",
+        "why": "E3 shows unchanged service self-time and zero errors, ruling out CPU throttling or compute overcommit as the cause of the inbound delay.",
+        "note": "step not found in R4's text; check the runbook itself"
+      }
+    ],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 40.0,
+        "prompt_tokens": 400,
+        "completion_tokens": 524,
+        "max_tokens": 8192,
+        "reasoning_chars": 1890,
+        "answer_chars": 204,
+        "finish_reason": "stop"
+      },
+      "thought": "I will query metrics across all services to identify which ones show significant deviations in latency or availability.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.32
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 96.4,
+        "prompt_tokens": 509,
+        "completion_tokens": 1356,
+        "max_tokens": 8192,
+        "reasoning_chars": 4653,
+        "answer_chars": 376,
+        "finish_reason": "stop"
+      },
+      "thought": "The highest metric deviation is in currencyservice latency; querying its full metric profile will reveal the underlying resource or network fault.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 141.9,
+        "prompt_tokens": 642,
+        "completion_tokens": 1977,
+        "max_tokens": 8192,
+        "reasoning_chars": 7024,
+        "answer_chars": 360,
+        "finish_reason": "stop"
+      },
+      "thought": "Obtain trace evidence for currencyservice to corroborate the high latency metrics and confirm it as the bottleneck.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice",
+          "failing_only": true,
+          "limit": 5
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.93
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 207.3,
+        "prompt_tokens": 745,
+        "completion_tokens": 2900,
+        "max_tokens": 8192,
+        "reasoning_chars": 10035,
+        "answer_chars": 770,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both confirm currencyservice latency spike with negligible self-time, indicating it is blocked waiting on a downstream dependency rather than CPU saturation.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "currencyservice: cpu",
+              "why": "E3 shows self-time unchanged (0.99x), ruling out compute saturation"
+            },
+            {
+              "candidate": "checkoutservice: delay",
+              "why": "E1 shows high latency but E3 proves currencyservice is the upstream bottleneck causing the cascade"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Implement circuit breaker or timeout for external currency API calls to prevent cascading latency",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_latency-50 z=408.44 (2042.2%); frontend_latency-90 z=103.51 (692.6%); checkoutservice_latency-90 z=82.07 (580.9%); frontend_latency-50 z=69.5 (643.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-50 z=408.44 (2042.2%); currencyservice_latency-90 z=29.0 (319.0%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.14ms (0.99x), errors 0.0->0.0; inbound calls self-time p50 5.13->204.83ms (39.9x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "fix_advisor": {
+    "query": "currencyservice network latency injected on its pod, every call slow, resources normal",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "KubeletPodStartUpLatencyHigh",
+        "kind": "symptom",
+        "distance": 0.439,
+        "source_ref": "runbooks/kubernetes/KubeletPodStartUpLatencyHigh.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "action",
+        "distance": 0.512,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#action"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "action",
+        "distance": 0.506,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "KubeCPUQuotaOvercommit",
+        "kind": "action",
+        "distance": 0.509,
+        "source_ref": "runbooks/kubernetes/KubeCPUQuotaOvercommit.md#action"
+      }
+    ],
+    "tool_seconds": 0.57,
+    "model_call": {
+      "seconds": 288.3,
+      "prompt_tokens": 976,
+      "completion_tokens": 3899,
+      "max_tokens": 8192,
+      "reasoning_chars": 14064,
+      "answer_chars": 2171,
+      "finish_reason": "stop"
+    },
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Kubelet Pod startup 99th percentile latency is XX seconds on node. Slow pod starts.",
+        "evidence": "E3",
+        "why": "E3 shows unchanged service self-time and zero errors, indicating running pods are healthy and not delayed by startup."
+      },
+      {
+        "runbook": "R4",
+        "step": "Check if CPU resource requests are adjusted to the app usage... Add more nodes to the cluster",
+        "evidence": "E3",
+        "why": "E3 shows unchanged service self-time and zero errors, ruling out CPU throttling or compute overcommit as the cause of the inbound delay.",
+        "note": "step not found in R4's text; check the runbook itself"
+      }
+    ],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Conditionally investigate and mitigate node-level network and connection bottlenecks affecting inbound traffic to currencyservice.",
+      "steps": [
+        "[Human Approval Required] Review node network error counters and conntrack table utilization; if conntrack is near capacity, temporarily migrate currencyservice pods to nodes with lower connection counts.",
+        "[Human Approval Required] If network receive errors are elevated, temporarily increase the TX queue length on affected nodes and monitor latency improvement.",
+        "[Human Approval Required] If latency persists, temporarily spread currencyservice pods across additional node pools to distribute inbound connection load."
+      ],
+      "preconditions": [
+        "Verify current inbound latency metrics and confirm no active deployments or rollouts are in progress.",
+        "Check node network error counters and conntrack table utilization for nodes hosting currencyservice pods.",
+        "Document current node configurations and pod scheduling policies to ensure safe rollback capability."
+      ],
+      "rollback": "Revert node network and TX queue configurations to defaults, migrate pods back to their original nodes, and restore original conntrack limits if modified."
+    },
+    "rationale": "Evidence shows inbound call latency spikes with unchanged service self-time and zero errors, indicating a network or connection bottleneck rather than compute starvation or pod startup delays.",
+    "runbook_refs": [
+      "R2",
+      "R3"
+    ],
+    "commander_draft": "Implement circuit breaker or timeout for external currency API calls to prevent cascading latency"
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 2,
+    "review_required": true,
+    "review_reason": "runbook contradicts the evidence: R1 step \"Kubelet Pod startup 99th percentile latency is XX seconds on\" contradicts E3; R4 step \"Check if CPU resource requests are adjusted to the app usage\" contradicts E3"
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 773.9,
+    "tool_seconds": 1.8,
+    "prompt_tokens": 3272,
+    "completion_tokens": 10656,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 775.9,
+    "cost_usd": 0.0
+  }
+}

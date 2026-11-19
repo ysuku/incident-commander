@@ -1,0 +1,689 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "emailservice",
+        "fault_type": "socket",
+        "score": 1,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed socket_up (socket z=40.63); unobservable trace_slow (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E5",
+          "E6"
+        ]
+      },
+      {
+        "service": "emailservice",
+        "fault_type": "cpu",
+        "score": 0,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed cpu_up (cpu z=304.99), mem_not_saturated (mem z=4.27); contradicted socket_not_saturated (socket z=40.63); unobservable trace_slow (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E7"
+        ]
+      },
+      {
+        "service": "emailservice",
+        "fault_type": "loss",
+        "score": 0,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=170.86), conn_pressure (socket z=40.63); contradicted cpu_not_up (cpu z=304.99); unobservable trace_slow (traces hidden in this run), errors_up (traces hidden in this run)",
+        "evidence": [
+          "E1"
+        ]
+      },
+      {
+        "service": "online-boutique",
+        "fault_type": "cpu",
+        "score": 0,
+        "status": "open",
+        "kinds": [],
+        "summary": "unobservable trace_slow (traces hidden in this run)",
+        "evidence": []
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "emailservice: socket (score 1, open; confirmed socket_up)",
+    "emailservice: cpu (score 0, open; confirmed cpu_up, mem_not_saturated)",
+    "emailservice: loss (score 0, open; confirmed latency_up, conn_pressure)",
+    "online-boutique: cpu (score 0, open; confirmed none)"
+  ],
+  "notes": [
+    "step 3: bad args for log_search: unknown service 'online-boutique'; services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 'shippingservice']",
+    "tot root: metric signature of the rival: metric_query(service='online-boutique') failed: unknown service 'online-boutique'; metric services are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'frontend-external', 'paymentservice', 'productcatalogservice', 'recommendationservice', 'redis', 'shippingservice']",
+    "tot B1 emailservice:socket depth 3: metric_query(service='emailservice', metric='inbound_latency') failed: unknown metric 'inbound_latency'; available metrics are ['cpu', 'diskio', 'error', 'latency-50', 'latency-90', 'mem', 'socket', 'workload']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=304.99 (2593.0%); emailservice_latency-90 z=170.86 (854.3%); emailservice_latency-50 z=50.05 (250.2%); emailservice_socket z=40.63 (203.1%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "checked [service='emailservice', level='error']: no log lines at that level (668 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "668 matching lines; by svc/level {'emailservice/INFO': 668}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L89378",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_cpu z=304.99 (2593.0%); emailservice_latency-90 z=170.86 (854.3%); emailservice_latency-50 z=50.05 (250.2%); emailservice_socket z=40.63 (203.1%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='socket']: no line contains that literal text (668 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice, metric=socket]: emailservice_socket z=40.63 (203.1%)",
+      "source_ref": "simple_metrics.csv:emailservice_socket",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice, metric=mem]: emailservice_mem z=4.27 (21.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_mem",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 51.7,
+        "prompt_tokens": 348,
+        "completion_tokens": 704,
+        "max_tokens": 8192,
+        "reasoning_chars": 2503,
+        "answer_chars": 248,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify which service is exhibiting abnormal behavior (latency/availability) to narrow down the root cause.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.32
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 61.0,
+        "prompt_tokens": 469,
+        "completion_tokens": 849,
+        "max_tokens": 8192,
+        "reasoning_chars": 2748,
+        "answer_chars": 318,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics show extreme CPU and latency spikes in emailservice; need log evidence to confirm.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 184.7,
+        "prompt_tokens": 521,
+        "completion_tokens": 2601,
+        "max_tokens": 8192,
+        "reasoning_chars": 9731,
+        "answer_chars": 235,
+        "finish_reason": "stop"
+      },
+      "thought": "Check online-boutique error logs for client-side failures pointing to emailservice to satisfy the two-telemetry requirement.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "online-boutique",
+          "level": "error"
+        }
+      },
+      "outcome": "bad_args",
+      "detail": "unknown service 'online-boutique'; services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 'shippingservice']"
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 141.0,
+        "prompt_tokens": 597,
+        "completion_tokens": 1972,
+        "max_tokens": 8192,
+        "reasoning_chars": 7336,
+        "answer_chars": 316,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics heavily implicate emailservice, so I will inspect its info-level logs to find the operational pattern causing the CPU and latency spikes.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "info",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: socket",
+      "thought": "Searching for socket-specific log entries will confirm if connection timeouts or pool exhaustion are explicitly reported, distinguishing a socket bottleneck from a CPU bottleneck which would lack such",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "socket",
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 262.0,
+        "prompt_tokens": 805,
+        "completion_tokens": 3564,
+        "max_tokens": 8192,
+        "reasoning_chars": 14279,
+        "answer_chars": 405,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: cpu",
+      "outcome": "tot_no_test",
+      "generator": "model (no test can add information)",
+      "model_call": {
+        "seconds": 155.6,
+        "prompt_tokens": 883,
+        "completion_tokens": 2072,
+        "max_tokens": 8192,
+        "reasoning_chars": 7272,
+        "answer_chars": 16,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B3",
+      "hypothesis": "emailservice: loss",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: metric_query({'service': 'emailservice'}) already on the board; the heuristic had no test left",
+      "model_call": {
+        "seconds": 171.2,
+        "prompt_tokens": 894,
+        "completion_tokens": 2289,
+        "max_tokens": 8192,
+        "reasoning_chars": 8553,
+        "answer_chars": 298,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "online-boutique: cpu",
+      "outcome": "tot_no_test",
+      "generator": "model (no test can add information)",
+      "model_call": {
+        "seconds": 187.0,
+        "prompt_tokens": 885,
+        "completion_tokens": 2509,
+        "max_tokens": 8192,
+        "reasoning_chars": 9595,
+        "answer_chars": 210,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: socket",
+      "thought": "Directly querying the socket metric verifies the hypothesis's required signature (z >= 25), which a CPU-driven fault would not exhibit.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 285.4,
+        "prompt_tokens": 860,
+        "completion_tokens": 3887,
+        "max_tokens": 8192,
+        "reasoning_chars": 15130,
+        "answer_chars": 259,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: cpu",
+      "thought": "Checking memory saturation verifies the mem_not_saturated condition of the CPU hypothesis and distinguishes pure compute bottlenecks from memory or network-induced CPU spikes.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 198.4,
+        "prompt_tokens": 931,
+        "completion_tokens": 2662,
+        "max_tokens": 8192,
+        "reasoning_chars": 9729,
+        "answer_chars": 299,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: socket",
+      "thought": "Explicitly measuring inbound latency verifies the trace_slow signature, distinguishing socket-induced request queuing from CPU saturation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "inbound_latency"
+        }
+      },
+      "outcome": "tot_test_failed",
+      "observed": null,
+      "generator": "model",
+      "model_call": {
+        "seconds": 291.9,
+        "prompt_tokens": 954,
+        "completion_tokens": 3951,
+        "max_tokens": 8192,
+        "reasoning_chars": 15631,
+        "answer_chars": 300,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 12,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: cpu",
+      "outcome": "tot_no_test",
+      "generator": "model (no test can add information)",
+      "model_call": {
+        "seconds": 303.4,
+        "prompt_tokens": 1050,
+        "completion_tokens": 4110,
+        "max_tokens": 8192,
+        "reasoning_chars": 15195,
+        "answer_chars": 185,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 4 steps",
+    "suspect": "emailservice",
+    "rival": "online-boutique",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "socket",
+        "reason": "top fault types for emailservice by metric signature (score 1)",
+        "status": "open",
+        "close_reason": "",
+        "score": 1,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=40.63",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "log_search",
+            "args": {
+              "query": "socket",
+              "service": "emailservice"
+            },
+            "depth": 1,
+            "predicted": "returns log lines mentioning socket timeouts or connection errors",
+            "rationale": "Searching for socket-specific log entries will confirm if connection timeouts or pool exhaustion are explicitly reported, distinguishing a socket bottleneck from a CPU bottleneck which would lack such",
+            "by": "model"
+          },
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "socket"
+            },
+            "depth": 2,
+            "predicted": "z >= 25",
+            "rationale": "Directly querying the socket metric verifies the hypothesis's required signature (z >= 25), which a CPU-driven fault would not exhibit.",
+            "by": "model"
+          },
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "inbound_latency"
+            },
+            "depth": 3,
+            "predicted": "emailservice_inbound_latency z >= 25",
+            "rationale": "Explicitly measuring inbound latency verifies the trace_slow signature, distinguishing socket-induced request queuing from CPU saturation.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for emailservice by metric signature (score 0)",
+        "status": "open",
+        "close_reason": "",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=304.99",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=4.27",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "socket z=40.63",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "mem z < 15",
+            "rationale": "Checking memory saturation verifies the mem_not_saturated condition of the CPU hypothesis and distinguishes pure compute bottlenecks from memory or network-induced CPU spikes.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "emailservice",
+        "fault_type": "loss",
+        "reason": "top fault types for emailservice by metric signature (score 0)",
+        "status": "open",
+        "close_reason": "",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=170.86",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=40.63",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=304.99",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "online-boutique",
+        "fault_type": "cpu",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 4,
+    "generator_calls": 8,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "hidden": [
+      "traces"
+    ],
+    "flags": {
+      "B1": [
+        "trace_slow: traces hidden in this run"
+      ],
+      "B2": [
+        "trace_slow: traces hidden in this run"
+      ],
+      "B3": [
+        "trace_slow: traces hidden in this run",
+        "errors_up: traces hidden in this run"
+      ],
+      "B4": [
+        "trace_slow: traces hidden in this run"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 12,
+    "model_seconds": 2293.3,
+    "tool_seconds": 0.6,
+    "prompt_tokens": 9197,
+    "completion_tokens": 31170,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 2294.2,
+    "cost_usd": 0.0
+  },
+  "telemetry_hidden": [
+    "traces"
+  ]
+}

@@ -1,0 +1,670 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate; leaders level: productcatalogservice: mem or productcatalogservice: disk (score 3, 1 telemetry kind(s) each)",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate; leaders level: productcatalogservice: mem or productcatalogservice: disk (score 3, 1 telemetry kind(s) each)",
+    "hypotheses": [
+      {
+        "service": "productcatalogservice",
+        "fault_type": "mem",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed mem_up (mem z=223.66), latency_up (latency z=309.74), socket_not_saturated (socket z=14.71); unobservable trace_slow (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E3",
+          "E5"
+        ]
+      },
+      {
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)), trace_slow (traces hidden in this run); confirmed mem_up (mem z=223.66), cpu_up (cpu z=48.04), socket_not_saturated (socket z=14.71)",
+        "evidence": [
+          "E1",
+          "E3"
+        ]
+      },
+      {
+        "service": "frontend",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=16.27), resources_flat (max resource mem z=0.23); unobservable trace_slow (traces hidden in this run), no_errors (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E4"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "productcatalogservice: mem (score 3, open; confirmed mem_up, latency_up, socket_not_saturated)",
+    "productcatalogservice: disk (score 3, open; confirmed mem_up, cpu_up, socket_not_saturated)",
+    "frontend: delay (score 2, open; confirmed latency_up, resources_flat)",
+    "productcatalogservice: cpu (score 0, pruned; confirmed cpu_up, socket_not_saturated)"
+  ],
+  "notes": [
+    "step 2: bad args for log_search: no log lines from 'productcatalogservice' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 's"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_mem z=223.66 (1118.3%); productcatalogservice_cpu z=48.04 (475.4%); productcatalogservice_socket z=14.71 (73.5%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_mem",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='frontend', level='error', query='productcatalogservice']: no line contains that literal text (60130 lines searched, levels present ['debug', 'info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_mem z=223.66 (1118.3%); productcatalogservice_latency-90 z=309.74 (1548.7%); productcatalogservice_socket z=14.71 (73.5%); productcatalogservice_cpu z=48.04 (475.4%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_mem",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_latency-50 z=16.27 (82.0%)",
+      "source_ref": "simple_metrics.csv:frontend_latency-50",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=productcatalogservice, metric=disk]; largest is only productcatalogservice_diskio z=nan",
+      "source_ref": "simple_metrics.csv:productcatalogservice_diskio",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 51.5,
+        "prompt_tokens": 348,
+        "completion_tokens": 703,
+        "max_tokens": 8192,
+        "reasoning_chars": 2475,
+        "answer_chars": 260,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify which service is exhibiting abnormal behavior (latency/availability) to narrow down the root cause.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 151.5,
+        "prompt_tokens": 447,
+        "completion_tokens": 2161,
+        "max_tokens": 8192,
+        "reasoning_chars": 8390,
+        "answer_chars": 404,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows extreme metric deviations in productcatalogservice; querying its logs for errors will provide the second independent evidence type needed to confirm the root cause.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "productcatalogservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "bad_args",
+      "detail": "no log lines from 'productcatalogservice' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 's"
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 145.3,
+        "prompt_tokens": 554,
+        "completion_tokens": 2042,
+        "max_tokens": 8192,
+        "reasoning_chars": 8025,
+        "answer_chars": 386,
+        "finish_reason": "stop"
+      },
+      "thought": "To satisfy the two-telemetry requirement, I will search frontend logs for errors referencing productcatalogservice, as it is a likely caller.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "productcatalogservice",
+          "service": "frontend",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.09
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: mem",
+      "thought": "Querying disk metrics will show low disk usage, ruling out disk exhaustion and confirming memory exhaustion as the root cause.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "metric": "disk"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 160.6,
+        "prompt_tokens": 728,
+        "completion_tokens": 2172,
+        "max_tokens": 8192,
+        "reasoning_chars": 8389,
+        "answer_chars": 260,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "productcatalogservice: disk",
+      "outcome": "tot_no_test",
+      "generator": "model (no test can add information)",
+      "model_call": {
+        "seconds": 204.2,
+        "prompt_tokens": 790,
+        "completion_tokens": 2784,
+        "max_tokens": 8192,
+        "reasoning_chars": 10635,
+        "answer_chars": 185,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: metric_query({'service': 'frontend'}) already on the board; the heuristic had no test left",
+      "model_call": {
+        "seconds": 151.4,
+        "prompt_tokens": 786,
+        "completion_tokens": 2025,
+        "max_tokens": 8192,
+        "reasoning_chars": 7811,
+        "answer_chars": 333,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "productcatalogservice: mem",
+      "outcome": "tot_no_test",
+      "generator": "model (no test can add information)",
+      "model_call": {
+        "seconds": 201.6,
+        "prompt_tokens": 782,
+        "completion_tokens": 2750,
+        "max_tokens": 8192,
+        "reasoning_chars": 10257,
+        "answer_chars": 243,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "productcatalogservice: disk",
+      "outcome": "tot_no_test",
+      "generator": "model (no test can add information)",
+      "model_call": {
+        "seconds": 204.9,
+        "prompt_tokens": 790,
+        "completion_tokens": 2784,
+        "max_tokens": 8192,
+        "reasoning_chars": 10635,
+        "answer_chars": 185,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "productcatalogservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "productcatalogservice",
+        "fault_type": "mem",
+        "reason": "top fault types for productcatalogservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=223.66",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=309.74",
+            "eid": "E3",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "productcatalogservice",
+              "metric": "disk"
+            },
+            "depth": 1,
+            "predicted": "disk z < 3",
+            "rationale": "Querying disk metrics will show low disk usage, ruling out disk exhaustion and confirming memory exhaustion as the root cause.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "reason": "top fault types for productcatalogservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=223.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=48.04",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=16.27",
+            "eid": "E4",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=0.23",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "productcatalogservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for productcatalogservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=48.04",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=223.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 1,
+    "generator_calls": 5,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [
+      {
+        "branch_id": "B1",
+        "service": "productcatalogservice",
+        "fault_type": "mem",
+        "reason": "top fault types for productcatalogservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=223.66",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=309.74",
+            "eid": "E3",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "productcatalogservice",
+              "metric": "disk"
+            },
+            "depth": 1,
+            "predicted": "disk z < 3",
+            "rationale": "Querying disk metrics will show low disk usage, ruling out disk exhaustion and confirming memory exhaustion as the root cause.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "productcatalogservice",
+        "fault_type": "disk",
+        "reason": "top fault types for productcatalogservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=223.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=48.04",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=14.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "hidden": [
+      "traces"
+    ],
+    "flags": {
+      "B1": [
+        "trace_slow: traces hidden in this run"
+      ],
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+        "trace_slow: traces hidden in this run"
+      ],
+      "B4": [
+        "trace_slow: traces hidden in this run",
+        "no_errors: traces hidden in this run"
+      ],
+      "B3": [
+        "trace_slow: traces hidden in this run"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 1271.0,
+    "tool_seconds": 0.4,
+    "prompt_tokens": 5225,
+    "completion_tokens": 17421,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 1271.6,
+    "cost_usd": 0.0
+  },
+  "telemetry_hidden": [
+    "traces"
+  ]
+}

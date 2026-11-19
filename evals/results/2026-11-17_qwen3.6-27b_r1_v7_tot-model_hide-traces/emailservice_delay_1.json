@@ -1,0 +1,874 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate; leaders level: emailservice: delay or checkoutservice: delay (score 2, 1 telemetry kind(s) each)",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate; leaders level: emailservice: delay or checkoutservice: delay (score 2, 1 telemetry kind(s) each)",
+    "hypotheses": [
+      {
+        "service": "emailservice",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=899.74), resources_flat (max resource cpu z=0.44); unobservable trace_slow (traces hidden in this run), no_errors (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E5",
+          "E7"
+        ]
+      },
+      {
+        "service": "checkoutservice",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=21.15), resources_flat (max resource cpu z=0.28); unobservable trace_slow (traces hidden in this run), no_errors (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E4",
+          "E6",
+          "E8",
+          "E9"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "emailservice: delay (score 2, open; confirmed latency_up, resources_flat)",
+    "checkoutservice: delay (score 2, open; confirmed latency_up, resources_flat)",
+    "emailservice: loss (score 0, pruned; confirmed latency_up, cpu_not_up)",
+    "emailservice: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [
+    "tot B1 emailservice:delay depth 3: metric_query(service='emailservice', metric='span_self_time') failed: unknown metric 'span_self_time'; available metrics are ['cpu', 'diskio', 'error', 'latency-50', 'latency-90', 'mem', 'socket', 'workload']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%); checkoutservice_latency-90 z=21.15 (105.7%); checkoutservice_latency-50 z=10.39 (195.5%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "664 matching lines; by svc/level {'emailservice/INFO': 664}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L88067",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-90 z=21.15 (105.7%); checkoutservice_latency-50 z=10.39 (195.5%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-90",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=cpu]; largest is only emailservice_cpu z=0.44 (3.9%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice, metric=cpu]; largest is only checkoutservice_cpu z=0.28 (5.2%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=mem]; largest is only emailservice_mem z=0.01 (0.1%)",
+      "source_ref": "simple_metrics.csv:emailservice_mem",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice, metric=mem]; largest is only checkoutservice_mem z=0.07 (0.4%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_mem",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice, metric=socket]; largest is only checkoutservice_socket z=0.0 (0.0%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_socket",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 53.7,
+        "prompt_tokens": 348,
+        "completion_tokens": 725,
+        "max_tokens": 8192,
+        "reasoning_chars": 2570,
+        "answer_chars": 279,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify the specific service causing the latency/availability alert by querying all metrics without filters to see the highest deviations.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 100.8,
+        "prompt_tokens": 479,
+        "completion_tokens": 1420,
+        "max_tokens": 8192,
+        "reasoning_chars": 5470,
+        "answer_chars": 301,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows emailservice latency is the most severe anomaly; querying its specific metrics will identify the underlying fault type.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 60.3,
+        "prompt_tokens": 565,
+        "completion_tokens": 824,
+        "max_tokens": 8192,
+        "reasoning_chars": 2946,
+        "answer_chars": 303,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics show extreme latency in emailservice, so I need log evidence to confirm the fault and satisfy the two-telemetry requirement.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: delay",
+      "thought": "Querying emailservice CPU validates the 'resources_flat' signature condition, which must hold for the emailservice delay hypothesis and distinguishes it from resource-constrained rivals.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 203.0,
+        "prompt_tokens": 677,
+        "completion_tokens": 2768,
+        "max_tokens": 8192,
+        "reasoning_chars": 10612,
+        "answer_chars": 305,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "checkoutservice: delay",
+      "thought": "Querying checkoutservice CPU verifies the 'resources_flat' signature condition, which must hold if checkoutservice is merely experiencing a delay rather than resource exhaustion, helping to separate i",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 290.2,
+        "prompt_tokens": 733,
+        "completion_tokens": 3980,
+        "max_tokens": 8192,
+        "reasoning_chars": 15905,
+        "answer_chars": 396,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: delay",
+      "thought": "Verifying emailservice memory remains flat satisfies the delay signature and rules out resource exhaustion, confirming it as the root cause over checkoutservice given the extreme latency disparity.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 319.0,
+        "prompt_tokens": 790,
+        "completion_tokens": 4353,
+        "max_tokens": 8192,
+        "reasoning_chars": 16840,
+        "answer_chars": 316,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "checkoutservice: delay",
+      "thought": "Querying checkoutservice memory validates the 'resources_flat' signature condition; a flat reading supports the delay hypothesis by ruling out resource exhaustion, helping distinguish it from the riva",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 266.9,
+        "prompt_tokens": 846,
+        "completion_tokens": 3633,
+        "max_tokens": 8192,
+        "reasoning_chars": 14460,
+        "answer_chars": 392,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: delay",
+      "thought": "Checking emailservice's own span self-time distinguishes intrinsic slowness (supporting my hypothesis) from propagated slowness (which would imply checkoutservice is the root cause).",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "span_self_time"
+        }
+      },
+      "outcome": "tot_test_failed",
+      "observed": null,
+      "generator": "model",
+      "model_call": {
+        "seconds": 537.3,
+        "prompt_tokens": 903,
+        "completion_tokens": 7349,
+        "max_tokens": 8192,
+        "reasoning_chars": 27354,
+        "answer_chars": 363,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "checkoutservice: delay",
+      "thought": "Checking checkoutservice socket usage reveals if the service is waiting for downstream dependencies (supporting emailservice as root cause) or if resources are flat (supporting checkoutservice as root",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 405.0,
+        "prompt_tokens": 980,
+        "completion_tokens": 5449,
+        "max_tokens": 8192,
+        "reasoning_chars": 20429,
+        "answer_chars": 378,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "emailservice",
+    "rival": "checkoutservice",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "delay",
+        "reason": "top fault types for emailservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=899.74",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.44",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "z < 5",
+            "rationale": "Querying emailservice CPU validates the 'resources_flat' signature condition, which must hold for the emailservice delay hypothesis and distinguishes it from resource-constrained rivals.",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "z < 5",
+            "rationale": "Verifying emailservice memory remains flat satisfies the delay signature and rules out resource exhaustion, confirming it as the root cause over checkoutservice given the extreme latency disparity.",
+            "by": "model"
+          },
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "span_self_time"
+            },
+            "depth": 3,
+            "predicted": "emailservice_span_self_time z >= 3",
+            "rationale": "Checking emailservice's own span self-time distinguishes intrinsic slowness (supporting my hypothesis) from propagated slowness (which would imply checkoutservice is the root cause).",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "checkoutservice",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=21.15",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.28",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "checkoutservice_cpu z < 5",
+            "rationale": "Querying checkoutservice CPU verifies the 'resources_flat' signature condition, which must hold if checkoutservice is merely experiencing a delay rather than resource exhaustion, helping to separate i",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "checkoutservice_mem z < 5",
+            "rationale": "Querying checkoutservice memory validates the 'resources_flat' signature condition; a flat reading supports the delay hypothesis by ruling out resource exhaustion, helping distinguish it from the riva",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "socket"
+            },
+            "depth": 3,
+            "predicted": "checkoutservice_socket z < 5",
+            "rationale": "Checking checkoutservice socket usage reveals if the service is waiting for downstream dependencies (supporting emailservice as root cause) or if resources are flat (supporting checkoutservice as root",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "loss",
+        "reason": "top fault types for emailservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 2+ below the best (2)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=899.74",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.01",
+            "eid": "E2",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=0.44",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "emailservice",
+        "fault_type": "disk",
+        "reason": "top fault types for emailservice by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -3 if every untested signal held) is 5+ below the best (2)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E2",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.01",
+            "eid": "E2",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=0.44",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E2",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "delay",
+        "reason": "top fault types for emailservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=899.74",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.44",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "z < 5",
+            "rationale": "Querying emailservice CPU validates the 'resources_flat' signature condition, which must hold for the emailservice delay hypothesis and distinguishes it from resource-constrained rivals.",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "z < 5",
+            "rationale": "Verifying emailservice memory remains flat satisfies the delay signature and rules out resource exhaustion, confirming it as the root cause over checkoutservice given the extreme latency disparity.",
+            "by": "model"
+          },
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "span_self_time"
+            },
+            "depth": 3,
+            "predicted": "emailservice_span_self_time z >= 3",
+            "rationale": "Checking emailservice's own span self-time distinguishes intrinsic slowness (supporting my hypothesis) from propagated slowness (which would imply checkoutservice is the root cause).",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "checkoutservice",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=21.15",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.28",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "checkoutservice_cpu z < 5",
+            "rationale": "Querying checkoutservice CPU verifies the 'resources_flat' signature condition, which must hold if checkoutservice is merely experiencing a delay rather than resource exhaustion, helping to separate i",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "checkoutservice_mem z < 5",
+            "rationale": "Querying checkoutservice memory validates the 'resources_flat' signature condition; a flat reading supports the delay hypothesis by ruling out resource exhaustion, helping distinguish it from the riva",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "socket"
+            },
+            "depth": 3,
+            "predicted": "checkoutservice_socket z < 5",
+            "rationale": "Checking checkoutservice socket usage reveals if the service is waiting for downstream dependencies (supporting emailservice as root cause) or if resources are flat (supporting checkoutservice as root",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "hidden": [
+      "traces"
+    ],
+    "flags": {
+      "B1": [
+        "trace_slow: traces hidden in this run",
+        "no_errors: traces hidden in this run"
+      ],
+      "B4": [
+        "trace_slow: traces hidden in this run",
+        "no_errors: traces hidden in this run"
+      ],
+      "B2": [
+        "trace_slow: traces hidden in this run",
+        "errors_up: traces hidden in this run"
+      ],
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+        "trace_slow: traces hidden in this run"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 2236.2,
+    "tool_seconds": 0.4,
+    "prompt_tokens": 6321,
+    "completion_tokens": 30501,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 2236.7,
+    "cost_usd": 0.0
+  },
+  "telemetry_hidden": [
+    "traces"
+  ]
+}

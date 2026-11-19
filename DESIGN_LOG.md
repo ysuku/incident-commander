@@ -2,7 +2,7 @@
 
 One entry per module. This feeds the final report's "Design evolution across the program" section.
 
-## Module 1 — Baseline (Sep 2026)
+## Module 1 — Baseline
 **State:** Course Research Agent starter template, restructured into `src/` layout.
 
 **Changes from the starter**
@@ -17,7 +17,7 @@ One entry per module. This feeds the final report's "Design evolution across the
 
 **Next (Module 2):** ReAct loop, tools, memory.
 
-## Module 2 — Pivot to Incident Commander (Oct 2026)
+## Module 2 — Pivot to Incident Commander
 **Decision:** the capstone is **Incident Commander** (Checkpoint 1.1, graded complete):
 diagnose recorded RCAEval failures, propose fixes gated on human approval. The generic
 research-agent starter stays in `src/research_agent/` as the Module 1 baseline for the
@@ -42,7 +42,7 @@ research-agent starter stays in `src/research_agent/` as the Module 1 baseline f
 **Next:** implement loaders against the real RCAEval layout, then log_search + metric_query,
 then the ReAct loop.
 
-## Data layout findings + loaders (Oct 25)
+## Data layout findings + loaders
 RE2-OB verified on disk: `RE2-OB/<service>_<fault>/<run>/` — **ground truth is the folder
 name**, so loaders carry it on `IncidentCase` for scoring only; nothing building agent
 context may read it. Per case: `inject_time.txt`, `logs.csv` (~23MB), `traces.csv` (~70MB),
@@ -55,7 +55,7 @@ sizes confirm the core design point: no context window holds a case, so tools su
 - CLI `list` works. Next: `log_search` + `metric_query` on the extracted case, then the
   plain/CoT baselines, then the ReAct loop.
 
-## Module 3 — Retrieval layer for runbook_lookup (Oct 25)
+## Module 3 — Retrieval layer for runbook_lookup
 **Decision:** retrieval IS required, for the long-term memory only. Telemetry (logs, metrics,
 traces) stays on structured tools; runbooks/postmortems are text and need semantic lookup.
 
@@ -74,7 +74,7 @@ traces) stays on structured tools; runbooks/postmortems are text and need semant
 numbers come only from running `scripts/retrieval_demo.py` locally -> `evals/retrieval_demo_output.txt`.
 **Not yet:** postmortem summaries and confirmed past incidents are not indexed (data/postmortems empty).
 
-## Telemetry tools implemented (Oct 25)
+## Telemetry tools implemented
 `metric_query`, `log_search`, `trace_lookup`, `service_map` implemented in pure pandas and
 verified on checkoutservice_cpu/1. All five 2.1 tools now real. Findings worth keeping:
 - metric_query (before/after-alert z-scores) ranks the injected fault first on the worked
@@ -88,7 +88,7 @@ verified on checkoutservice_cpu/1. All five 2.1 tools now real. Findings worth k
 Still open from 2.1: evidence scratchpad, ReAct loop, citation check, model client,
 baselines, MCP server wrapper.
 
-## ReAct loop, scratchpad, citation gate (Oct 25)
+## ReAct loop, scratchpad, citation gate
 The agent exists. `scratchpad.py` (short-term memory: cited evidence, candidates, notes),
 `model.py` (OpenRouter/OpenAI-compatible client + deterministic MockModel for keyless tests),
 `loop.py` (orient->reason->act->observe->stop/escalate).
@@ -105,7 +105,7 @@ deviations. Keep for the baseline-vs-agent story.
 Still open from 2.1: real-model runs (Qwen/OpenRouter), plain/CoT baselines, past-incident
 store, MCP server wrapper. Next: baselines + a small eval runner over the 30-case dev set.
 
-## First real-model run: Qwen3.6-27B (local MLX), checkoutservice_cpu/1 (Oct 25)
+## First real-model run: Qwen3.6-27B (local MLX), checkoutservice_cpu/1
 Saved as `evals/runs/2026-10-25_qwen3.6-27b_checkoutservice_cpu_1.json`.
 **Result: escalated after 8 steps, no diagnosis. The gate prevented a wrong answer.**
 Run 1 had escalated on 3 unparseable replies: the server's default completion budget was
@@ -129,7 +129,7 @@ repeated calls and points to the earlier evidence id.
 found" and "your filter matched nothing" are different claims, and conflating them misled a
 capable model.
 
-## Observability: per-step timing, tokens, and a readable run log (Oct 25)
+## Observability: per-step timing, tokens, and a readable run log
 Prompted by the first Qwen run, where steps took 1 to 21 minutes and two steps vanished from the
 trace because failed steps were never recorded.
 - The model client records each call's seconds, prompt/completion tokens, reasoning vs answer
@@ -143,7 +143,7 @@ trace because failed steps were never recorded.
 - When a reply is cut off, the note sent back to the model says so ("think less, answer
   sooner"). The failure explanation also becomes a correction signal.
 
-## Qwen3-4B run: a confident, well-cited, WRONG diagnosis (Oct 25)
+## Qwen3-4B run: a confident, well-cited, WRONG diagnosis
 Saved in `evals/runs/` (Qwen3-4B, checkoutservice_cpu/1). 7 calls, 142s total, about 20s per call,
 no reply cut off: roughly 15x faster than the 27B. **It diagnosed redis/cpu. The truth is checkoutservice/cpu.**
 How it got through:
@@ -172,7 +172,7 @@ gate must check that the evidence supports the claim. (2) Without ground-truth l
 would have been scored a success. Evaluating against labels is what caught it. (3) Model size
 traded speed for judgment: 27B escalated honestly, 4B answered fast and wrong.
 
-## After the fixes: first correct real-model diagnosis (Oct 25, evening)
+## After the fixes: first correct real-model diagnosis
 Same case (checkoutservice_cpu/1, truth checkoutservice/cpu), runs saved in `evals/runs/`:
 
 | Model | Code | Outcome | Steps | Time |
@@ -193,7 +193,7 @@ Next: (1) the alert text names the system separately and lists valid service nam
 (2) try the 4B with reasoning ("thinking") off; (3) eval runner over the 30-case dev set.
 At ~7.5 min/case the 27B needs ~4 hours for 30 cases, so it is an overnight run.
 
-## MCP server: the tools now sit behind FastMCP (Oct 27)
+## MCP server: the tools now sit behind FastMCP
 Closes the last open 2.1 item ("MCP server wrapper"). `mcp_server.py`:
 - `build_server(case)` registers the five tools on a FastMCP server bound to one recorded
   case. A client can only reach the incident it was given; the held-out guard in
@@ -223,7 +223,7 @@ mapping, MCP results equal direct calls, non-object args, real stdio subprocess)
 Not adopted from the lab: resources, prompts, sampling, roots, auth. The tools are
 model-controlled, and the only client is local, so none of these are needed yet.
 
-## First dev-set eval on Claude Opus 5.5 (Oct 28)
+## First dev-set eval on Claude Opus 5.5
 New: `AnthropicClient` (`model.py`, native SDK, adaptive thinking, effort `IC_EFFORT=medium`,
 server-side refusal fallback, per-call cost) and the eval runner (`evaluate.py`,
 `cli eval`): scores each case against the folder label as correct / service_only / wrong /
@@ -262,7 +262,7 @@ Next: (1) `trace_lookup(service=...)`: per-service span latency/error before vs 
 (2) a fault-signal guide (which telemetry each fault type moves) via the runbook layer;
 (3) rerun on reps 1-3 (90 cases) after each change.
 
-## Per-service traces: 90-case eval and a caller-side fix (Oct 28)
+## Per-service traces: 90-case eval and a caller-side fix
 `trace_lookup(service=...)` (commit 9353e69): the service's own self time and its
 callers' "inbound" time, before vs after the alert; implicates only on >=2x p50 or
 >=0.05 error-rate rise.
@@ -302,7 +302,7 @@ checkout-delay cases now point at checkout. Regression test:
 `test_caller_side_delay_is_pinned_on_the_caller`.
 Next: the fault-signal guide, then one 90-case rerun for both changes.
 
-## Module 4 — Where Tree-of-Thought helps (Nov 1): the data changed the plan
+## Module 4 — Where Tree-of-Thought helps: the data changed the plan
 **Decision:** ToT is appropriate, but only for hypothesis testing and only when the first pass is
 ambiguous. Checkpoint 4.1 plan, not yet implemented.
 
@@ -326,7 +326,7 @@ work (delay 13/15) pay nothing.
 **To test (Module 6):** same 90 cases with vs without ToT: correct / service_only / escalated,
 cost per case. Estimated ceiling ~$0.20/case (Opus), from escalated-run cost of $0.10.
 
-## Module 4 — ToT implemented (Nov 1): 3.1 retrieval loop -> 4.1 hypothesis tree
+## Module 4 — ToT implemented: 3.1 retrieval loop -> 4.1 hypothesis tree
 The 4.1 plan now runs; `diagnose --tot model|heuristic`, `eval --tot ...`. Without `--tot`
 the linear 3.1 agent is unchanged (same prompt, same gate, same outputs).
 
@@ -386,7 +386,7 @@ honest test.
 run), then `--tot heuristic` as the zero-cost ablation. Module 5: port the controller to
 LangGraph and the generator to CrewAI agents.
 
-## Module 4 — ToT A/B on the 90 dev cases (Nov 5)
+## Module 4 — ToT A/B on the 90 dev cases
 Same code, same model (Opus 5.5, effort medium), all 90 RE2-OB cases; only `--tot model` differs.
 The linear baseline was rerun because v3 predates the caller-side trace fix.
 `evals/results/2026-11-05_opus-5-5_all_v4_linear/` vs `..._all_v4_tot-model/`.
@@ -425,7 +425,7 @@ test to have run, but the gate would still accept loose path evidence. So T3 sho
 probably also tighten the gate, accepting only service-scoped traces, or it would trade
 honest escalations for weakly evidenced answers.
 
-## Module 4 — local Qwen3.6-27B vs Opus, linear vs ToT, repetition 1 (Nov 7)
+## Module 4 — local Qwen3.6-27B vs Opus, linear vs ToT, repetition 1
 Same 30 cases, same v4 code; full tables in `evals/model_comparison_r1.md`.
 
 | 30 cases | Opus linear | Opus ToT | Qwen linear | Qwen ToT |
@@ -449,7 +449,7 @@ Same 30 cases, same v4 code; full tables in `evals/model_comparison_r1.md`.
   `IC_REQUEST_TIMEOUT` / `IC_MAX_RETRIES` (model.py; defaults unchanged) and a fresh server per
   case in `scripts/qwen_ab.sh`. Error cases were set aside and re-run.
 
-## Module 5 — Multi-agent architecture implemented (Nov 7): the 5.1 plan as a LangGraph graph
+## Module 5 — Multi-agent architecture implemented: the 5.1 plan as a LangGraph graph
 `diagnose --arch graph` / `eval --arch graph`. The linear agent (`--arch linear`, default) is
 unchanged, so every earlier number stays comparable. Not yet evaluated on the dev set.
 
@@ -502,7 +502,7 @@ branches.
 case); (2) read the flagged contradictions by hand on a sample, since no label exists for them;
 (3) the T3 trigger question from Nov 5 is now a one-line routing change in `graph.commander`.
 
-## Module 4 — ToT ceiling rule; v6 re-run on frozen 5.1 code (Nov 9)
+## Module 4 — ToT ceiling rule; v6 re-run on frozen 5.1 code
 Rule: a branch with untested signals is pruned and compared on its ceiling (untested counted as
 confirmed: `signatures.ceiling`), so a less-tested branch cannot lose to a more-tested one.
 `decide` returns None (keep testing; escalate at budget) while any rival's ceiling is within
@@ -523,7 +523,7 @@ A first v5 Qwen run was discarded: the 5.1 edits landed mid-run and each case is
 Both v6 runs record code fingerprint `f6d377c126c7` (snapshot in `evals/archive/`); the Qwen
 script now stops if `src/` changes. Full tables: `evals/model_comparison_r1.md`.
 
-## Module 6 — Safety guardrails and human intervention implemented (Nov 17): the 6.1 plan in code
+## Module 6 — Safety guardrails and human intervention implemented: the 6.1 plan in code
 Checkpoint 6.1 listed guardrails, metrics, and escalation rules. An audit of the code against it
 (every 6.1 sentence, each gap re-checked independently) found that most claims were true for
 `metric_query` and the graph path but stated for all tools and all paths. This entry closes the
@@ -613,7 +613,7 @@ is an ordering artefact and should not be quoted.
 
 **Decisions made while building, beyond the 6.1 text**
 - **Where the code differs from the 6.1 wording (code is right, wording is loose):**
-  - "Only a contradicted signal prunes": the ceiling rule (Nov 9) also closes out-ranked
+  - "Only a contradicted signal prunes": the ceiling rule also closes out-ranked
     branches. Pruning is unchanged; the docstring now says both.
   - "Step budget of 8": per phase. Commander 8 + ToT expansions 8 + 1 Fix Advisor call; a test
     pins the bound.
@@ -662,7 +662,62 @@ is an ordering artefact and should not be quoted.
   cases and 8 of 75 others; the critic discards those values. A dev-set study, not a quick fix.
 - **Multi-service faults**: one root cause per brief; RCAEval has no multi-fault cases.
 - **Parallel Investigators** (promised for Module 6 on Nov 7) and the T3 trigger: not done.
-- **No graph eval and no gate-v2 run yet.** Queue, all on local Qwen3.6-27B via
-  `scripts/local_eval.sh` ($0, about 22 min per ToT case): rep-1 linear and ToT (re-baseline),
-  rep-1 graph (first groundedness numbers), `--hide traces` / `--hide metrics`, RE3-OB (after
-  download), Train Ticket once, last.
+- **Runs.** Rep-1 linear, rep-1 graph and `--hide traces` on gate v2 are done (next entry). Not
+  run yet: `--hide metrics` on a real model, RE3-OB (after download), Train Ticket once, last.
+
+## Module 6 — Gate v2 on a real model: linear, multi-agent graph, traces hidden
+
+Three runs of the same 30 cases (RE2-OB repetition 1: 6 faults x 5 services) on local
+Qwen3.6-27B (MLX, 4-bit), one code version (fingerprint `493760396fe8`), $0, 0 errors. Run with
+`scripts/local_eval.sh`; the folders are `evals/results/2026-11-17_qwen3.6-27b_r1_v7_*`.
+
+| 30 cases | Linear | Graph (`--arch graph --tot model`) | ToT, traces hidden (`--tot model --hide traces`) |
+|---|---|---|---|
+| correct (service + fault) | 12 | 13 | 0 |
+| right service, wrong fault | 10 | 0 | 0 |
+| wrong service | 1 | 0 | 0 |
+| escalated | 7 | 17 | 30 |
+| escalation codes | budget_exhausted 7 | tot_tie 10, tot_no_branch 7 | tot_no_branch 30 |
+| escalations that name the truth | 3 of 7 ranked first | 15 of 17 (9 in a tie, 6 ranked first) | 21 of 30 ranked first |
+| model calls / case | 5.4 | 7.7 | - |
+| wall time / case (mean) | 12.2 min | 25.2 min | 36.3 min |
+| wall time (30 cases) | 365 min | 755 min | 1088 min |
+
+Graph, correct by fault: cpu 3, delay 5, loss 3, socket 2, mem 0, disk 0 (of 5 each). ToT ran in
+22 of 30 graph cases.
+
+**What the runs show**
+1. **The graph gives no wrong answer of either kind.** Every case is correct or handed to a
+   human, and 15 of the 17 handovers name the true service and fault. Linear is wrong in 11 of
+   30 (10 wrong fault, 1 wrong service). Case by case, linear -> graph: 8 correct in both, 5
+   wrong-fault -> correct, 5 wrong-fault -> escalated, 1 wrong-service -> escalated, 4 correct ->
+   escalated, 7 escalated in both. The price is a 57% escalation rate and twice the time per case.
+2. **Gate v2 on plain linear does ship one wrong service.** `productcatalogservice_loss/1` is
+   diagnosed as `frontendservice: socket`: the frontend residual listed as open in the previous
+   entry, now seen on a real model (the offline re-gate of saved runs showed none). The 6.1
+   statement of zero wrong-service answers holds for the ToT and graph paths, not for linear
+   without ToT. The graph escalates this case.
+3. **mem and disk are still unsolved.** All 10 are escalated by the graph, most as a "mem or
+   disk" tie that contains the truth. Same finding as v6; the disk metric is the cause.
+4. **First groundedness numbers (graph, 13 advised briefs).** 4 fix references could not be
+   traced to a retrieved runbook chunk and were dropped (0.31 per brief); 29 runbook steps were
+   flagged as contradicted by the evidence (2.23 per brief) and carried to the approver as
+   `review_required`. Every fix has `requires_approval` true.
+5. **With traces hidden the system escalates every case and never guesses.** Each case still had
+   log and metric evidence, but no branch gathered two kinds that implicate its service: Online
+   Boutique logs rarely carry warning or error lines (51 of 71 log searches returned nothing, and
+   a log entry implicated a service in 2 of 30 cases), so logs seldom count as a second kind. The
+   offline run predicted this (90 of 90 escalated); the hope that a model would recover some
+   through logs did not hold. The handover still ranks the truth first in 21 of 30. This is the
+   intended fail-safe, and it also says the agent is only useful when traces are available.
+
+**Reading these numbers**
+- One repetition, 30 cases: a difference of one or two cases is noise.
+- The graph result (13 correct) is not directly comparable with v6 Qwen ToT on the linear
+  architecture (16 correct, 14 escalated): the gate changed between v6 and v7 and there is no
+  v7 ToT run on the linear architecture without hiding, so gate and architecture are confounded.
+- Against the old gate, linear moved from 11 / 16 / 0 / 3 (v4: correct / wrong fault / wrong
+  service / escalated) to 12 / 10 / 1 / 7. All 7 escalations are step-budget exhaustion.
+
+**Still open after these runs:** the frontend residual (now with a real-model case), `--hide
+metrics` on a real model, RE3-OB, Train Ticket, and the single-prompt / RAG-only baselines.

@@ -1,0 +1,853 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate; leaders level: currencyservice: loss or frontend: loss (score 3, 1 telemetry kind(s) each)",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate; leaders level: currencyservice: loss or frontend: loss (score 3, 1 telemetry kind(s) each)",
+    "hypotheses": [
+      {
+        "service": "currencyservice",
+        "fault_type": "loss",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=931.09), conn_pressure (socket z=143.11), cpu_not_up (cpu z=-4.91); unobservable trace_slow (traces hidden in this run), errors_up (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E5",
+          "E6",
+          "E8"
+        ]
+      },
+      {
+        "service": "frontend",
+        "fault_type": "loss",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=153.98), conn_pressure (socket z=6.52), cpu_not_up (cpu z=-7.43); unobservable trace_slow (traces hidden in this run), errors_up (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E4",
+          "E7",
+          "E9"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "currencyservice: loss (score 3, open; confirmed latency_up, conn_pressure, cpu_not_up)",
+    "frontend: loss (score 3, open; confirmed latency_up, conn_pressure, cpu_not_up)",
+    "currencyservice: socket (score 1, pruned; confirmed socket_up)",
+    "currencyservice: mem (score 0, pruned; confirmed mem_up, latency_up)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=3024855755.89; frontend-external_error z=3023113730.93; currencyservice_latency-90 z=931.09 (4655.5%); currencyservice_latency-50 z=462.58 (2312.9%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "cartservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-90 z=931.09 (4655.5%); currencyservice_latency-50 z=462.58 (2312.9%); currencyservice_socket z=143.11 (715.5%); currencyservice_mem z=30.47 (152.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-90",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "38591 matching lines; by svc/level {'currencyservice/info': 38591}; [currencyservice/info] Getting supported currencies...; [currencyservice/info] conversion request successful",
+      "source_ref": "logs.csv#L86788",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_error z=3024855755.89; frontend-external_error z=3023113730.93; frontend_latency-90 z=153.98 (1641.9%); frontend_latency-50 z=145.82 (752.8%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=currencyservice, metric=error]; largest is only currencyservice_error z=0.0",
+      "source_ref": "simple_metrics.csv:currencyservice_error",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "logs",
+      "summary": "2323 matching lines; by svc/level {'frontend/error': 2323}; [frontend/error] request error; [frontend/error] request error",
+      "source_ref": "logs.csv#L96576",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend, metric=cpu]: frontend_cpu z=-7.43 (-59.0%)",
+      "source_ref": "simple_metrics.csv:frontend_cpu",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice, metric=cpu]: currencyservice_cpu z=-4.91 (-43.0%)",
+      "source_ref": "simple_metrics.csv:currencyservice_cpu",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend, metric=socket]: frontend_socket z=6.52 (32.6%)",
+      "source_ref": "simple_metrics.csv:frontend_socket",
+      "implicates": [
+        "frontend"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 70.7,
+        "prompt_tokens": 348,
+        "completion_tokens": 982,
+        "max_tokens": 8192,
+        "reasoning_chars": 3599,
+        "answer_chars": 245,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to survey all services and metrics to identify which component is triggering the latency/availability alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.32
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 115.4,
+        "prompt_tokens": 475,
+        "completion_tokens": 1633,
+        "max_tokens": 8192,
+        "reasoning_chars": 6085,
+        "answer_chars": 269,
+        "finish_reason": "stop"
+      },
+      "thought": "Query currencyservice metrics to determine if the extreme latency deviation correlates with error rates or resource exhaustion.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 102.5,
+        "prompt_tokens": 604,
+        "completion_tokens": 1425,
+        "max_tokens": 8192,
+        "reasoning_chars": 5348,
+        "answer_chars": 293,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics indicate severe latency and socket anomalies in currencyservice; searching logs for this service to obtain a second independent telemetry signal.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "currencyservice: loss",
+      "thought": "Querying currencyservice error metrics directly tests the 'errors_up' signature condition, which must be high for currencyservice loss but low if the fault is isolated to frontend.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "metric": "error"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 169.8,
+        "prompt_tokens": 745,
+        "completion_tokens": 2301,
+        "max_tokens": 8192,
+        "reasoning_chars": 8227,
+        "answer_chars": 327,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: loss",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: metric_query({'service': 'frontend'}) already on the board; the heuristic had no test left",
+      "model_call": {
+        "seconds": 238.3,
+        "prompt_tokens": 800,
+        "completion_tokens": 3250,
+        "max_tokens": 8192,
+        "reasoning_chars": 12281,
+        "answer_chars": 370,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "currencyservice: loss",
+      "thought": "Checking frontend error logs will confirm the rival's error signature, definitively ruling out currencyservice which shows zero errors.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "frontend",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 287.7,
+        "prompt_tokens": 800,
+        "completion_tokens": 3933,
+        "max_tokens": 8192,
+        "reasoning_chars": 15010,
+        "answer_chars": 319,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: loss",
+      "thought": "Querying frontend CPU metrics tests the `cpu_not_up` condition of the `frontend: loss` signature, which must hold to confirm the hypothesis and rule out CPU saturation, while the rival is already cont",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 227.8,
+        "prompt_tokens": 855,
+        "completion_tokens": 3095,
+        "max_tokens": 8192,
+        "reasoning_chars": 11511,
+        "answer_chars": 356,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "currencyservice: loss",
+      "thought": "Querying currencyservice CPU metrics tests the cpu_not_up condition of the loss signature, confirming whether the service is bottlenecked by connections/memory rather than compute.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 254.7,
+        "prompt_tokens": 899,
+        "completion_tokens": 3456,
+        "max_tokens": 8192,
+        "reasoning_chars": 12375,
+        "answer_chars": 322,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: loss",
+      "thought": "Querying frontend socket pressure verifies the connection exhaustion signature required for frontend loss, which would be absent if currencyservice is the sole root cause.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 208.3,
+        "prompt_tokens": 950,
+        "completion_tokens": 2804,
+        "max_tokens": 8192,
+        "reasoning_chars": 10352,
+        "answer_chars": 306,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "currencyservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "currencyservice",
+        "fault_type": "loss",
+        "reason": "top fault types for currencyservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=931.09",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=143.11",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-4.91",
+            "eid": "E2",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "error"
+            },
+            "depth": 1,
+            "predicted": "currencyservice_error z >= 3",
+            "rationale": "Querying currencyservice error metrics directly tests the 'errors_up' signature condition, which must be high for currencyservice loss but low if the fault is isolated to frontend.",
+            "by": "model"
+          },
+          {
+            "eid": "E6",
+            "tool": "log_search",
+            "args": {
+              "service": "frontend",
+              "level": "error",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "High count of frontend error logs indicating request failures.",
+            "rationale": "Checking frontend error logs will confirm the rival's error signature, definitively ruling out currencyservice which shows zero errors.",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "cpu"
+            },
+            "depth": 3,
+            "predicted": "currencyservice_cpu z < 3",
+            "rationale": "Querying currencyservice CPU metrics tests the cpu_not_up condition of the loss signature, confirming whether the service is bottlenecked by connections/memory rather than compute.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "loss",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=153.98",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.52",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-7.43",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "frontend_cpu z < 3",
+            "rationale": "Querying frontend CPU metrics tests the `cpu_not_up` condition of the `frontend: loss` signature, which must hold to confirm the hypothesis and rule out CPU saturation, while the rival is already cont",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "socket"
+            },
+            "depth": 3,
+            "predicted": "frontend_socket z >= 5",
+            "rationale": "Querying frontend socket pressure verifies the connection exhaustion signature required for frontend loss, which would be absent if currencyservice is the sole root cause.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "currencyservice",
+        "fault_type": "socket",
+        "reason": "top fault types for currencyservice by metric signature (score 1)",
+        "status": "pruned",
+        "close_reason": "score 1 (at most 1 if every untested signal held) is 2+ below the best (3)",
+        "score": 1,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=143.11",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "currencyservice",
+        "fault_type": "mem",
+        "reason": "top fault types for currencyservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=30.47",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=931.09",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "socket z=143.11",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [
+      {
+        "branch_id": "B1",
+        "service": "currencyservice",
+        "fault_type": "loss",
+        "reason": "top fault types for currencyservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=931.09",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=143.11",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-4.91",
+            "eid": "E2",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "error"
+            },
+            "depth": 1,
+            "predicted": "currencyservice_error z >= 3",
+            "rationale": "Querying currencyservice error metrics directly tests the 'errors_up' signature condition, which must be high for currencyservice loss but low if the fault is isolated to frontend.",
+            "by": "model"
+          },
+          {
+            "eid": "E6",
+            "tool": "log_search",
+            "args": {
+              "service": "frontend",
+              "level": "error",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "High count of frontend error logs indicating request failures.",
+            "rationale": "Checking frontend error logs will confirm the rival's error signature, definitively ruling out currencyservice which shows zero errors.",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "currencyservice",
+              "metric": "cpu"
+            },
+            "depth": 3,
+            "predicted": "currencyservice_cpu z < 3",
+            "rationale": "Querying currencyservice CPU metrics tests the cpu_not_up condition of the loss signature, confirming whether the service is bottlenecked by connections/memory rather than compute.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "loss",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=153.98",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.52",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-7.43",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "frontend_cpu z < 3",
+            "rationale": "Querying frontend CPU metrics tests the `cpu_not_up` condition of the `frontend: loss` signature, which must hold to confirm the hypothesis and rule out CPU saturation, while the rival is already cont",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "socket"
+            },
+            "depth": 3,
+            "predicted": "frontend_socket z >= 5",
+            "rationale": "Querying frontend socket pressure verifies the connection exhaustion signature required for frontend loss, which would be absent if currencyservice is the sole root cause.",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "hidden": [
+      "traces"
+    ],
+    "flags": {
+      "B1": [
+        "trace_slow: traces hidden in this run",
+        "errors_up: traces hidden in this run"
+      ],
+      "B4": [
+        "trace_slow: traces hidden in this run",
+        "errors_up: traces hidden in this run"
+      ],
+      "B2": [
+        "trace_slow: traces hidden in this run"
+      ],
+      "B3": [
+        "trace_slow: traces hidden in this run"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 1675.2,
+    "tool_seconds": 0.5,
+    "prompt_tokens": 6476,
+    "completion_tokens": 22879,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 1675.7,
+    "cost_usd": 0.0
+  },
+  "telemetry_hidden": [
+    "traces"
+  ]
+}

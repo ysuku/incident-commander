@@ -1,0 +1,185 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "disk"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: cpu saturation",
+      "why": "Trace self-time remained flat despite high CPU metric, indicating requests were blocked on I/O wait rather than compute (E3)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Optimize emailservice disk write patterns or migrate to higher-throughput storage to resolve I/O bottleneck.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 64.1,
+        "prompt_tokens": 400,
+        "completion_tokens": 869,
+        "max_tokens": 8192,
+        "reasoning_chars": 3267,
+        "answer_chars": 228,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to survey the system-wide metrics to identify which services are exhibiting the latency or availability anomalies reported in the alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 108.0,
+        "prompt_tokens": 510,
+        "completion_tokens": 1522,
+        "max_tokens": 8192,
+        "reasoning_chars": 5235,
+        "answer_chars": 313,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows extreme CPU and disk IO spikes in emailservice; querying logs to find corroborating error messages.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 96.2,
+        "prompt_tokens": 588,
+        "completion_tokens": 1338,
+        "max_tokens": 8192,
+        "reasoning_chars": 4925,
+        "answer_chars": 279,
+        "finish_reason": "stop"
+      },
+      "thought": "Need trace evidence to corroborate metric anomalies in emailservice.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.83
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 148.6,
+        "prompt_tokens": 685,
+        "completion_tokens": 2073,
+        "max_tokens": 8192,
+        "reasoning_chars": 7334,
+        "answer_chars": 690,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics reveal an extreme disk I/O anomaly while traces show increased inbound latency with unchanged self-time, confirming an I/O wait bottleneck rather than CPU saturation.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "disk",
+          "supporting_evidence": [
+            "E1",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: cpu saturation",
+              "why": "Trace self-time remained flat despite high CPU metric, indicating requests were blocked on I/O wait rather than compute (E3)"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Optimize emailservice disk write patterns or migrate to higher-throughput storage to resolve I/O bottleneck.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "checked [service='emailservice', level='error']: no log lines at that level (605 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 416.9,
+    "tool_seconds": 1.2,
+    "prompt_tokens": 2183,
+    "completion_tokens": 5802,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 418.2,
+    "cost_usd": 0.0
+  }
+}

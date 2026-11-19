@@ -1,0 +1,706 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "frontend",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=35.19), resources_flat (max resource socket z=1.02); unobservable trace_slow (traces hidden in this run), no_errors (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E4",
+          "E6",
+          "E9"
+        ]
+      },
+      {
+        "service": "recommendationservice",
+        "fault_type": "socket",
+        "score": 1,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed socket_up (socket z=106.99); unobservable trace_slow (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E7",
+          "E8",
+          "E10"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "frontend: delay (score 2, open; confirmed latency_up, resources_flat)",
+    "recommendationservice: socket (score 1, open; confirmed socket_up)",
+    "frontend: loss (score 0, pruned; confirmed latency_up, cpu_not_up)",
+    "frontend: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [
+    "step 3: finish rejected - only ['metrics'] implicates 'recommendationservice' (E2 [logs] does not implicate recommendationservice); a root cause needs two independent kinds that each point at the claimed service"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "9895 matching lines; by svc/level {'recommendationservice/INFO': 9895}; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['2ZYFJ3GM2N', 'LS4PSXUNUM', 'OLJCESPC7Z'; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['9SIQT8TOJO', 'OLJCESPC7Z', '6E92ZMYYFZ'",
+      "source_ref": "logs.csv#L88848",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "checked [service='frontend', level='ERROR']: no log lines at that level (47364 lines searched, levels present ['debug', 'info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend-external_error z=2766990.29; frontend_latency-50 z=35.19 (269.8%); frontend_latency-90 z=21.65 (143.4%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%); recommendationservice_cpu z=52.54 (562.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=frontend, metric=cpu]; largest is only frontend_cpu z=-0.31 (-3.4%)",
+      "source_ref": "simple_metrics.csv:frontend_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=frontend, metric=socket]; largest is only frontend_socket z=1.02 (5.1%)",
+      "source_ref": "simple_metrics.csv:frontend_socket",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "logs",
+      "summary": "checked [service='recommendationservice', level='ERROR']: no log lines at that level (9895 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=frontend, metric=mem]; largest is only frontend_mem z=0.27 (1.3%)",
+      "source_ref": "simple_metrics.csv:frontend_mem",
+      "implicates": []
+    },
+    {
+      "eid": "E10",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='recommendationservice', level='WARN', query='socket']: no line contains that literal text (9895 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 53.4,
+        "prompt_tokens": 348,
+        "completion_tokens": 635,
+        "max_tokens": 8192,
+        "reasoning_chars": 2279,
+        "answer_chars": 249,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify the specific service causing the latency/availability alert by querying all metrics without filters.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.35
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 65.4,
+        "prompt_tokens": 472,
+        "completion_tokens": 852,
+        "max_tokens": 8192,
+        "reasoning_chars": 3261,
+        "answer_chars": 410,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows massive deviations in recommendationservice latency and socket metrics; searching logs for this service will provide the second telemetry type needed to confirm it as the root cause of the frontend errors.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 185.5,
+        "prompt_tokens": 601,
+        "completion_tokens": 2424,
+        "max_tokens": 8192,
+        "reasoning_chars": 9554,
+        "answer_chars": 637,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics reveal extreme latency and socket deviations in recommendationservice, while logs confirm high request throughput, identifying it as the bottleneck causing frontend errors.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend",
+              "why": "E1 shows frontend errors are downstream symptoms of recommendationservice latency"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Scale recommendationservice replicas or optimize recommendation algorithm to reduce processing latency",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_rejected",
+      "detail": "only ['metrics'] implicates 'recommendationservice' (E2 [logs] does not implicate recommendationservice); a root cause needs two independent kinds that each point at the claimed service"
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 145.0,
+        "prompt_tokens": 653,
+        "completion_tokens": 1886,
+        "max_tokens": 8192,
+        "reasoning_chars": 7484,
+        "answer_chars": 337,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows massive frontend external errors, so querying frontend logs for ERROR level will provide the second independent evidence kind needed to confirm frontend as the root cause.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "frontend",
+          "level": "ERROR"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.09
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "frontend: delay",
+      "thought": "Explicitly querying frontend's CPU metric confirms the 'resources_flat' signature of a delay fault, ruling out resource exhaustion and separating it from the rival's socket issue.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 249.9,
+        "prompt_tokens": 859,
+        "completion_tokens": 3139,
+        "max_tokens": 8192,
+        "reasoning_chars": 11900,
+        "answer_chars": 307,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "recommendationservice: socket",
+      "thought": "Querying frontend socket metrics rules out frontend network delays, confirming the high socket z-score is isolated to recommendationservice.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 372.4,
+        "prompt_tokens": 886,
+        "completion_tokens": 4519,
+        "max_tokens": 8192,
+        "reasoning_chars": 18132,
+        "answer_chars": 275,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "frontend: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: no JSON object in response; the heuristic had no test left",
+      "model_call": {
+        "seconds": 685.2,
+        "prompt_tokens": 967,
+        "completion_tokens": 8192,
+        "max_tokens": 8192,
+        "reasoning_chars": 32146,
+        "answer_chars": 0,
+        "finish_reason": "length"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "recommendationservice: socket",
+      "thought": "Querying recommendationservice ERROR logs will reveal socket-specific failures that confirm the socket fault, distinguishing it from a frontend-induced delay which would not generate such errors downs",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "level": "ERROR"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 203.3,
+        "prompt_tokens": 940,
+        "completion_tokens": 2385,
+        "max_tokens": 8192,
+        "reasoning_chars": 9329,
+        "answer_chars": 400,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "frontend: delay",
+      "thought": "Checking frontend memory usage completes the resource flatness verification required by the delay hypothesis, distinguishing it from resource exhaustion faults.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 269.6,
+        "prompt_tokens": 1014,
+        "completion_tokens": 3205,
+        "max_tokens": 8192,
+        "reasoning_chars": 12302,
+        "answer_chars": 288,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "recommendationservice: socket",
+      "thought": "Querying recommendationservice logs for socket warnings provides the second independent evidence type needed to confirm the socket fault and rule out frontend delay.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "query": "socket",
+          "level": "WARN"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 286.5,
+        "prompt_tokens": 1041,
+        "completion_tokens": 3300,
+        "max_tokens": 8192,
+        "reasoning_chars": 13327,
+        "answer_chars": 322,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.05
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 4 steps",
+    "suspect": "frontend",
+    "rival": "recommendationservice",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "top fault types for frontend by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=35.19",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource socket z=1.02",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "frontend-cpu z < 5",
+            "rationale": "Explicitly querying frontend's CPU metric confirms the 'resources_flat' signature of a delay fault, ruling out resource exhaustion and separating it from the rival's socket issue.",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "mem"
+            },
+            "depth": 3,
+            "predicted": "frontend_mem z < 5",
+            "rationale": "Checking frontend memory usage completes the resource flatness verification required by the delay hypothesis, distinguishing it from resource exhaustion faults.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "recommendationservice",
+        "fault_type": "socket",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 1,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=106.99",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "socket"
+            },
+            "depth": 1,
+            "predicted": "frontend_socket z < 25",
+            "rationale": "Querying frontend socket metrics rules out frontend network delays, confirming the high socket z-score is isolated to recommendationservice.",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "service": "recommendationservice",
+              "level": "ERROR"
+            },
+            "depth": 2,
+            "predicted": "high count of ERROR lines reporting socket/connection timeouts or resets",
+            "rationale": "Querying recommendationservice ERROR logs will reveal socket-specific failures that confirm the socket fault, distinguishing it from a frontend-induced delay which would not generate such errors downs",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "log_search",
+            "args": {
+              "service": "recommendationservice",
+              "query": "socket",
+              "level": "WARN"
+            },
+            "depth": 3,
+            "predicted": ">0 matching lines",
+            "rationale": "Querying recommendationservice logs for socket warnings provides the second independent evidence type needed to confirm the socket fault and rule out frontend delay.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "frontend",
+        "fault_type": "loss",
+        "reason": "top fault types for frontend by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 2+ below the best (2)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=35.19",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "socket z=1.02",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-0.31",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "frontend",
+        "fault_type": "disk",
+        "reason": "top fault types for frontend by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -3 if every untested signal held) is 5+ below the best (2)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.27",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.31",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=1.02",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "hidden": [
+      "traces"
+    ],
+    "flags": {
+      "B1": [
+        "trace_slow: traces hidden in this run",
+        "no_errors: traces hidden in this run"
+      ],
+      "B4": [
+        "trace_slow: traces hidden in this run"
+      ],
+      "B2": [
+        "trace_slow: traces hidden in this run",
+        "errors_up: traces hidden in this run"
+      ],
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+        "trace_slow: traces hidden in this run"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 2516.2,
+    "tool_seconds": 0.7,
+    "prompt_tokens": 7781,
+    "completion_tokens": 30537,
+    "replies_hit_token_limit": 1,
+    "wall_seconds": 2516.9,
+    "cost_usd": 0.0
+  },
+  "telemetry_hidden": [
+    "traces"
+  ]
+}

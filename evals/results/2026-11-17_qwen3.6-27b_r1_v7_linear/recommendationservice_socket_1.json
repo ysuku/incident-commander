@@ -1,0 +1,189 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "frontend",
+      "why": "High external_error is a symptom of recommendationservice timeouts; lacks independent internal failure evidence (cite E1, E2)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Increase connection pool limits or fix socket leak in recommendationservice",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 38.5,
+        "prompt_tokens": 400,
+        "completion_tokens": 498,
+        "max_tokens": 8192,
+        "reasoning_chars": 1697,
+        "answer_chars": 196,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify which services are exhibiting metric deviations (latency/errors) relative to the alert time.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 78.2,
+        "prompt_tokens": 503,
+        "completion_tokens": 1101,
+        "max_tokens": 8192,
+        "reasoning_chars": 3962,
+        "answer_chars": 338,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows massive latency and socket deviations in recommendationservice, likely causing frontend errors; traces will confirm if it is the bottleneck.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.7
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 35.1,
+        "prompt_tokens": 627,
+        "completion_tokens": 462,
+        "max_tokens": 8192,
+        "reasoning_chars": 1551,
+        "answer_chars": 263,
+        "finish_reason": "stop"
+      },
+      "thought": "Need to verify the dependency between frontend and recommendationservice to correlate frontend errors with recommendationservice latency spikes.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.36
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 245.3,
+        "prompt_tokens": 691,
+        "completion_tokens": 3428,
+        "max_tokens": 8192,
+        "reasoning_chars": 13080,
+        "answer_chars": 639,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces independently confirm recommendationservice is experiencing severe latency and socket exhaustion, while frontend errors are a downstream symptom.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend",
+              "why": "High external_error is a symptom of recommendationservice timeouts; lacks independent internal failure evidence (cite E1, E2)"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Increase connection pool limits or fix socket leak in recommendationservice",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 397.1,
+    "tool_seconds": 1.4,
+    "prompt_tokens": 2221,
+    "completion_tokens": 5489,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 398.6,
+    "cost_usd": 0.0
+  }
+}

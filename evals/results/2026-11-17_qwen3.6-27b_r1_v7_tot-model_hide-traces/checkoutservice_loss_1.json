@@ -1,0 +1,682 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "checkoutservice",
+        "fault_type": "loss",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=117.63), conn_pressure (socket z=6.69), cpu_not_up (cpu z=-1.52); unobservable trace_slow (traces hidden in this run), errors_up (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E3",
+          "E5",
+          "E7",
+          "E8"
+        ]
+      },
+      {
+        "service": "checkoutservice",
+        "fault_type": "mem",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "inconclusive mem_up (mem z=6.26); confirmed latency_up (latency z=117.63), socket_not_saturated (socket z=6.69); unobservable trace_slow (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E6",
+          "E9"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "checkoutservice: loss (score 3, open; confirmed latency_up, conn_pressure, cpu_not_up)",
+    "checkoutservice: mem (score 2, open; confirmed latency_up, socket_not_saturated)",
+    "checkoutservice: socket (score 0, pruned; confirmed none)",
+    "frontend: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [
+    "tot B2 checkoutservice:mem depth 2: metric_query(service='checkoutservice', metric='gc_pause') failed: unknown metric 'gc_pause'; available metrics are ['cpu', 'diskio', 'error', 'latency-50', 'latency-90', 'mem', 'socket', 'workload']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=36054091.54; frontend-external_error z=36054091.54; checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "checkoutservice",
+        "emailservice",
+        "frontend",
+        "frontend-external",
+        "paymentservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "checked [service='checkoutservice', level='error']: no log lines at that level (1872 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-50 z=117.63 (1761.2%); checkoutservice_latency-90 z=94.85 (1943.2%); checkoutservice_socket z=6.69 (33.4%); checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-50",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_error z=36054091.54; frontend-external_error z=36054091.54",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice, metric=cpu]; largest is only checkoutservice_cpu z=-1.52 (-30.0%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice, metric=mem]: checkoutservice_mem z=6.26 (31.3%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_mem",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=checkoutservice, metric=error]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "logs",
+      "summary": "3 matching lines; by svc/level {}; [checkoutservice/nan] 2024/01/16 03:38:29 traces export: context deadline exceeded: rpc error: code = ; [checkoutservice/nan] 2024/01/16 03:44:41 traces export: context deadline exceeded: rpc error: code = ",
+      "source_ref": "logs.csv#L92313",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice, metric=workload]; largest is only checkoutservice_workload z=-2.25 (-61.8%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_workload",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 40.6,
+        "prompt_tokens": 348,
+        "completion_tokens": 541,
+        "max_tokens": 8192,
+        "reasoning_chars": 1865,
+        "answer_chars": 245,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to survey all services and metrics to identify which component is triggering the latency/availability alert.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 125.7,
+        "prompt_tokens": 466,
+        "completion_tokens": 1788,
+        "max_tokens": 8192,
+        "reasoning_chars": 7037,
+        "answer_chars": 297,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows massive checkoutservice latency spikes and frontend errors; querying checkoutservice logs will identify the specific failure mode.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "checkoutservice",
+          "level": "error"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 128.9,
+        "prompt_tokens": 516,
+        "completion_tokens": 1810,
+        "max_tokens": 8192,
+        "reasoning_chars": 6953,
+        "answer_chars": 270,
+        "finish_reason": "stop"
+      },
+      "thought": "Drill down into checkoutservice metrics to identify the specific resource fault (cpu/mem/disk/socket) driving the latency spike.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "checkoutservice: loss",
+      "thought": "Network packet loss increases latency and connection pressure without raising CPU usage, while memory exhaustion typically spikes CPU due to garbage collection or swapping.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 167.7,
+        "prompt_tokens": 647,
+        "completion_tokens": 2286,
+        "max_tokens": 8192,
+        "reasoning_chars": 8591,
+        "answer_chars": 314,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: mem",
+      "thought": "Directly querying the memory metric verifies if the z-score reaches the >=15 threshold required for the memory hypothesis, distinguishing it from packet loss which would manifest as high socket errors",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 206.3,
+        "prompt_tokens": 692,
+        "completion_tokens": 2820,
+        "max_tokens": 8192,
+        "reasoning_chars": 11058,
+        "answer_chars": 353,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "checkoutservice: loss",
+      "thought": "Querying checkoutservice error metrics will confirm a significant rise in span error rates, which aligns with connection loss causing timeouts rather than memory pressure that typically degrades laten",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "error"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 150.0,
+        "prompt_tokens": 752,
+        "completion_tokens": 1902,
+        "max_tokens": 8192,
+        "reasoning_chars": 7110,
+        "answer_chars": 376,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: mem",
+      "thought": "Querying garbage collection pause metrics directly distinguishes memory-induced latency from network-induced latency, confirming whether memory pressure is the root cause.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "gc_pause"
+        }
+      },
+      "outcome": "tot_test_failed",
+      "observed": null,
+      "generator": "model",
+      "model_call": {
+        "seconds": 309.8,
+        "prompt_tokens": 768,
+        "completion_tokens": 4141,
+        "max_tokens": 8192,
+        "reasoning_chars": 16117,
+        "answer_chars": 308,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "checkoutservice: loss",
+      "thought": "Network loss manifests as connection timeouts in logs, whereas memory pressure causes GC or OOM errors, so searching for timeouts distinguishes them.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "checkoutservice",
+          "query": "timeout"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 197.9,
+        "prompt_tokens": 856,
+        "completion_tokens": 2619,
+        "max_tokens": 8192,
+        "reasoning_chars": 9751,
+        "answer_chars": 276,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: mem",
+      "thought": "Checking workload helps distinguish between load-induced latency and mem/loss issues, as high workload would rule out both hypotheses.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "workload"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 363.1,
+        "prompt_tokens": 951,
+        "completion_tokens": 4821,
+        "max_tokens": 8192,
+        "reasoning_chars": 16528,
+        "answer_chars": 270,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "checkoutservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "checkoutservice",
+        "fault_type": "loss",
+        "reason": "top fault types for checkoutservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=117.63",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.69",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-1.52",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "checkoutservice_cpu z < 3",
+            "rationale": "Network packet loss increases latency and connection pressure without raising CPU usage, while memory exhaustion typically spikes CPU due to garbage collection or swapping.",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "error"
+            },
+            "depth": 2,
+            "predicted": "checkoutservice_error z >= 3",
+            "rationale": "Querying checkoutservice error metrics will confirm a significant rise in span error rates, which aligns with connection loss causing timeouts rather than memory pressure that typically degrades laten",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "service": "checkoutservice",
+              "query": "timeout"
+            },
+            "depth": 3,
+            "predicted": "count > 0",
+            "rationale": "Network loss manifests as connection timeouts in logs, whereas memory pressure causes GC or OOM errors, so searching for timeouts distinguishes them.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "checkoutservice",
+        "fault_type": "mem",
+        "reason": "top fault types for checkoutservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=6.26",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=117.63",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.69",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "mem"
+            },
+            "depth": 1,
+            "predicted": "checkoutservice_mem z >= 15",
+            "rationale": "Directly querying the memory metric verifies if the z-score reaches the >=15 threshold required for the memory hypothesis, distinguishing it from packet loss which would manifest as high socket errors",
+            "by": "model"
+          },
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "gc_pause"
+            },
+            "depth": 2,
+            "predicted": "gc_pause z >= 3",
+            "rationale": "Querying garbage collection pause metrics directly distinguishes memory-induced latency from network-induced latency, confirming whether memory pressure is the root cause.",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "workload"
+            },
+            "depth": 3,
+            "predicted": "workload z < 3",
+            "rationale": "Checking workload helps distinguish between load-induced latency and mem/loss issues, as high workload would rule out both hypotheses.",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "checkoutservice",
+        "fault_type": "socket",
+        "reason": "top fault types for checkoutservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=6.69",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -3 if every untested signal held) is 6+ below the best (3)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.17",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.61",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0.01",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "hidden": [
+      "traces"
+    ],
+    "flags": {
+      "B1": [
+        "trace_slow: traces hidden in this run",
+        "errors_up: traces hidden in this run"
+      ],
+      "B2": [
+        "trace_slow: traces hidden in this run"
+      ],
+      "B3": [
+        "trace_slow: traces hidden in this run"
+      ],
+      "B4": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+        "trace_slow: traces hidden in this run"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 1690.0,
+    "tool_seconds": 0.5,
+    "prompt_tokens": 5996,
+    "completion_tokens": 22728,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 1690.7,
+    "cost_usd": 0.0
+  },
+  "telemetry_hidden": [
+    "traces"
+  ]
+}

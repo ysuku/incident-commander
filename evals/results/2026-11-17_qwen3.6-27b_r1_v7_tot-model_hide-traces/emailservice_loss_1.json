@@ -1,0 +1,799 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate; leaders level: emailservice: mem or emailservice: loss (score 3, 1 telemetry kind(s) each)",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate; leaders level: emailservice: mem or emailservice: loss (score 3, 1 telemetry kind(s) each)",
+    "hypotheses": [
+      {
+        "service": "emailservice",
+        "fault_type": "mem",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed mem_up (mem z=19.48), latency_up (latency z=358.88), socket_not_saturated (socket z=24.36); unobservable trace_slow (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E5",
+          "E7"
+        ]
+      },
+      {
+        "service": "emailservice",
+        "fault_type": "loss",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed latency_up (latency z=358.88), conn_pressure (socket z=24.36), cpu_not_up (cpu z=0.12); unobservable trace_slow (traces hidden in this run), errors_up (traces hidden in this run)",
+        "evidence": [
+          "E1",
+          "E4",
+          "E6",
+          "E8",
+          "E9"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "emailservice: mem (score 3, open; confirmed mem_up, latency_up, socket_not_saturated)",
+    "emailservice: loss (score 3, open; confirmed latency_up, conn_pressure, cpu_not_up)",
+    "emailservice: disk (score 0, pruned; confirmed mem_up, socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "emailservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "checked [service='emailservice', level='error']: no log lines at that level (618 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', level='info', query='socket']: no line contains that literal text (618 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', level='info', query='GC']: no line contains that literal text (618 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=cpu]; largest is only emailservice_cpu z=0.12 (34.2%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='timeout']: no line contains that literal text (618 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=emailservice, metric=error_rate]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "logs",
+      "summary": "7 matching lines; by svc/level {}; [emailservice/nan] Transient error StatusCode.DEADLINE_EXCEEDED encountered while exporting traces ; [emailservice/nan] Transient error StatusCode.DEADLINE_EXCEEDED encountered while exporting traces ",
+      "source_ref": "logs.csv#L108505",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 53.5,
+        "prompt_tokens": 348,
+        "completion_tokens": 728,
+        "max_tokens": 8192,
+        "reasoning_chars": 2598,
+        "answer_chars": 279,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to identify the specific service causing the latency/availability alert by querying all metrics without filters to see the highest deviations.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 82.5,
+        "prompt_tokens": 472,
+        "completion_tokens": 1156,
+        "max_tokens": 8192,
+        "reasoning_chars": 4029,
+        "answer_chars": 336,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows massive latency and socket anomalies in emailservice; searching logs for this service will provide the second independent telemetry kind required for root cause confirmation.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 183.0,
+        "prompt_tokens": 515,
+        "completion_tokens": 2569,
+        "max_tokens": 8192,
+        "reasoning_chars": 9642,
+        "answer_chars": 318,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics implicate emailservice, but error logs are empty; searching info logs for socket-related messages to satisfy the two-telemetry requirement.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "query": "socket",
+          "level": "info",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: mem",
+      "thought": "Memory-induced latency (mem) typically generates garbage collection logs at info level, which would be absent if the root cause were network packet loss (loss).",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "info",
+          "query": "GC"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 309.4,
+        "prompt_tokens": 636,
+        "completion_tokens": 4269,
+        "max_tokens": 8192,
+        "reasoning_chars": 14868,
+        "answer_chars": 300,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: loss",
+      "thought": "Querying the CPU metric distinguishes the loss hypothesis (which requires low CPU usage) from the memory rival (which typically involves high CPU due to garbage collection), as the current evidence sh",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 595.2,
+        "prompt_tokens": 708,
+        "completion_tokens": 8162,
+        "max_tokens": 8192,
+        "reasoning_chars": 27270,
+        "answer_chars": 376,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: mem",
+      "thought": "Searching for timeout logs distinguishes network loss (which generates timeouts) from memory pressure (which increases latency without explicit timeout messages).",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "query": "timeout"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 303.3,
+        "prompt_tokens": 752,
+        "completion_tokens": 4147,
+        "max_tokens": 8192,
+        "reasoning_chars": 15378,
+        "answer_chars": 321,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: loss",
+      "thought": "Querying the span error rate metric verifies the 'errors_up' signature required for the loss hypothesis, which typically distinguishes connection loss from pure memory pressure that rarely triggers hi",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "error_rate"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 179.6,
+        "prompt_tokens": 820,
+        "completion_tokens": 2422,
+        "max_tokens": 8192,
+        "reasoning_chars": 9154,
+        "answer_chars": 388,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: mem",
+      "outcome": "tot_no_test",
+      "generator": "model (no test can add information)",
+      "model_call": {
+        "seconds": 478.8,
+        "prompt_tokens": 836,
+        "completion_tokens": 6558,
+        "max_tokens": 8192,
+        "reasoning_chars": 21958,
+        "answer_chars": 246,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: loss",
+      "thought": "Searching for retry logs confirms network loss (which triggers retries) over memory pressure (which causes GC pauses, already ruled out by empty GC logs).",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "query": "retr"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 361.2,
+        "prompt_tokens": 849,
+        "completion_tokens": 4932,
+        "max_tokens": 8192,
+        "reasoning_chars": 17543,
+        "answer_chars": 279,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.06
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "emailservice",
+    "rival": null,
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "mem",
+        "reason": "top fault types for emailservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=19.48",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=358.88",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=24.36",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "log_search",
+            "args": {
+              "service": "emailservice",
+              "level": "info",
+              "query": "GC"
+            },
+            "depth": 1,
+            "predicted": "GC logs found",
+            "rationale": "Memory-induced latency (mem) typically generates garbage collection logs at info level, which would be absent if the root cause were network packet loss (loss).",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "service": "emailservice",
+              "query": "timeout"
+            },
+            "depth": 2,
+            "predicted": "No log lines containing 'timeout' are found.",
+            "rationale": "Searching for timeout logs distinguishes network loss (which generates timeouts) from memory pressure (which increases latency without explicit timeout messages).",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "loss",
+        "reason": "top fault types for emailservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=358.88",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=24.36",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=0.12",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "cpu z < 3",
+            "rationale": "Querying the CPU metric distinguishes the loss hypothesis (which requires low CPU usage) from the memory rival (which typically involves high CPU due to garbage collection), as the current evidence sh",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "error_rate"
+            },
+            "depth": 2,
+            "predicted": "error_rate z-score >= 3 or absolute increase >= 0.05",
+            "rationale": "Querying the span error rate metric verifies the 'errors_up' signature required for the loss hypothesis, which typically distinguishes connection loss from pure memory pressure that rarely triggers hi",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "service": "emailservice",
+              "query": "retr"
+            },
+            "depth": 3,
+            "predicted": "matches found",
+            "rationale": "Searching for retry logs confirms network loss (which triggers retries) over memory pressure (which causes GC pauses, already ruled out by empty GC logs).",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "emailservice",
+        "fault_type": "disk",
+        "reason": "top fault types for emailservice by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=19.48",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=0.12",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=24.36",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "mem",
+        "reason": "top fault types for emailservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=19.48",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=358.88",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=24.36",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "log_search",
+            "args": {
+              "service": "emailservice",
+              "level": "info",
+              "query": "GC"
+            },
+            "depth": 1,
+            "predicted": "GC logs found",
+            "rationale": "Memory-induced latency (mem) typically generates garbage collection logs at info level, which would be absent if the root cause were network packet loss (loss).",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "service": "emailservice",
+              "query": "timeout"
+            },
+            "depth": 2,
+            "predicted": "No log lines containing 'timeout' are found.",
+            "rationale": "Searching for timeout logs distinguishes network loss (which generates timeouts) from memory pressure (which increases latency without explicit timeout messages).",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "loss",
+        "reason": "top fault types for emailservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=358.88",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=24.36",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=0.12",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "unobservable",
+            "observed": "traces hidden in this run",
+            "eid": null,
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "cpu z < 3",
+            "rationale": "Querying the CPU metric distinguishes the loss hypothesis (which requires low CPU usage) from the memory rival (which typically involves high CPU due to garbage collection), as the current evidence sh",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "error_rate"
+            },
+            "depth": 2,
+            "predicted": "error_rate z-score >= 3 or absolute increase >= 0.05",
+            "rationale": "Querying the span error rate metric verifies the 'errors_up' signature required for the loss hypothesis, which typically distinguishes connection loss from pure memory pressure that rarely triggers hi",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "service": "emailservice",
+              "query": "retr"
+            },
+            "depth": 3,
+            "predicted": "matches found",
+            "rationale": "Searching for retry logs confirms network loss (which triggers retries) over memory pressure (which causes GC pauses, already ruled out by empty GC logs).",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "hidden": [
+      "traces"
+    ],
+    "flags": {
+      "B1": [
+        "trace_slow: traces hidden in this run"
+      ],
+      "B2": [
+        "trace_slow: traces hidden in this run",
+        "errors_up: traces hidden in this run"
+      ],
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+        "trace_slow: traces hidden in this run"
+      ]
+    }
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 2546.5,
+    "tool_seconds": 0.7,
+    "prompt_tokens": 5936,
+    "completion_tokens": 34943,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 2547.1,
+    "cost_usd": 0.0
+  },
+  "telemetry_hidden": [
+    "traces"
+  ]
+}

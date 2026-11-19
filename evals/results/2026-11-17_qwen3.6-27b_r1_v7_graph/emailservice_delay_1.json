@@ -1,0 +1,424 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%); checkoutservice_latency-90 z=21.15 (105.7%); checkoutservice_latency-50 z=10.39 (195.5%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.53->203.82ms (57.79x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "checkoutservice",
+      "why": "Latency spike is downstream of emailservice dependency (E1, E3)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Temporarily increase outbound timeout limits or enable an async fallback for emailservice until downstream dependency latency normalizes.",
+    "steps": [
+      "[GATE] On-call engineer reviews trace data to identify the specific downstream dependency causing the 57.79x inbound call latency spike.",
+      "[ACTION] If the dependency is temporarily degraded, apply a temporary ConfigMap override to increase emailservice.outbound_timeout to 2000ms.",
+      "[GATE] On-call verifies emailservice_latency-90 metrics stabilize below baseline for 5 minutes; if latency persists, proceed to fallback.",
+      "[ACTION] Enable the emailservice.async_fallback feature flag to bypass synchronous dependency calls."
+    ],
+    "preconditions": [
+      "Verify current emailservice.outbound_timeout value and async_fallback flag state in the live environment.",
+      "Confirm on-call has explicit approval to modify runtime configuration or feature flags.",
+      "Ensure latency dashboards are actively streaming to validate the fix."
+    ],
+    "rollback": "Revert the ConfigMap timeout to its original value and disable the async_fallback feature flag; restart emailservice pods if hot-reload is unavailable.",
+    "runbook_refs": [],
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Kubelet Pod startup 99th percentile latency is XX seconds on node. Slow pod starts.",
+        "evidence": "E2",
+        "why": "Own span self-time is stable at 0.19ms, ruling out pod startup delays."
+      },
+      {
+        "runbook": "R2",
+        "step": "Investigate networking issues on the node and to connected hardware. Check physical cables, check networking firewall rules and so on.",
+        "evidence": "E2",
+        "why": "Inbound call errors remain 0.0, contradicting network packet loss or firewall drops."
+      },
+      {
+        "runbook": "R3",
+        "step": "Check current conntrack value on the node. Check which apps are generating a lot of connections. Migrate some pods to another nodes. Bump conntrack limit directly on the node, remembering to make it persistent across node reboots.",
+        "evidence": "E2",
+        "why": "Zero errors in traces indicate connections are succeeding, contradicting conntrack exhaustion."
+      },
+      {
+        "runbook": "R4",
+        "step": "Check if CPU resource requests are adjusted to the app usage - Check if some nodes are available and not cordoned - Check if cluster-autoscaler has issues with adding new nodes - Check if the given namespace usage grows in time more than expected - Review existing quota for given namespace and adjus",
+        "evidence": "E2",
+        "why": "Stable own self-time (0.19ms) rules out CPU throttling or quota overcommit as the cause."
+      }
+    ],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 6,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 57.3,
+        "prompt_tokens": 400,
+        "completion_tokens": 770,
+        "max_tokens": 8192,
+        "reasoning_chars": 2755,
+        "answer_chars": 240,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to survey all services and metrics to identify which ones deviated significantly around the alert time.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 91.0,
+        "prompt_tokens": 531,
+        "completion_tokens": 1277,
+        "max_tokens": 8192,
+        "reasoning_chars": 4622,
+        "answer_chars": 360,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows extreme latency deviations in emailservice; tracing will isolate whether the delay is internal or caused by a downstream dependency.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.86
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 65.2,
+        "prompt_tokens": 643,
+        "completion_tokens": 808,
+        "max_tokens": 8192,
+        "reasoning_chars": 2734,
+        "answer_chars": 332,
+        "finish_reason": "stop"
+      },
+      "thought": "I need to determine if emailservice has downstream dependencies that could be causing the high inbound latency despite low self-time, or if it's an external dependency issue.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.55
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 106.1,
+        "prompt_tokens": 707,
+        "completion_tokens": 1388,
+        "max_tokens": 8192,
+        "reasoning_chars": 4839,
+        "answer_chars": 277,
+        "finish_reason": "stop"
+      },
+      "thought": "Check resource metrics for emailservice to distinguish between resource exhaustion and delay.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 177.4,
+        "prompt_tokens": 782,
+        "completion_tokens": 2350,
+        "max_tokens": 8192,
+        "reasoning_chars": 9052,
+        "answer_chars": 313,
+        "finish_reason": "stop"
+      },
+      "thought": "Check emailservice logs for connection pool or network timeout errors to identify the specific fault type behind the latency spike.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 143.6,
+        "prompt_tokens": 864,
+        "completion_tokens": 1899,
+        "max_tokens": 8192,
+        "reasoning_chars": 6720,
+        "answer_chars": 537,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces independently confirm extreme latency in emailservice, while checkoutservice degradation is a downstream effect.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E4"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "checkoutservice",
+              "why": "Latency spike is downstream of emailservice dependency (E1, E3)"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Scale up emailservice or optimize email sending to reduce latency",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%); checkoutservice_latency-90 z=21.15 (105.7%); checkoutservice_latency-50 z=10.39 (195.5%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.53->203.82ms (57.79x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "664 matching lines; by svc/level {'emailservice/INFO': 664}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L88067",
+      "implicates": []
+    }
+  ],
+  "fix_advisor": {
+    "query": "emailservice network latency injected on its pod, every call slow, resources normal",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "KubeletPodStartUpLatencyHigh",
+        "kind": "symptom",
+        "distance": 0.413,
+        "source_ref": "runbooks/kubernetes/KubeletPodStartUpLatencyHigh.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "action",
+        "distance": 0.458,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#action"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "action",
+        "distance": 0.467,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "KubeCPUQuotaOvercommit",
+        "kind": "action",
+        "distance": 0.486,
+        "source_ref": "runbooks/kubernetes/KubeCPUQuotaOvercommit.md#action"
+      }
+    ],
+    "tool_seconds": 0.56,
+    "model_call": {
+      "seconds": 345.0,
+      "prompt_tokens": 1081,
+      "completion_tokens": 4458,
+      "max_tokens": 8192,
+      "reasoning_chars": 14968,
+      "answer_chars": 3262,
+      "finish_reason": "stop"
+    },
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "Kubelet Pod startup 99th percentile latency is XX seconds on node. Slow pod starts.",
+        "evidence": "E2",
+        "why": "Own span self-time is stable at 0.19ms, ruling out pod startup delays."
+      },
+      {
+        "runbook": "R2",
+        "step": "Investigate networking issues on the node and to connected hardware. Check physical cables, check networking firewall rules and so on.",
+        "evidence": "E2",
+        "why": "Inbound call errors remain 0.0, contradicting network packet loss or firewall drops."
+      },
+      {
+        "runbook": "R3",
+        "step": "Check current conntrack value on the node. Check which apps are generating a lot of connections. Migrate some pods to another nodes. Bump conntrack limit directly on the node, remembering to make it persistent across node reboots.",
+        "evidence": "E2",
+        "why": "Zero errors in traces indicate connections are succeeding, contradicting conntrack exhaustion."
+      },
+      {
+        "runbook": "R4",
+        "step": "Check if CPU resource requests are adjusted to the app usage - Check if some nodes are available and not cordoned - Check if cluster-autoscaler has issues with adding new nodes - Check if the given namespace usage grows in time more than expected - Review existing quota for given namespace and adjus",
+        "evidence": "E2",
+        "why": "Stable own self-time (0.19ms) rules out CPU throttling or quota overcommit as the cause."
+      }
+    ],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Temporarily increase outbound timeout limits or enable an async fallback for emailservice until downstream dependency latency normalizes.",
+      "steps": [
+        "[GATE] On-call engineer reviews trace data to identify the specific downstream dependency causing the 57.79x inbound call latency spike.",
+        "[ACTION] If the dependency is temporarily degraded, apply a temporary ConfigMap override to increase emailservice.outbound_timeout to 2000ms.",
+        "[GATE] On-call verifies emailservice_latency-90 metrics stabilize below baseline for 5 minutes; if latency persists, proceed to fallback.",
+        "[ACTION] Enable the emailservice.async_fallback feature flag to bypass synchronous dependency calls."
+      ],
+      "preconditions": [
+        "Verify current emailservice.outbound_timeout value and async_fallback flag state in the live environment.",
+        "Confirm on-call has explicit approval to modify runtime configuration or feature flags.",
+        "Ensure latency dashboards are actively streaming to validate the fix."
+      ],
+      "rollback": "Revert the ConfigMap timeout to its original value and disable the async_fallback feature flag; restart emailservice pods if hot-reload is unavailable."
+    },
+    "rationale": "No retrieved runbook applies because the evidence shows stable internal processing time and zero errors, contradicting infrastructure-focused runbooks that target pod startup, network errors, conntrack exhaustion, or CPU overcommit.",
+    "runbook_refs": [],
+    "commander_draft": "Scale up emailservice or optimize email sending to reduce latency"
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 4,
+    "review_required": true,
+    "review_reason": "runbook contradicts the evidence: R1 step \"Kubelet Pod startup 99th percentile latency is XX seconds on\" contradicts E2; R2 step \"Investigate networking issues on the node and to connected h\" contradicts E2; R3 step \"Check current conntrack value on the node. Check which apps \" contradicts E2 (+1 more)"
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 7,
+    "model_seconds": 985.6,
+    "tool_seconds": 2.4,
+    "prompt_tokens": 5008,
+    "completion_tokens": 12950,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 988.1,
+    "cost_usd": 0.0
+  }
+}
