@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2441,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "currencyservice_latency-50 has the largest shift in the digest (0.0041 to 0.0883, +2042%, z=+408), and frontend and checkoutservice latency rise afterward; both call currencyservice per the service map, and the slowest traces all pass through frontendservice -> currencyservice. CPU and workload series show no increase (workloads fell about 12%), which fits an injected network delay better than CPU or memory saturation, but the logs have no warnings or errors, so the delay type is inferred from the absence of other signals rather than confirmed.",
+  "proposed_fix": {
+    "description": "Check network latency and traffic shaping rules (e.g. tc netem) on currencyservice pods and their nodes, and remove any injected delay. If none is found, restart or reschedule the currencyservice pods.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.1,
+    "prompt_tokens": 1326,
+    "completion_tokens": 314,
+    "tool_seconds": 1.2,
+    "wall_seconds": 4.3,
+    "cost_usd": 0.005792
+  }
+}

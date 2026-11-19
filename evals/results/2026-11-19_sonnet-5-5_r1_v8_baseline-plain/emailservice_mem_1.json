@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2777,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice shows the largest anomaly in the digest: p90 latency rose from 0.0046 to 1.68 (z=+7219), CPU rose from 0.31 to 18.3 (+5868%), and memory rose about 5x, while its callers show only a smaller latency increase (checkoutservice p90 0.24 to 1.84) and unrelated services such as cartservice, adservice and productcatalogservice are flat. CPU is chosen over mem because its z-score is much larger (+630 vs +84) and it fits the latency growth, but the memory increase is also notable and logs contain no warnings or errors to separate the two; the listed trace chains appear to be a flattened path rather than true call edges (emailservice is only called by checkoutservice in the service map).",
+  "proposed_fix": {
+    "description": "Inspect emailservice for runaway CPU use (hot loop or heavy request handling), then restart or scale out its replicas and apply CPU limits; verify checkoutservice latency recovers.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.5,
+    "prompt_tokens": 1478,
+    "completion_tokens": 378,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.8,
+    "cost_usd": 0.006736
+  }
+}

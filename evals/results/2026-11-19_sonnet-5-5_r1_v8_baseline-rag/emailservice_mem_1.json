@@ -1,0 +1,38 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 3414,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.596
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.634
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice has the largest anomalies in the digest: latency-90 rose from 0.0046 to 1.68 (z=+7219), and CPU rose from 0.31 to 18.3 (about 59x), with memory also up about 5x. Downstream effects show in checkoutservice latency-90 (0.24 to 1.84), while services outside the checkout path (cartservice, frontend, adservice, productcatalogservice) stayed flat; CPU is the most likely fault type, though memory growth makes a mem fault a plausible alternative.",
+  "proposed_fix": {
+    "description": "Inspect emailservice for CPU-bound work (e.g., a hot loop or runaway request handling) and its CPU limits. Then restart or scale out the emailservice pods and raise CPU limits if needed, while checking whether memory keeps growing after the restart.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.1,
+    "prompt_tokens": 1743,
+    "completion_tokens": 329,
+    "tool_seconds": 1.4,
+    "wall_seconds": 4.4,
+    "cost_usd": 0.006776
+  }
+}

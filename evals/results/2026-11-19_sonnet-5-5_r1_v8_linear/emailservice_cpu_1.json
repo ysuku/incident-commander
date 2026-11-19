@@ -1,0 +1,201 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=589.02 (6545.5%); emailservice_latency-90 z=82.21 (411.0%); emailservice_latency-50 z=57.85 (289.2%); cartservice_latency-90 z=16.66 (191.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "cartservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.18->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.48->10.01ms (2.87x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "cartservice: latency secondary",
+      "why": "Its latency-90 deviation in E1 (z=16.66) is far smaller than emailservice's cpu z=589 and latency z=82; no trace or log evidence points to cartservice."
+    },
+    {
+      "candidate": "checkoutservice: propagated latency",
+      "why": "No checkoutservice deviation appears in E1; E2 shows emailservice inbound latency rising 2.87x while its own spans stay flat (1.04x), consistent with CPU contention on emailservice, not a caller issue."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Scale out emailservice replicas or raise its CPU limits, and investigate the source of the CPU consumption. Non-destructive; avoid restarting until the cause is understood.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 589,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 198,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00193,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; instructed to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 714,
+        "completion_tokens": 168,
+        "max_tokens": 16000,
+        "answer_chars": 465,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00311,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at emailservice CPU, but I need an independent telemetry kind, so I'll check traces for emailservice's own and inbound latency before and after the alert.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.01
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 923,
+        "completion_tokens": 167,
+        "max_tokens": 16000,
+        "answer_chars": 467,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00352,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but I need a log signal or service map check to confirm the cpu fault and rule out cartservice/checkoutservice as the origin.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1036,
+        "completion_tokens": 387,
+        "max_tokens": 16000,
+        "answer_chars": 1005,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00594,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at emailservice; I have enough for the finish, with logs being neutral and non-contradicting.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "cartservice: latency secondary",
+              "why": "Its latency-90 deviation in E1 (z=16.66) is far smaller than emailservice's cpu z=589 and latency z=82; no trace or log evidence points to cartservice."
+            },
+            {
+              "candidate": "checkoutservice: propagated latency",
+              "why": "No checkoutservice deviation appears in E1; E2 shows emailservice inbound latency rising 2.87x while its own spans stay flat (1.04x), consistent with CPU contention on emailservice, not a caller issue."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Scale out emailservice replicas or raise its CPU limits, and investigate the source of the CPU consumption. Non-destructive; avoid restarting until the cause is understood.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=589.02 (6545.5%); emailservice_latency-90 z=82.21 (411.0%); emailservice_latency-50 z=57.85 (289.2%); cartservice_latency-90 z=16.66 (191.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "cartservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.18->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.48->10.01ms (2.87x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "642 matching lines; by svc/level {'emailservice/INFO': 642}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L87079",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 7.5,
+    "tool_seconds": 1.1,
+    "prompt_tokens": 3262,
+    "completion_tokens": 797,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 8.5,
+    "cost_usd": 0.014494
+  }
+}

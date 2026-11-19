@@ -1,0 +1,243 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: disk io fault",
+      "why": "diskio z=9.6e18 in E1/E3 is implausibly large and is consistent with a near-zero baseline artifact; CPU deviation (6238%) and latency rise are the more credible signals, and no disk errors appear in E4 logs."
+    },
+    {
+      "candidate": "checkoutservice: downstream victim",
+      "why": "E2 shows emailservice's own spans are unchanged (0.97x self-time) while inbound caller-observed latency rose 2.75x with no errors. That pattern fits the slowness being on emailservice's side (CPU contention), not checkoutservice; no evidence shows checkoutservice deviating in E1."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Scale out emailservice replicas and/or raise its CPU limits, then investigate the source of the CPU consumption (e.g. a runaway process or load spike) before restarting anything.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.1,
+        "prompt_tokens": 589,
+        "completion_tokens": 96,
+        "max_tokens": 16000,
+        "answer_chars": 257,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00214,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 759,
+        "completion_tokens": 192,
+        "max_tokens": 16000,
+        "answer_chars": 491,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00344,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point to emailservice CPU, so I need an independent kind of telemetry (traces) showing emailservice's own and inbound latency/errors before vs after the alert.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.0
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 944,
+        "completion_tokens": 181,
+        "max_tokens": 16000,
+        "answer_chars": 465,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0037,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but I need to separate cpu from disk fault, so I'll look at emailservice's metrics specifically.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1079,
+        "completion_tokens": 209,
+        "max_tokens": 16000,
+        "answer_chars": 544,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00425,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but the diskio z-score looks like a near-zero-baseline artifact. Logs are a third independent telemetry kind and could separate cpu from disk, so I'll check emailservice logs.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 4.4,
+        "prompt_tokens": 1192,
+        "completion_tokens": 461,
+        "max_tokens": 16000,
+        "answer_chars": 1219,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00699,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice; CPU is the strongest credible signal (diskio z is likely a near-zero baseline artifact), and checkoutservice is a victim candidate that I should rule out. I have enough for a finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: disk io fault",
+              "why": "diskio z=9.6e18 in E1/E3 is implausibly large and is consistent with a near-zero baseline artifact; CPU deviation (6238%) and latency rise are the more credible signals, and no disk errors appear in E4 logs."
+            },
+            {
+              "candidate": "checkoutservice: downstream victim",
+              "why": "E2 shows emailservice's own spans are unchanged (0.97x self-time) while inbound caller-observed latency rose 2.75x with no errors. That pattern fits the slowness being on emailservice's side (CPU contention), not checkoutservice; no evidence shows checkoutservice deviating in E1."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Scale out emailservice replicas and/or raise its CPU limits, then investigate the source of the CPU consumption (e.g. a runaway process or load spike) before restarting anything.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "605 matching lines; by svc/level {'emailservice/INFO': 605}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L84974",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 11.3,
+    "tool_seconds": 1.1,
+    "prompt_tokens": 4563,
+    "completion_tokens": 1139,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 12.4,
+    "cost_usd": 0.020516
+  }
+}

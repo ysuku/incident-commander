@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2422,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "recommendationservice has by far the largest anomalies: latency-90 up 867% (z=+173), latency-50 up 780%, and CPU up 656% (z=+67), with only a minor memory rise (+14.8%), which points to CPU saturation rather than a memory fault. Downstream productcatalogservice latency is unchanged (+2.1%), so the slowdown originates in recommendationservice itself. The worst traces (frontend -> currency -> productcatalog) don't touch recommendationservice and show errors only in frontendservice, and logs contain no warnings or errors, so confidence is medium rather than high.",
+  "proposed_fix": {
+    "description": "Investigate recommendationservice for CPU-bound work (e.g. a runaway loop or heavy computation), check recent deploys, and scale out or add CPU limits/replicas as a temporary mitigation; restart the pod only if it's confirmed to be stuck.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.8,
+    "prompt_tokens": 1343,
+    "completion_tokens": 356,
+    "tool_seconds": 1.4,
+    "wall_seconds": 4.1,
+    "cost_usd": 0.006246
+  }
+}

@@ -1,0 +1,384 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "9895 matching lines; by svc/level {'recommendationservice/INFO': 9895}; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['2ZYFJ3GM2N', 'LS4PSXUNUM', 'OLJCESPC7Z'; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['9SIQT8TOJO', 'OLJCESPC7Z', '6E92ZMYYFZ'",
+      "source_ref": "logs.csv#L88848",
+      "implicates": []
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "productcatalogservice: upstream dependency slowing recommendations",
+      "why": "E4 shows no significant change in its own or inbound latency (1.0x and 1.16x) and no errors, so it is not slowing recommendationservice."
+    },
+    {
+      "candidate": "frontend: error symptom downstream of recommendationservice",
+      "why": "E1 shows frontend-external_error is a downstream symptom. The latency and socket deviations are largest in recommendationservice (E1), and E2 shows its inbound calls slowed 17.84x."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Verify socket/connection pressure on recommendationservice pods and, if confirmed, relieve it via a gated, reversible restart or scale-out.",
+    "steps": [
+      "Inspect recommendationservice pods for socket counts (e.g. `kubectl exec <pod> -- ss -s`) and compare with the pre-incident baseline in E1.",
+      "Check whether the ListRecommendations request rate (E3, ~9.9k log lines) is elevated versus normal, and identify callers (e.g. frontend) driving it.",
+      "Check the node's conntrack usage (R1) on the nodes hosting recommendationservice, e.g. `conntrack -C` vs `nf_conntrack_max`, to see whether the node is also a bottleneck.",
+      "If socket exhaustion on the pods is confirmed, with approval scale recommendationservice replicas up by a small increment to spread connections.",
+      "If a single pod holds leaked or stuck sockets, with approval do a rolling restart of that deployment, one pod at a time, watching latency-50/90 and frontend-external_error.",
+      "Review client connection handling (connection reuse, gRPC channel pooling, keepalive/timeouts) for a longer-term fix."
+    ],
+    "preconditions": [
+      "Confirm the recommendationservice_socket anomaly is still active and not a recovered transient.",
+      "Confirm spare cluster capacity exists before scaling.",
+      "Confirm a rolling restart will not take capacity below what current traffic needs.",
+      "Human on-call approves each change step."
+    ],
+    "rollback": "Scale replicas back to the original count; if a rollout caused problems, run `kubectl rollout undo deployment/recommendationservice`. The inspection steps are read-only and need no rollback.",
+    "runbook_refs": [
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom"
+    ],
+    "contradictions": [],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.1,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 713,
+        "completion_tokens": 158,
+        "max_tokens": 16000,
+        "answer_chars": 459,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00301,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at recommendationservice (latency and socket); I need an independent kind, so I'll check traces for that service's inbound latency and errors.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.82
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 927,
+        "completion_tokens": 173,
+        "max_tokens": 16000,
+        "answer_chars": 514,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00358,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice, but I need to check that logs also show a socket or connection problem, and to see whether productcatalogservice, its dependency, is implicated.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1118,
+        "completion_tokens": 179,
+        "max_tokens": 16000,
+        "answer_chars": 518,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice, but the logs (E3) are only INFO lines and show no fault, so I need to check whether productcatalogservice, its dependency, is the real source before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.88
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 5.7,
+        "prompt_tokens": 1253,
+        "completion_tokens": 729,
+        "max_tokens": 16000,
+        "answer_chars": 1098,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0098,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) independently point at recommendationservice, and its socket metric deviation fits the latency, while the downstream candidate is ruled out by E4.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "productcatalogservice: upstream dependency slowing recommendations",
+              "why": "E4 shows no significant change in its own or inbound latency (1.0x and 1.16x) and no errors, so it is not slowing recommendationservice."
+            },
+            {
+              "candidate": "frontend: error symptom downstream of recommendationservice",
+              "why": "E1 shows frontend-external_error is a downstream symptom. The latency and socket deviations are largest in recommendationservice (E1), and E2 shows its inbound calls slowed 17.84x."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Inspect recommendationservice's socket and connection state (connection pool, open or exhausted sockets, network path) and fix it. Do not restart or delete anything until the socket state has been captured.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=2766990.29; recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.0->5.27ms (5.29x), errors 0.0->0.0; inbound calls self-time p50 3.87->69.0ms (17.84x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "9895 matching lines; by svc/level {'recommendationservice/INFO': 9895}; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['2ZYFJ3GM2N', 'LS4PSXUNUM', 'OLJCESPC7Z'; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['9SIQT8TOJO', 'OLJCESPC7Z', '6E92ZMYYFZ'",
+      "source_ref": "logs.csv#L88848",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.01->0.01ms (1.0x), errors 0.0->0.0; inbound calls self-time p50 2.39->2.78ms (1.16x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=1002.19 (5010.9%); recommendationservice_latency-50 z=484.07 (2420.3%); recommendationservice_socket z=106.99 (535.0%); recommendationservice_cpu z=52.54 (562.7%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "fix_advisor": {
+    "query": "recommendationservice sockets or connections exhausted, connection errors and timeouts",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "symptom",
+        "distance": 0.454,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "symptom",
+        "distance": 0.475,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeClockSkewDetected",
+        "kind": "action",
+        "distance": 0.631,
+        "source_ref": "runbooks/node/NodeClockSkewDetected.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "KubeletDown",
+        "kind": "action",
+        "distance": 0.648,
+        "source_ref": "runbooks/kubernetes/KubeletDown.md#action"
+      }
+    ],
+    "tool_seconds": 0.03,
+    "model_call": {
+      "seconds": 6.1,
+      "prompt_tokens": 1628,
+      "completion_tokens": 717,
+      "max_tokens": 16000,
+      "answer_chars": 1992,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.01043,
+      "finish_reason": "stop"
+    },
+    "contradictions": [],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Verify socket/connection pressure on recommendationservice pods and, if confirmed, relieve it via a gated, reversible restart or scale-out.",
+      "steps": [
+        "Inspect recommendationservice pods for socket counts (e.g. `kubectl exec <pod> -- ss -s`) and compare with the pre-incident baseline in E1.",
+        "Check whether the ListRecommendations request rate (E3, ~9.9k log lines) is elevated versus normal, and identify callers (e.g. frontend) driving it.",
+        "Check the node's conntrack usage (R1) on the nodes hosting recommendationservice, e.g. `conntrack -C` vs `nf_conntrack_max`, to see whether the node is also a bottleneck.",
+        "If socket exhaustion on the pods is confirmed, with approval scale recommendationservice replicas up by a small increment to spread connections.",
+        "If a single pod holds leaked or stuck sockets, with approval do a rolling restart of that deployment, one pod at a time, watching latency-50/90 and frontend-external_error.",
+        "Review client connection handling (connection reuse, gRPC channel pooling, keepalive/timeouts) for a longer-term fix."
+      ],
+      "preconditions": [
+        "Confirm the recommendationservice_socket anomaly is still active and not a recovered transient.",
+        "Confirm spare cluster capacity exists before scaling.",
+        "Confirm a rolling restart will not take capacity below what current traffic needs.",
+        "Human on-call approves each change step."
+      ],
+      "rollback": "Scale replicas back to the original count; if a rollout caused problems, run `kubectl rollout undo deployment/recommendationservice`. The inspection steps are read-only and need no rollback."
+    },
+    "rationale": "Evidence shows recommendationservice socket metric up 535% with large latency rises (E1) and inbound self-time up 17.84x with no errors (E2), pointing to socket/connection saturation in the service itself; R1 is the only loosely relevant runbook (connection limits), but it is node-level and unconfir",
+    "runbook_refs": [
+      "R1"
+    ],
+    "commander_draft": "Inspect recommendationservice's socket and connection state (connection pool, open or exhausted sockets, network path) and fix it. Do not restart or delete anything until the socket state has been captured."
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 0,
+    "review_required": false
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 6,
+    "model_seconds": 18.3,
+    "tool_seconds": 1.8,
+    "prompt_tokens": 6228,
+    "completion_tokens": 2033,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 20.2,
+    "cost_usd": 0.032785999999999996
+  }
+}

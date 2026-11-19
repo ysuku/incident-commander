@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 5072,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.565
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.57
+    },
+    {
+      "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom",
+      "alert": "NodeNetworkReceiveErrs",
+      "distance": 0.591
+    },
+    {
+      "source_ref": "runbooks/node/NodeNetworkTransmitErrs.md#action",
+      "alert": "NodeNetworkTransmitErrs",
+      "distance": 0.63
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "checkoutservice has by far the largest latency jump (p50 +1761%, z=+117; p90 +1943%) while its callee paymentservice latency barely moves (p90 0.007s to 0.027s) and its workload drops ~62%, so the slowness is inside checkoutservice rather than downstream. Its socket count (+33%, z=+6.7) and memory (+31%) are the only resource anomalies, with CPU not implicated; socket is the best fit but the evidence is indirect, and memory is a plausible alternative.",
+  "proposed_fix": {
+    "description": "Restart or roll the checkoutservice pods to clear leaked sockets/connections, then inspect connection pooling and keep-alive settings for its calls to payment, email, currency and productcatalog services.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.6,
+    "prompt_tokens": 2420,
+    "completion_tokens": 305,
+    "tool_seconds": 1.3,
+    "wall_seconds": 3.9,
+    "cost_usd": 0.00789
+  }
+}

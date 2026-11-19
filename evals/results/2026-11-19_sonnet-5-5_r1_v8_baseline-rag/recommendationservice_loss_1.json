@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 6112,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.546
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.57
+    },
+    {
+      "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom",
+      "alert": "NodeNetworkReceiveErrs",
+      "distance": 0.584
+    },
+    {
+      "source_ref": "runbooks/node/NodeNetworkTransmitErrs.md#symptom",
+      "alert": "NodeNetworkTransmitErrs",
+      "distance": 0.64
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "recommendationservice shows the largest latency jump (latency-50 0.0078 to 3.48, z=+774) together with a socket count rise from 4 to 21.4 (z=+87), and frontend warnings read 'failed to get product recommendations'. Its workload fell 77% while its latency rose, which fits a connection or socket problem in the service itself rather than load. Memory also rose (+205%), so a mem fault is a plausible alternative, but the socket change is larger in z-score and the pattern points more to it. Frontend errors and latency look downstream of recommendationservice.",
+  "proposed_fix": {
+    "description": "Restart or reschedule the recommendationservice pod to clear leaked or stuck connections, then check its connection handling and limits for a leak. Verify afterward that socket count and latency return to baseline.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.1,
+    "prompt_tokens": 2804,
+    "completion_tokens": 319,
+    "tool_seconds": 1.0,
+    "wall_seconds": 4.1,
+    "cost_usd": 0.008798
+  }
+}

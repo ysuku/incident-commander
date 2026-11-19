@@ -1,0 +1,365 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%); frontend_latency-50 z=5.89 (29.5%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.04->2.57ms (2.48x), errors 0.0->0.0; inbound calls self-time p50 3.88->5.43ms (1.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "frontend: latency is its own fault",
+      "why": "Its latency-50 deviation is only z=5.89 (29.5%), far below recommendationservice's z=155.9 (779.5%). It calls recommendationservice (E3), so this is a downstream effect (E1, E3)."
+    },
+    {
+      "candidate": "recommendationservice: delay fault",
+      "why": "A pure delay fault would not raise CPU. E1 shows recommendationservice_cpu z=67.44 (655.6%), and E2 shows own-span self-time rising 2.48x, which fits CPU saturation better."
+    },
+    {
+      "candidate": "productcatalogservice: downstream dependency fault",
+      "why": "It is the only service recommendationservice calls (E3), but it shows no significant deviation in E1. The slowdown sits in recommendationservice's own spans (E2)."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Confirm CPU saturation or throttling on recommendationservice, then, with approval, raise its CPU limit modestly and check whether a load or code change caused the jump.",
+    "steps": [
+      "Check whether recommendationservice pods are being CPU-throttled (container_cpu_cfs_throttled_periods) and compare CPU usage to current requests and limits.",
+      "Check for a recent deploy, config change or traffic increase on recommendationservice that matches the onset of the CPU and latency jump (E1, E2).",
+      "Check that CPU requests match actual usage, and adjust requests if they are clearly too low.",
+      "If throttling is confirmed and the service is erratic, raise the CPU limit on the recommendationservice container only (requests can stay the same), in a small increment, after human approval.",
+      "If CPU stays high after the limit increase, scale out replicas as a gated step, or roll back the recent change if one was found.",
+      "Watch recommendationservice CPU and latency p50/p90 and frontend latency after each change to confirm recovery."
+    ],
+    "preconditions": [
+      "Throttling or CPU saturation is confirmed on recommendationservice pods, not only inferred from latency.",
+      "The node has spare CPU capacity and is not cordoned, so a higher limit or more replicas can be scheduled.",
+      "A recent deploy or traffic change has been checked, so a regression is not masked by adding CPU.",
+      "A human has approved each change."
+    ],
+    "rollback": "Restore the previous CPU limit/requests and replica count (for example by reverting the deployment manifest or running kubectl rollout undo), then confirm the metrics return to their pre-change values.",
+    "runbook_refs": [
+      "runbooks/kubernetes/CPUThrottlingHigh.md#action"
+    ],
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "The alert is purely informative and unless there is some other issue with the application, it can be skipped.",
+        "evidence": "E1",
+        "why": "CPU is up about 656% and latency is up 780-867% on recommendationservice, so there is another issue with the application and the alert cannot be skipped."
+      }
+    ],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 721,
+        "completion_tokens": 153,
+        "max_tokens": 16000,
+        "answer_chars": 433,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00297,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point to recommendationservice with CPU and latency spikes; I need an independent kind (traces) confirming latency at that service before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.11
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.3,
+        "prompt_tokens": 930,
+        "completion_tokens": 142,
+        "max_tokens": 16000,
+        "answer_chars": 424,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00328,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice, but I need to check the service map to confirm frontend is a downstream caller and not an independent source before finishing.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.6
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 3.6,
+        "prompt_tokens": 1041,
+        "completion_tokens": 489,
+        "max_tokens": 16000,
+        "answer_chars": 1251,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00697,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at recommendationservice, and the CPU spike distinguishes cpu from delay, so I will finish with cpu as the fault type.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend: latency is its own fault",
+              "why": "Its latency-50 deviation is only z=5.89 (29.5%), far below recommendationservice's z=155.9 (779.5%). It calls recommendationservice (E3), so this is a downstream effect (E1, E3)."
+            },
+            {
+              "candidate": "recommendationservice: delay fault",
+              "why": "A pure delay fault would not raise CPU. E1 shows recommendationservice_cpu z=67.44 (655.6%), and E2 shows own-span self-time rising 2.48x, which fits CPU saturation better."
+            },
+            {
+              "candidate": "productcatalogservice: downstream dependency fault",
+              "why": "It is the only service recommendationservice calls (E3), but it shows no significant deviation in E1. The slowdown sits in recommendationservice's own spans (E2)."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Raise the CPU limits on recommendationservice or scale out its replicas, then find the source of the CPU load. A restart is not needed.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%); frontend_latency-50 z=5.89 (29.5%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.04->2.57ms (2.48x), errors 0.0->0.0; inbound calls self-time p50 3.88->5.43ms (1.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "recommendationservice"
+      ]
+    }
+  ],
+  "fix_advisor": {
+    "query": "recommendationservice CPU at its limit and throttled, latency rising",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "CPUThrottlingHigh",
+        "kind": "symptom",
+        "distance": 0.576,
+        "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "KubeCPUQuotaOvercommit",
+        "kind": "action",
+        "distance": 0.634,
+        "source_ref": "runbooks/kubernetes/KubeCPUQuotaOvercommit.md#action"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "symptom",
+        "distance": 0.591,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom"
+      },
+      {
+        "id": "R4",
+        "alert": "CPUThrottlingHigh",
+        "kind": "action",
+        "distance": 0.583,
+        "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#action"
+      }
+    ],
+    "tool_seconds": 0.02,
+    "model_call": {
+      "seconds": 6.2,
+      "prompt_tokens": 1579,
+      "completion_tokens": 788,
+      "max_tokens": 16000,
+      "answer_chars": 2312,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.01104,
+      "finish_reason": "stop"
+    },
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "The alert is purely informative and unless there is some other issue with the application, it can be skipped.",
+        "evidence": "E1",
+        "why": "CPU is up about 656% and latency is up 780-867% on recommendationservice, so there is another issue with the application and the alert cannot be skipped."
+      }
+    ],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Confirm CPU saturation or throttling on recommendationservice, then, with approval, raise its CPU limit modestly and check whether a load or code change caused the jump.",
+      "steps": [
+        "Check whether recommendationservice pods are being CPU-throttled (container_cpu_cfs_throttled_periods) and compare CPU usage to current requests and limits.",
+        "Check for a recent deploy, config change or traffic increase on recommendationservice that matches the onset of the CPU and latency jump (E1, E2).",
+        "Check that CPU requests match actual usage, and adjust requests if they are clearly too low.",
+        "If throttling is confirmed and the service is erratic, raise the CPU limit on the recommendationservice container only (requests can stay the same), in a small increment, after human approval.",
+        "If CPU stays high after the limit increase, scale out replicas as a gated step, or roll back the recent change if one was found.",
+        "Watch recommendationservice CPU and latency p50/p90 and frontend latency after each change to confirm recovery."
+      ],
+      "preconditions": [
+        "Throttling or CPU saturation is confirmed on recommendationservice pods, not only inferred from latency.",
+        "The node has spare CPU capacity and is not cordoned, so a higher limit or more replicas can be scheduled.",
+        "A recent deploy or traffic change has been checked, so a regression is not masked by adding CPU.",
+        "A human has approved each change."
+      ],
+      "rollback": "Restore the previous CPU limit/requests and replica count (for example by reverting the deployment manifest or running kubectl rollout undo), then confirm the metrics return to their pre-change values."
+    },
+    "rationale": "recommendationservice CPU is up about 656% with p90 latency up about 867% (E1) and own-span self-time 2.48x (E2), so the app is behaving abnormally and CPU headroom for that one service is the likely fix; R4 applies to the 'mixed with other alerts' case, R1's 'skip it' advice does not.",
+    "runbook_refs": [
+      "R4"
+    ],
+    "commander_draft": "Raise the CPU limits on recommendationservice or scale out its replicas, then find the source of the CPU load. A restart is not needed."
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 1,
+    "review_required": true,
+    "review_reason": "runbook contradicts the evidence: R1 step \"The alert is purely informative and unless there is some oth\" contradicts E1"
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 14.0,
+    "tool_seconds": 1.8,
+    "prompt_tokens": 4860,
+    "completion_tokens": 1649,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 15.8,
+    "cost_usd": 0.026209999999999997
+  }
+}

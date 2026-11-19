@@ -1,0 +1,356 @@
+{
+  "status": "escalated",
+  "reason": "step budget (8) exhausted",
+  "escalation": {
+    "code": "budget_exhausted",
+    "reason": "step budget (8) exhausted",
+    "hypotheses": [
+      {
+        "service": "productcatalogservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "mem",
+        "score": 5,
+        "evidence": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "summary": "confirmed mem_up (mem z=207.23), latency_up (latency z=6719.57), socket_not_saturated (socket z=24.55), trace_slow (traces implicate the service)"
+      },
+      {
+        "service": "productcatalogservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "disk",
+        "score": 5,
+        "evidence": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "summary": "unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)); confirmed mem_up (mem z=207.23), cpu_up (cpu z=53.23), socket_not_saturated (socket z=24.55), trace_slow (traces implicate the service)"
+      },
+      {
+        "service": "recommendationservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "mem",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=3936.91)"
+      },
+      {
+        "service": "recommendationservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "delay",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=3936.91)"
+      },
+      {
+        "service": "cartservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "mem",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=38.42)"
+      },
+      {
+        "service": "cartservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "delay",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=38.42)"
+      }
+    ],
+    "note": "no diagnosis passed the citation gate within the step budget; hypotheses are ranked in code from the evidence already on the board (no new tool calls): a fault type is listed only where one of its signals is confirmed"
+  },
+  "candidates": [
+    "productcatalogservice: delay fault (own spans fast, inbound slow)",
+    "productcatalogservice: mem pressure",
+    "recommendationservice: downstream victim of productcatalogservice"
+  ],
+  "notes": [
+    "step 4: bad args for log_search: no log lines from 'productcatalogservice' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 's",
+    "step 5: metric_query({'service': 'productcatalogservice', 'top': 10}) was already called; its result is E3. Choose a different query."
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: productcatalogservice_error z=11088765.6; productcatalogservice_latency-90 z=6719.57 (33597.8%); recommendationservice_latency-90 z=3936.91 (19684.6%); productcatalogservice_latency-50 z=555.57 (2777.8%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_error",
+      "implicates": [
+        "cartservice",
+        "frontend",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.46x), errors 0.0->0.0; inbound calls self-time p50 2.84->94.15ms (33.19x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_error z=11088765.6; productcatalogservice_latency-90 z=6719.57 (33597.8%); productcatalogservice_latency-50 z=555.57 (2777.8%); productcatalogservice_mem z=207.23 (1036.2%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_error",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "filter matched nothing [level='error', query='productcatalog']: no line contains that literal text (139074 lines searched, levels present ['debug', 'info', 'warning']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='recommendationservice', query='timeout']: no line contains that literal text (10433 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 0.8,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 724,
+        "completion_tokens": 153,
+        "max_tokens": 16000,
+        "answer_chars": 424,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00298,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at productcatalogservice, so I need independent trace evidence on its inbound and own latency and errors before concluding.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.8
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 10.0,
+        "prompt_tokens": 940,
+        "completion_tokens": 177,
+        "max_tokens": 16000,
+        "answer_chars": 454,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00365,
+        "finish_reason": "stop"
+      },
+      "thought": "Need to distinguish delay vs cpu vs other for productcatalogservice; check its resource metrics (cpu, mem, socket) to find fault type.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1105,
+        "completion_tokens": 209,
+        "max_tokens": 16000,
+        "answer_chars": 551,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0043,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but the fault type is ambiguous (mem deviation vs. delay), so I'll check logs for productcatalogservice to discriminate and add a third telemetry kind.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "productcatalogservice",
+          "limit": 10
+        }
+      },
+      "outcome": "bad_args",
+      "detail": "no log lines from 'productcatalogservice' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'paymentservice', 'recommendationservice', 'redis', 's"
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 1242,
+        "completion_tokens": 211,
+        "max_tokens": 16000,
+        "answer_chars": 575,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00459,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but mem z=207 vs the delay hypothesis is unresolved; checking the service map to see callers and confirm recommendationservice is downstream, and look for any further telemetry.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "top": 10
+        }
+      },
+      "outcome": "repeated_call",
+      "detail": "same as E3"
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1292,
+        "completion_tokens": 202,
+        "max_tokens": 16000,
+        "answer_chars": 578,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0046,
+        "finish_reason": "stop"
+      },
+      "thought": "Need a second independent telemetry kind for productcatalogservice; logs are absent for it, so check the service map to see callers/dependents and confirm recommendationservice is a downstream victim, and search logs of callers for errors referencing productcatalog.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "productcatalog",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1360,
+        "completion_tokens": 195,
+        "max_tokens": 16000,
+        "answer_chars": 539,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00467,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but fault type is ambiguous (delay vs mem); I need logs from callers that mention productcatalog to get a third independent kind and to separate delay from mem.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "timeout",
+          "service": "recommendationservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 1441,
+        "completion_tokens": 162,
+        "max_tokens": 16000,
+        "answer_chars": 466,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0045,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but logs are silent for it; I need a log-kind check on its callers to get independent support or rule out alternatives, so I check the service map first.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.4
+    }
+  ],
+  "proposed_fix": null,
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 22.5,
+    "tool_seconds": 1.4,
+    "prompt_tokens": 8693,
+    "completion_tokens": 1386,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 24.0,
+    "cost_usd": 0.031246
+  }
+}

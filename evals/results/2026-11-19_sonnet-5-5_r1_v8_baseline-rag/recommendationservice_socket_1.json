@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 3834,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.527
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.638
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.569
+    },
+    {
+      "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom",
+      "alert": "NodeNetworkReceiveErrs",
+      "distance": 0.555
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "recommendationservice shows by far the largest latency shift (latency-90 +5011%, latency-50 +2420%) alongside CPU +563%, sockets +535% and memory +58%, while its only callee productcatalogservice is flat (latency-50 +20%, CPU -9%), so the fault originates in recommendationservice itself. The worst traces all pass through recommendationservice at ~3.8-4.0 s and frontend errors and latency rise downstream; the CPU spike is the most direct resource signature, though the socket increase is also large and could instead indicate a socket fault, and no logs exist to disambiguate.",
+  "proposed_fix": {
+    "description": "Inspect recommendationservice CPU usage and throttling, then raise its CPU limit or add replicas to relieve the saturation; if socket counts keep climbing after CPU recovers, check for connection leaks. Restarting the pod is not required for the diagnosis.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.7,
+    "prompt_tokens": 1884,
+    "completion_tokens": 357,
+    "tool_seconds": 1.0,
+    "wall_seconds": 4.7,
+    "cost_usd": 0.007338
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 4258,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.577
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.618
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeHpaMaxedOut.md#action",
+      "alert": "KubeHpaMaxedOut",
+      "distance": 0.642
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#action",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.593
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "checkoutservice_cpu rose +4268% (z=+231) and checkoutservice_mem rose +1156% (z=+231) while every other service's metrics stayed flat, and its socket count also rose +33%. CPU and memory moved together, so the fault type is ambiguous; I chose cpu as the first-order signal, but the worst traces run frontendservice -> currencyservice -> productcatalogservice and never touch checkoutservice, and the logs have no warnings or errors, so the link between the checkoutservice anomaly and the user-facing latency is not confirmed.",
+  "proposed_fix": {
+    "description": "Inspect checkoutservice's CPU and memory usage, recent deploys, and pod restarts or throttling. If a runaway process or leak is confirmed, restart or roll back the checkoutservice pods. Also check why the traces show errors in frontendservice calling currencyservice.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.6,
+    "prompt_tokens": 2064,
+    "completion_tokens": 348,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.9,
+    "cost_usd": 0.007608
+  }
+}

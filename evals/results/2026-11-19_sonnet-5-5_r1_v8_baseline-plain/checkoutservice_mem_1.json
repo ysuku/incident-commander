@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2793,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "checkoutservice shows the largest anomalies in the digest: memory rose about 19x (z=+375) and CPU rose about 45x (z=+220), with latency-90 up 764% and latency-50 up 456%. Its downstream callees (paymentservice, emailservice, currencyservice) are essentially flat, so the slowdown originates in checkoutservice itself; the logs contain no warnings or errors to separate cpu from mem, and I chose cpu because the CPU series is the more extreme saturation signal (18.6 vs a 0.41 baseline).",
+  "proposed_fix": {
+    "description": "Restart or scale out checkoutservice (add replicas/CPU limits) to relieve saturation, then profile it for the CPU and memory growth (e.g. a runaway loop or leak) before the next deploy.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.7,
+    "prompt_tokens": 1484,
+    "completion_tokens": 321,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.0,
+    "cost_usd": 0.006178
+  }
+}

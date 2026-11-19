@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 4786,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice has by far the largest anomalies (latency-90 z=+358.88, latency-50 z=+192.04), with socket count up 121.8% (3 to 6.65) and memory up 97.4%, while checkoutservice logs 33 'failed to send order confirmation ... no healthy upstream' warnings, and checkoutservice, which calls emailservice, shows elevated latency. Socket and mem both moved, so the fault type is not cleanly separated: socket is chosen because connection-level 'no healthy upstream' errors and rising socket counts fit best, but a memory fault on emailservice cannot be ruled out.",
+  "proposed_fix": {
+    "description": "Inspect emailservice's connection handling and restart or scale out its pods if its listeners are saturated or unhealthy, then check whether the socket count and latency return to baseline. A rolling restart is non-destructive. Also confirm via emailservice logs and the memory trend whether a leak is the actual driver.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.5,
+    "prompt_tokens": 2281,
+    "completion_tokens": 370,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.8,
+    "cost_usd": 0.008262
+  }
+}

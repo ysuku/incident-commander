@@ -1,0 +1,43 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 5710,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.574
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.639
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.613
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice shows the largest anomalies in the digest (latency-90 +16752%, z=+358.9; socket count 3 to 6.65, z=+24.4; mem roughly doubled), and checkoutservice, its only caller, logs 33 'failed to send order confirmation ... no healthy upstream' warnings with its own latency-90 doubling. Socket is chosen over mem and delay because socket and mem rise together and the 'no healthy upstream' errors suggest connection-level failure, but the digest cannot cleanly separate socket from mem or delay, so confidence is medium.",
+  "proposed_fix": {
+    "description": "Restart or reschedule the emailservice pods to clear the connection and memory buildup. Then inspect emailservice connection handling and health checks and confirm that checkoutservice order-confirmation calls recover.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.8,
+    "prompt_tokens": 2662,
+    "completion_tokens": 324,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.2,
+    "cost_usd": 0.008564
+  }
+}

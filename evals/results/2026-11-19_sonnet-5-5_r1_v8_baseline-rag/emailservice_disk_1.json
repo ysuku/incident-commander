@@ -1,0 +1,38 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 3044,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.6
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.611
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "disk"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice shows the only large anomalies in the digest: diskio went from 0 to 9.6e9, CPU rose 6238%, memory rose 209% and latency-90 rose 362%, while no other service's metrics moved meaningfully. Disk IO is the most extreme deviation and the likeliest primary signal, with the CPU and memory rises plausibly secondary; the worst traces go through frontendservice -> currencyservice -> productcatalogservice, not emailservice, and currencyservice latency is flat, so the user-facing errors are not clearly explained and confidence is limited.",
+  "proposed_fix": {
+    "description": "Inspect emailservice for the process generating heavy disk writes (e.g. logging or temp file spill), then throttle or fix it and restart the emailservice pod if needed. Also investigate the frontendservice error spans separately, since they are not explained by emailservice.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.0,
+    "prompt_tokens": 1605,
+    "completion_tokens": 342,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.3,
+    "cost_usd": 0.00663
+  }
+}

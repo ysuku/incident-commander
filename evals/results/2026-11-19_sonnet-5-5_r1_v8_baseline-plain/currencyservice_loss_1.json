@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 3645,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "currencyservice has the largest latency shift among backend services (latency-90 0.094 to 4.47, z=+931) and its socket count rose from 3 to 24.5 (+715%, z=+143), while its memory growth is smaller; frontend and checkout latency and errors are downstream of it per the service map (frontendservice and checkoutservice both call currencyservice). The sampled traces do not show currencyservice spans, and the workload drops across services look like a consequence of failing requests, so the attribution rests on metric timing and magnitude rather than direct trace evidence.",
+  "proposed_fix": {
+    "description": "Restart or recycle currencyservice pods to clear the accumulated sockets and inspect its connection handling (leaks or unclosed connections); non-destructive rolling restart with traffic drained first.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.8,
+    "prompt_tokens": 1828,
+    "completion_tokens": 314,
+    "tool_seconds": 1.0,
+    "wall_seconds": 3.7,
+    "cost_usd": 0.006796
+  }
+}

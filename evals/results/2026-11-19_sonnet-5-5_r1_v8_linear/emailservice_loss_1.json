@@ -1,0 +1,247 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "emailservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.2ms (1.06x), errors 0.0->0.0; inbound calls self-time p50 3.42->3.96ms (1.16x), errors 0.0->0.1093",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: mem fault",
+      "why": "mem deviation z=19.48 (E1) is much weaker than socket and latency; it is likely a secondary effect, not the primary driver"
+    },
+    {
+      "candidate": "checkoutservice: caller seeing slow emailservice",
+      "why": "E2 shows the errors and slowdown are on inbound calls to emailservice, with its own spans barely changed (0.19->0.2ms); checkoutservice has no deviations in E1, so it is only a victim"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Inspect and restart the emailservice instance that is leaking or exhausting sockets, then check connection limits and pooling. Prefer a rolling restart after draining traffic.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 0.9,
+        "prompt_tokens": 589,
+        "completion_tokens": 74,
+        "max_tokens": 16000,
+        "answer_chars": 198,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00192,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query that ranks all services and metrics.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 711,
+        "completion_tokens": 152,
+        "max_tokens": 16000,
+        "answer_chars": 405,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00294,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at emailservice (latency, socket, mem); I need an independent telemetry kind, so check traces for emailservice's own and inbound latency/errors.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.0
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 912,
+        "completion_tokens": 158,
+        "max_tokens": 16000,
+        "answer_chars": 431,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0034,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but socket vs mem fault is still unresolved, so I'll search emailservice logs for connection or memory errors to discriminate.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1025,
+        "completion_tokens": 173,
+        "max_tokens": 16000,
+        "answer_chars": 481,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00378,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both implicate emailservice, but fault type (socket vs mem) is not yet separated and the logs show only normal INFO lines, so I want to check emailservice's metrics specifically to compare socket and mem deviations.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 1158,
+        "completion_tokens": 394,
+        "max_tokens": 16000,
+        "answer_chars": 1037,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00626,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E4) and traces (E2) both point at emailservice; socket deviation is the strongest resource signal, and latency with socket growth fits a socket fault better than mem, so I'll finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E4"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: mem fault",
+              "why": "mem deviation z=19.48 (E1) is much weaker than socket and latency; it is likely a secondary effect, not the primary driver"
+            },
+            {
+              "candidate": "checkoutservice: caller seeing slow emailservice",
+              "why": "E2 shows the errors and slowdown are on inbound calls to emailservice, with its own spans barely changed (0.19->0.2ms); checkoutservice has no deviations in E1, so it is only a victim"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Inspect and restart the emailservice instance that is leaking or exhausting sockets, then check connection limits and pooling. Prefer a rolling restart after draining traffic.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "emailservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.2ms (1.06x), errors 0.0->0.0; inbound calls self-time p50 3.42->3.96ms (1.16x), errors 0.0->0.1093",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "618 matching lines; by svc/level {'emailservice/INFO': 611}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L85523",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 9.0,
+    "tool_seconds": 1.1,
+    "prompt_tokens": 4395,
+    "completion_tokens": 951,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 10.1,
+    "cost_usd": 0.0183
+  }
+}

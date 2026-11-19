@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2590,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "recommendationservice has by far the largest latency shifts (p90 +5010%, z=+1002) alongside CPU +563%, socket +535% and memory +58%, while its only callee, productcatalogservice, is essentially flat (latency-50 +20%, CPU -8.7%), so the fault originates in recommendationservice itself. CPU, socket and memory all rose together and no logs are available to separate them, so cpu is the best fit but the socket count (4 to 25) is a plausible alternative; the frontend errors and slow traces are downstream symptoms.",
+  "proposed_fix": {
+    "description": "Inspect recommendationservice for CPU saturation (profile hot paths, check for a runaway loop or heavy request load), then scale out replicas or raise CPU limits and restart the affected pod if needed after confirming the pod is not mid-request.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.8,
+    "prompt_tokens": 1386,
+    "completion_tokens": 331,
+    "tool_seconds": 0.9,
+    "wall_seconds": 4.7,
+    "cost_usd": 0.006082
+  }
+}

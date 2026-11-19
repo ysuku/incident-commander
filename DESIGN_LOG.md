@@ -723,3 +723,58 @@ Graph, correct by fault: cpu 3, delay 5, loss 3, socket 2, mem 0, disk 0 (of 5 e
 
 **Still open after these runs:** the frontend residual (now with a real-model case), `--hide
 metrics` on a real model, RE3-OB, Train Ticket, and the single-prompt / RAG-only baselines.
+
+## Module 7 — Baselines and a second model: is the agent better than one prompt?
+
+**What was added.** `baselines.py`: two non-agent systems, scored by the same `evaluate.score`.
+- `plain`: one model call over a fixed telemetry digest (service map, top-15 metric deviations,
+  warning/error log sweep, five worst traces), built in code by the agent's own tool functions.
+- `rag`: the same digest plus four runbook chunks retrieved (MMR) with a query written in code
+  from the significant deviations.
+Neither has tools, follow-up queries, the citation gate or the critic. Both may decline.
+Reached with `cli baseline --kind plain|rag` and `cli eval --arch plain|rag`.
+
+**Runs.** Claude Sonnet 5.5 (effort medium), same 30 cases (RE2-OB repetition 1), one code
+version (fingerprint `befc940f00f5`: v7 plus `baselines.py`, starter removed, agent paths
+unchanged). Folders `evals/results/2026-11-19_sonnet-5-5_r1_v8_*`. Total $2.44.
+
+| 30 cases, Sonnet 5.5 | Single prompt | Single prompt + runbooks | Linear agent | Multi-agent graph |
+|---|---|---|---|---|
+| correct (service + fault) | 14 | 15 | 7 | 10 |
+| right service, wrong fault | 14 | 13 | 10 | 0 |
+| wrong service | 2 | 1 | 0 | 0 |
+| escalated | 0 | 1 | 13 | 20 |
+| answers given / of which correct | 30 / 14 (47%) | 29 / 15 (52%) | 17 / 7 (41%) | 10 / 10 (100%) |
+| model calls / case | 1.0 | 1.0 | 6.8 | 9.0 |
+| cost (30 cases) | $0.18 | $0.21 | $0.80 | $1.25 |
+| wall time (30 cases) | 2 min | 2 min | 9 min | 12 min |
+
+**What this shows**
+1. **One prompt gets more cases right than the agent, and is wrong more often than right.**
+   The single prompt answers every case: 14 right, 16 wrong, with nothing in the output to tell
+   them apart. The graph answers 10 and all 10 are right; the other 20 go to a human, 15 of
+   them with a ToT handover (13 of those name the true service and fault, in a tie or first).
+   The agent's value on this data is knowing when it does not know, not finding more causes.
+2. **The price of that is coverage.** 9 cases the single prompt got right are escalated by the
+   graph (mem and disk ties, and cases where only one telemetry kind implicates the service).
+   The two-kinds gate plus the critic is strict enough to give up correct answers. That is the
+   main thing to improve: accept more without admitting the 16 wrong ones.
+3. **The linear agent is the worst of both.** Fewer correct than one prompt (7 against 14), and
+   10 wrong-fault answers get through the gate, because the gate checks the service, not the
+   fault type. Tree-of-Thought with the critic is what removes them (graph: 0).
+4. **Runbooks barely change a single prompt** (14 -> 15 correct; one wrong-service answer became
+   an escalation). Consistent with keeping runbooks out of diagnosis.
+5. **Both baselines get `productcatalogservice_loss/1` wrong** (`recommendationservice: mem`),
+   the case linear got wrong on Qwen. Sonnet linear and both graph runs escalate it.
+6. **Graph, Sonnet against Qwen (previous entry):** 10 / 0 / 0 / 20 against 13 / 0 / 0 / 17.
+   Neither model ships a wrong answer on the graph; three cases apart on 30 is within noise.
+   Sonnet takes 23 s per case, local Qwen 25 min.
+
+**Graph on Sonnet, details.** ToT ran in 18 of 30 cases. Escalations: tot_no_branch 8, tot_tie 7,
+budget_exhausted 5. Groundedness (10 advised briefs): 0 dropped references, 13 runbook
+contradiction flags (1.30 per brief).
+
+**Caveats.** One repetition of 30 cases. The digest is a fixed first look, so the baseline is
+not shown everything the agent could query. Sonnet at effort medium was not tuned.
+
+**Pending:** the same two baselines on local Qwen3.6-27B (running), RE3-OB, Train Ticket.

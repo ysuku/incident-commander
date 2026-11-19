@@ -1,0 +1,1031 @@
+{
+  "status": "escalated",
+  "reason": "tie: recommendationservice: loss or frontend: loss, indistinguishable in this data",
+  "escalation": {
+    "code": "tot_tie",
+    "reason": "tie: recommendationservice: loss or frontend: loss, indistinguishable in this data",
+    "hypotheses": [
+      {
+        "service": "recommendationservice",
+        "fault_type": "loss",
+        "score": 6,
+        "status": "tied",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=773.71), conn_pressure (socket z=86.98), cpu_not_up (cpu z=-0.47), trace_slow (traces implicate the service), errors_up (span error rate +0.509)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E3",
+          "E8",
+          "E10",
+          "E11"
+        ]
+      },
+      {
+        "service": "frontend",
+        "fault_type": "loss",
+        "score": 6,
+        "status": "tied",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=87.09), conn_pressure (socket z=17.34), cpu_not_up (cpu z=-4.68), trace_slow (traces implicate the service), errors_up (span error rate +0.094)",
+        "evidence": [
+          "E1",
+          "E7",
+          "E9",
+          "E12"
+        ]
+      }
+    ],
+    "note": "the tied branches passed the gate and cannot be told apart in this data; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "recommendationservice: loss (score 6, tied; confirmed latency_up, conn_pressure, cpu_not_up, trace_slow, errors_up)",
+    "frontend: loss (score 6, tied; confirmed latency_up, conn_pressure, cpu_not_up, trace_slow, errors_up)",
+    "recommendationservice: socket (score 3, pruned; confirmed socket_up, trace_slow)",
+    "recommendationservice: mem (score 2, pruned; confirmed mem_up, latency_up, trace_slow)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=1054947994.06; frontend_error z=812786032.69; recommendationservice_latency-50 z=773.71 (44400.8%); recommendationservice_latency-90 z=700.32 (80358.5%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "frontend",
+        "frontend-external",
+        "paymentservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.03->2.54ms (2.46x), errors 0.0->0.0; inbound calls self-time p50 3.85->4.29ms (1.11x), errors 0.0->0.5095",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=recommendationservice]: recommendationservice_latency-50 z=773.71 (44400.8%); recommendationservice_latency-90 z=700.32 (80358.5%); recommendationservice_socket z=86.98 (434.9%); recommendationservice_mem z=41.08 (205.4%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-50",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "checked [service='recommendationservice', level='error']: no log lines at that level (8480 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='recommendationservice', query='connection']: no line contains that literal text (8480 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "logs",
+      "summary": "8480 matching lines; by svc/level {'recommendationservice/INFO': 8474}; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['9SIQT8TOJO', 'L9ECAV7KIM', '6E92ZMYYFZ'; [recommendationservice/INFO] [Recv ListRecommendations] product_ids=['L9ECAV7KIM', '0PUK6V6EV0', 'LS4PSXUNUM'",
+      "source_ref": "logs.csv#L84944",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend-external_error z=1054947994.06; frontend_error z=812786032.69; frontend_latency-90 z=87.09 (692.3%); frontend_latency-50 z=33.09 (165.4%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "traces",
+      "summary": "traces for frontendservice: SIGNIFICANT change; own spans self-time p50 2.93->4.32ms (1.47x), errors 0.0916->0.1859",
+      "source_ref": "traces.csv:serviceName=frontendservice",
+      "implicates": [
+        "frontendservice"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=recommendationservice, metric=cpu]; largest is only recommendationservice_cpu z=-0.47 (-22.4%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E11",
+      "kind": "traces",
+      "summary": "9728 traces after alert; worst: frontendservice -> checkoutservice 33.2ms errors=4; frontendservice -> checkoutservice 8.2ms errors=4; frontendservice -> checkoutservice 6.5ms errors=4",
+      "source_ref": "traces.csv:traceID=9e9ad2c8d75a1535d13d3bcd14d73cec",
+      "implicates": []
+    },
+    {
+      "eid": "E12",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend, metric=socket]: frontend_socket z=17.34 (86.7%)",
+      "source_ref": "simple_metrics.csv:frontend_socket",
+      "implicates": [
+        "frontend"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 0.9,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 705,
+        "completion_tokens": 162,
+        "max_tokens": 16000,
+        "answer_chars": 460,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00303,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at recommendationservice latency; check its own and inbound trace latency/errors to get a second independent telemetry kind.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.83
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 929,
+        "completion_tokens": 193,
+        "max_tokens": 16000,
+        "answer_chars": 544,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00379,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice, but I need to pin down the fault type (cpu vs delay vs mem) by looking at its resource metrics.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 1100,
+        "completion_tokens": 230,
+        "max_tokens": 16000,
+        "answer_chars": 615,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0045,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice, but the fault type is ambiguous: the socket and mem deviations in E3 argue against cpu. Searching its logs should separate socket from delay or mem.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1176,
+        "completion_tokens": 215,
+        "max_tokens": 16000,
+        "answer_chars": 599,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0045,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice, but the logs have no error lines, so I'll search them for socket or connection-related messages to tell the socket fault apart from mem or delay.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "connection",
+          "service": "recommendationservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1247,
+        "completion_tokens": 199,
+        "max_tokens": 16000,
+        "answer_chars": 545,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00448,
+        "finish_reason": "stop"
+      },
+      "thought": "Logs so far show nothing for recommendationservice, so I need a log-side check of that service without a narrow keyword filter to get a second independent telemetry kind.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "recommendationservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 7.7,
+        "prompt_tokens": 1435,
+        "completion_tokens": 815,
+        "max_tokens": 16000,
+        "answer_chars": 1379,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.01102,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E3) and traces (E2) independently point at recommendationservice, and its socket deviation is the largest resource signal, so I'm finishing with a socket fault.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend",
+              "why": "Its error metrics are the top deviations (E1), but inbound calls to recommendationservice show a 0.5095 error rate (E2), and frontend sits upstream as the caller, so its errors look like symptoms."
+            },
+            {
+              "candidate": "recommendationservice: mem fault",
+              "why": "Memory deviates less than socket (z=41.08 vs z=86.98, E3), and the socket signal fits the inbound errors in E2 better."
+            },
+            {
+              "candidate": "recommendationservice: delay fault",
+              "why": "Latency (E1, E3) looks like a consequence. A pure delay fault would not be expected to also move the socket metric (E3), and own-span self-time rose only 2.46x (E2)."
+            },
+            {
+              "candidate": "log-based evidence",
+              "why": "The logs (E4, E5, E6) contain only INFO lines and neither support nor refute any candidate, so I did not rely on them."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Restart or reschedule the recommendationservice pods to reset their sockets, inspect connection handling and limits, and watch frontend error rates recover.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "socket (score 3) vs loss (6) for recommendationservice"
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: loss",
+      "thought": "service_map shows whether frontend calls recommendationservice directly and whether other callers or downstreams could explain the inbound errors; this separates a recommendationservice fault from a f",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 1492,
+        "completion_tokens": 172,
+        "max_tokens": 16000,
+        "answer_chars": 534,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0047,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.38
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: loss",
+      "thought": "Frontend's own trace view (own vs inbound latency/errors) shows whether frontend's spans slowed on their own or only on calls to recommendationservice, and frontend socket/mem metrics have not been sh",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "frontend",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1603,
+        "completion_tokens": 231,
+        "max_tokens": 16000,
+        "answer_chars": 655,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00552,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.76
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: loss",
+      "thought": "Checking whether recommendationservice's cpu is flat while its mem/socket are elevated (and its latency is high) would separate a loss/connection fault there from the frontend, whose errors may be dow",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "recommendationservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 1689,
+        "completion_tokens": 210,
+        "max_tokens": 16000,
+        "answer_chars": 580,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00548,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: loss",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: metric_query({'service': 'frontend'}) already on the board; the heuristic had no test left",
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 1787,
+        "completion_tokens": 153,
+        "max_tokens": 16000,
+        "answer_chars": 392,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0051,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 12,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "recommendationservice: loss",
+      "thought": "Checking frontend's own and inbound trace latency/errors separates the two: if recommendationservice is the root, frontend's failing spans should be calls to recommendationservice (inbound errors 0.51",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.8,
+        "prompt_tokens": 1787,
+        "completion_tokens": 221,
+        "max_tokens": 16000,
+        "answer_chars": 648,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00578,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.44
+    },
+    {
+      "step": 13,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: loss",
+      "thought": "Frontend's signature requires its own memory/socket pressure; the evidence board shows only frontend latency and error metrics, so querying frontend socket and mem directly tests whether the pressure ",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E12",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1920,
+        "completion_tokens": 195,
+        "max_tokens": 16000,
+        "answer_chars": 565,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00579,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "tied",
+    "trigger": "T1 socket (score 3) vs loss (6) for recommendationservice",
+    "suspect": "recommendationservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [
+      {
+        "branch_id": "B1",
+        "service": "recommendationservice",
+        "fault_type": "loss",
+        "reason": "top fault types for recommendationservice by metric signature (score 6)",
+        "status": "open",
+        "close_reason": "",
+        "score": 6,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=773.71",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=86.98",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-0.47",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.509",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "service_map",
+            "args": {},
+            "depth": 1,
+            "predicted": "frontend calls recommendationservice (a downstream dependency), so recommendationservice's inbound errors (0.51) and socket/mem pressure precede frontend errors, consistent with recommendationservice ",
+            "rationale": "service_map shows whether frontend calls recommendationservice directly and whether other callers or downstreams could explain the inbound errors; this separates a recommendationservice fault from a f",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "recommendationservice cpu z < 3 (no significant increase), consistent with loss rather than a CPU-bound fault, while mem and socket remain elevated",
+            "rationale": "Checking whether recommendationservice's cpu is flat while its mem/socket are elevated (and its latency is high) would separate a loss/connection fault there from the frontend, whose errors may be dow",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "limit": 10
+            },
+            "depth": 3,
+            "predicted": "Worst failing request paths run frontend -> recommendationservice, with the errors and slowness located at the recommendationservice span, supporting recommendationservice as the root rather than fron",
+            "rationale": "Checking frontend's own and inbound trace latency/errors separates the two: if recommendationservice is the root, frontend's failing spans should be calls to recommendationservice (inbound errors 0.51",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "loss",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 6,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=87.09",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=17.34",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-4.68",
+            "eid": "E7",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E9",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.094",
+            "eid": "E9",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "frontend",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "Frontend own spans show slowdown and errors with inbound errors elevated, and frontend mem/socket would be elevated; if the rival is true, frontend self-time stays flat and errors appear only on calls",
+            "rationale": "Frontend's own trace view (own vs inbound latency/errors) shows whether frontend's spans slowed on their own or only on calls to recommendationservice, and frontend socket/mem metrics have not been sh",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "socket"
+            },
+            "depth": 3,
+            "predicted": "Frontend socket/mem show z>=5 deviations with cpu flat, supporting frontend as root cause; if no significant deviation appears, the rival recommendationservice wins.",
+            "rationale": "Frontend's signature requires its own memory/socket pressure; the evidence board shows only frontend latency and error metrics, so querying frontend socket and mem directly tests whether the pressure ",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "recommendationservice",
+        "fault_type": "loss",
+        "reason": "top fault types for recommendationservice by metric signature (score 6)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 6,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=773.71",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=86.98",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-0.47",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.509",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "service_map",
+            "args": {},
+            "depth": 1,
+            "predicted": "frontend calls recommendationservice (a downstream dependency), so recommendationservice's inbound errors (0.51) and socket/mem pressure precede frontend errors, consistent with recommendationservice ",
+            "rationale": "service_map shows whether frontend calls recommendationservice directly and whether other callers or downstreams could explain the inbound errors; this separates a recommendationservice fault from a f",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "recommendationservice",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "recommendationservice cpu z < 3 (no significant increase), consistent with loss rather than a CPU-bound fault, while mem and socket remain elevated",
+            "rationale": "Checking whether recommendationservice's cpu is flat while its mem/socket are elevated (and its latency is high) would separate a loss/connection fault there from the frontend, whose errors may be dow",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "limit": 10
+            },
+            "depth": 3,
+            "predicted": "Worst failing request paths run frontend -> recommendationservice, with the errors and slowness located at the recommendationservice span, supporting recommendationservice as the root rather than fron",
+            "rationale": "Checking frontend's own and inbound trace latency/errors separates the two: if recommendationservice is the root, frontend's failing spans should be calls to recommendationservice (inbound errors 0.51",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "loss",
+        "reason": "rival service from conflicting candidates",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 6,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=87.09",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=17.34",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-4.68",
+            "eid": "E7",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E9",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.094",
+            "eid": "E9",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "frontend",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "Frontend own spans show slowdown and errors with inbound errors elevated, and frontend mem/socket would be elevated; if the rival is true, frontend self-time stays flat and errors appear only on calls",
+            "rationale": "Frontend's own trace view (own vs inbound latency/errors) shows whether frontend's spans slowed on their own or only on calls to recommendationservice, and frontend socket/mem metrics have not been sh",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "socket"
+            },
+            "depth": 3,
+            "predicted": "Frontend socket/mem show z>=5 deviations with cpu flat, supporting frontend as root cause; if no significant deviation appears, the rival recommendationservice wins.",
+            "rationale": "Frontend's signature requires its own memory/socket pressure; the evidence board shows only frontend latency and error metrics, so querying frontend socket and mem directly tests whether the pressure ",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "recommendationservice",
+        "fault_type": "socket",
+        "reason": "top fault types for recommendationservice by metric signature (score 3)",
+        "status": "pruned",
+        "close_reason": "score 3 (at most 3 if every untested signal held) is 3+ below the best (6)",
+        "score": 3,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=86.98",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "recommendationservice",
+        "fault_type": "mem",
+        "reason": "top fault types for recommendationservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 4+ below the best (6)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=41.08",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=773.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "socket z=86.98",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {}
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 13,
+    "model_seconds": 32.1,
+    "tool_seconds": 2.7,
+    "prompt_tokens": 17459,
+    "completion_tokens": 3073,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 35.0,
+    "cost_usd": 0.065648
+  }
+}

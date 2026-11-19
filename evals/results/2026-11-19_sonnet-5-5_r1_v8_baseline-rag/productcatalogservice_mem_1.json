@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 5067,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.54
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.628
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.551
+    },
+    {
+      "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom",
+      "alert": "NodeNetworkReceiveErrs",
+      "distance": 0.574
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "productcatalogservice",
+    "fault_type": "mem"
+  },
+  "confidence": "medium",
+  "rationale": "productcatalogservice is the only service with errors (0 to 0.0111) and the largest latency jump (p90 +33598%), and it is the shared callee of frontend, checkout and recommendation in the service map, so the downstream latency in recommendationservice and frontend follows from it. Among its resource metrics, memory rose most (+1036%, 1.0e7 to 1.17e8), well ahead of CPU (+433%) and sockets (+123%), though CPU and socket also rose and could be secondary effects of the same fault, so the fault type is less certain than the service.",
+  "proposed_fix": {
+    "description": "Inspect productcatalogservice memory usage and heap growth, then restart or roll back the affected pod and raise its memory limit if the growth is confirmed. Verify the other signals (CPU, sockets) return to baseline afterward.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.5,
+    "prompt_tokens": 2381,
+    "completion_tokens": 328,
+    "tool_seconds": 1.0,
+    "wall_seconds": 4.6,
+    "cost_usd": 0.008042
+  }
+}

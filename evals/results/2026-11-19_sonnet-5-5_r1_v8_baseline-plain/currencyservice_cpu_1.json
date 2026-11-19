@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2459,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "disk"
+  },
+  "confidence": "high",
+  "rationale": "currencyservice_diskio jumped from 0 to ~4023 (by far the largest anomaly), and its latency-50 rose +859% while its CPU (+47%) and socket count (+49%) rose only moderately, with memory nearly flat (+9%). Frontend and checkoutservice latency rises are downstream effects, since both call currencyservice and the worst traces all pass through it, while productcatalogservice and other services stay near baseline.",
+  "proposed_fix": {
+    "description": "Find and throttle the process generating heavy disk I/O on the currencyservice pod (for example, a runaway disk writer), then restart or reschedule the pod onto a healthy node and check its volume and disk health. Non-destructive: no data is deleted.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.8,
+    "prompt_tokens": 1356,
+    "completion_tokens": 291,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.1,
+    "cost_usd": 0.005622
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 4910,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.588
+    },
+    {
+      "source_ref": "runbooks/node/NodeNetworkTransmitErrs.md#symptom",
+      "alert": "NodeNetworkTransmitErrs",
+      "distance": 0.639
+    },
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.625
+    },
+    {
+      "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom",
+      "alert": "NodeNetworkReceiveErrs",
+      "distance": 0.635
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "currencyservice has the largest anomalies (latency-90 +4656%, z=+931), and its socket count rose from 3 to 24.5 (+715%) while memory rose 152%; frontend and checkoutservice latency and errors are downstream, and both services call currencyservice. The traces show errors only in checkoutservice and frontendservice and do not include currencyservice, and the workload drops across services look like a consequence of failed requests, so the socket attribution is the best fit rather than a certainty.",
+  "proposed_fix": {
+    "description": "Inspect currencyservice connection handling and restart or rollout-restart its pod to clear the accumulated sockets, then check for a connection leak and add connection limits and timeouts.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.0,
+    "prompt_tokens": 2326,
+    "completion_tokens": 284,
+    "tool_seconds": 1.0,
+    "wall_seconds": 4.0,
+    "cost_usd": 0.007492
+  }
+}

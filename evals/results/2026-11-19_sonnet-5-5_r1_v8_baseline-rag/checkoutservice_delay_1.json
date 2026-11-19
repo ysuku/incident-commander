@@ -1,0 +1,36 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 3236,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.648
+    }
+  ],
+  "status": "escalated",
+  "reason": "The digest shows a clear latency cascade but does not discriminate between emailservice and shippingservice as the origin, and nothing in it identifies the fault type. Both emailservice and shippingservice latency-90 are sharply elevated, and shippingservice is not in the service map, so the trace graph cannot place it. The trace paths are not a usable call chain: they list services sequentially (frontend -> checkout -> productcatalog -> payment -> email -> recommendation -> currency), which contradicts the service map where recommendationservice calls productcatalogservice. Error spans appear only in frontendservice, which is a symptom of the timeouts (~5 s) rather than a cause. There are no warning or error logs, since only debug and info levels exist. CPU on checkoutservice is flat (+12%, z=0.67), and no memory, disk, or socket series appear in the top 15. The latency-only signature fits delay or loss but cannot separate them. The retrieved runbook on conntrack exhaustion is a keyword match and has no supporting evidence here (no node metrics).",
+  "candidates": [
+    "emailservice: network delay injected (highest z, +4515% p90, p50 also up 13x; checkoutservice calls it and p90 inflated to 4.1 s)",
+    "shippingservice: delay or loss (p90 up 26x while p50 unchanged, a tail-latency pattern that suggests packet loss or retransmits; absent from the service map, so its relation to checkout is unverified)",
+    "paymentservice: delay (p50 and p90 both up ~10-37x; a callee of checkoutservice that could add serial latency and sit on the checkout path)",
+    "checkoutservice: downstream-victim rather than root cause; its p50 of 2.1 s is consistent with waiting on slow callees (email/payment/shipping)"
+  ],
+  "escalation": {
+    "code": "model_declined",
+    "reason": "The digest shows a clear latency cascade but does not discriminate between emailservice and shippingservice as the origin, and nothing in it identifies the fault type. Both emailservice and shippingservice latency-90 are sharply elevated, and shippingservice is not in the service map, so the trace graph cannot place it. The trace paths are not a usable call chain: they list services sequentially (frontend -> checkout -> productcatalog -> payment -> email -> recommendation -> currency), which contradicts the service map where recommendationservice calls productcatalogservice. Error spans appear only in frontendservice, which is a symptom of the timeouts (~5 s) rather than a cause. There are no warning or error logs, since only debug and info levels exist. CPU on checkoutservice is flat (+12%, z=0.67), and no memory, disk, or socket series appear in the top 15. The latency-only signature fits delay or loss but cannot separate them. The retrieved runbook on conntrack exhaustion is a keyword match and has no supporting evidence here (no node metrics).",
+    "hypotheses": [],
+    "note": "baseline: the candidates are the model's own words, unchecked"
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 5.0,
+    "prompt_tokens": 1667,
+    "completion_tokens": 611,
+    "tool_seconds": 1.3,
+    "wall_seconds": 6.3,
+    "cost_usd": 0.009444
+  }
+}

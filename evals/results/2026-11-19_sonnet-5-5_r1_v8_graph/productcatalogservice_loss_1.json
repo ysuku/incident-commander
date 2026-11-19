@@ -1,0 +1,418 @@
+{
+  "status": "escalated",
+  "reason": "step budget (8) exhausted",
+  "escalation": {
+    "code": "budget_exhausted",
+    "reason": "step budget (8) exhausted",
+    "hypotheses": [
+      {
+        "service": "productcatalogservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "loss",
+        "score": 5,
+        "evidence": [
+          "E1",
+          "E3",
+          "E4",
+          "E7"
+        ],
+        "summary": "confirmed latency_up (latency z=16885.3), conn_pressure (mem z=10.06), cpu_not_up (cpu z=-6.77), trace_slow (traces implicate the service); inconclusive errors_up (span error rate +0.002)"
+      },
+      {
+        "service": "productcatalogservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "mem",
+        "score": 4,
+        "evidence": [
+          "E1",
+          "E3",
+          "E4",
+          "E7"
+        ],
+        "summary": "inconclusive mem_up (mem z=10.06); confirmed latency_up (latency z=16885.3), socket_not_saturated (socket z=7.46), trace_slow (traces implicate the service)"
+      },
+      {
+        "service": "recommendationservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "loss",
+        "score": 4,
+        "evidence": [
+          "E1",
+          "E8"
+        ],
+        "summary": "confirmed latency_up (latency z=13770.2), conn_pressure (socket z=74.34), errors_up (span error rate +0.075); inconclusive trace_slow (traces flat)"
+      },
+      {
+        "service": "frontendservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "mem",
+        "score": 1,
+        "evidence": [
+          "E1",
+          "E8"
+        ],
+        "summary": "confirmed latency_up (latency z=465.05)"
+      },
+      {
+        "service": "frontendservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "delay",
+        "score": 1,
+        "evidence": [
+          "E1",
+          "E8"
+        ],
+        "summary": "confirmed latency_up (latency z=465.05)"
+      },
+      {
+        "service": "recommendationservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "socket",
+        "score": 1,
+        "evidence": [
+          "E1",
+          "E8"
+        ],
+        "summary": "confirmed socket_up (socket z=74.34); inconclusive trace_slow (traces flat)"
+      }
+    ],
+    "note": "no diagnosis passed the citation gate within the step budget; hypotheses are ranked in code from the evidence already on the board (no new tool calls): a fault type is listed only where one of its signals is confirmed"
+  },
+  "candidates": [
+    "productcatalogservice: delay fault (inbound latency 97.7x, own self-time flat)",
+    "productcatalogservice: mem pressure (mem +50%, workload down)",
+    "recommendationservice: own fault, likely only inheriting latency from productcatalogservice"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=20804438.28; productcatalogservice_latency-90 z=16885.35 (84426.7%); recommendationservice_latency-90 z=13770.22 (68851.1%); recommendationservice_latency-50 z=3763.17 (18815.9%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "cartservice",
+        "frontend",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for productcatalogservice: SIGNIFICANT change; own spans self-time p50 0.01->0.01ms (0.89x), errors 0.0->0.0018; inbound calls self-time p50 2.29->224.12ms (97.7x), errors 0.0->0.0012",
+      "source_ref": "traces.csv:serviceName=productcatalogservice",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=16885.35 (84426.7%); productcatalogservice_latency-50 z=2791.84 (13959.2%); productcatalogservice_workload z=-11.45 (-79.0%); productcatalogservice_mem z=10.06 (50.3%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "checked [service='productcatalogservice', level='error']: no log lines at that level (35 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "logs",
+      "summary": "1 matching lines; by svc/level {}; [productcatalogservice/nan] 2024/01/15 18:32:02 traces export: context deadline exceeded: rpc error: code = ",
+      "source_ref": "logs.csv#L117582",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=productcatalogservice]: productcatalogservice_latency-90 z=16885.35 (84426.7%); productcatalogservice_latency-50 z=2791.84 (13959.2%); productcatalogservice_workload z=-11.45 (-79.0%); productcatalogservice_mem z=10.06 (50.3%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-90",
+      "implicates": [
+        "productcatalogservice"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.05->1.87ms (1.78x), errors 0.0->0.0009; inbound calls self-time p50 3.77->8.61ms (2.28x), errors 0.0->0.0748; BUT the inbound slowdown is only on calls from frontendservice, which is also slow to adservice, productcatalogservice: likely frontendservice's own network, not recommendationservice",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "frontendservice"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.1,
+        "prompt_tokens": 589,
+        "completion_tokens": 76,
+        "max_tokens": 16000,
+        "answer_chars": 204,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00194,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 716,
+        "completion_tokens": 151,
+        "max_tokens": 16000,
+        "answer_chars": 445,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00294,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics show productcatalogservice and recommendationservice latency spikes; I need the call graph to determine which is upstream/downstream before drilling deeper.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.37
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 921,
+        "completion_tokens": 177,
+        "max_tokens": 16000,
+        "answer_chars": 518,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00361,
+        "finish_reason": "stop"
+      },
+      "thought": "Need a second independent telemetry kind on productcatalogservice; trace_lookup with that service shows its own vs inbound latency and errors, helping separate it from recommendationservice as a caller.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.83
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1048,
+        "completion_tokens": 196,
+        "max_tokens": 16000,
+        "answer_chars": 569,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00406,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both implicate productcatalogservice, but its own span self-time is flat while inbound latency is 97.7x, so I need to check for resource-level metrics or logs on that service to determine the fault type.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 3.8,
+        "prompt_tokens": 1218,
+        "completion_tokens": 220,
+        "max_tokens": 16000,
+        "answer_chars": 606,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00464,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at productcatalogservice, but I still need logs as a third kind of evidence to pick the fault type (delay vs cpu vs socket) and to rule out recommendationservice.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "productcatalogservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1300,
+        "completion_tokens": 218,
+        "max_tokens": 16000,
+        "answer_chars": 605,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00478,
+        "finish_reason": "stop"
+      },
+      "thought": "Own self-time at productcatalogservice is unchanged while inbound latency is 97x higher, so I need a second independent telemetry kind (logs) that points at productcatalogservice, so I search for delay or socket related lines there.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "productcatalogservice",
+          "query": "timeout",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.06
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 4.3,
+        "prompt_tokens": 1373,
+        "completion_tokens": 210,
+        "max_tokens": 16000,
+        "answer_chars": 594,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00485,
+        "finish_reason": "stop"
+      },
+      "thought": "Own self-time is flat while inbound latency is up about 98x and workload fell, so I need to check whether the delay comes from the service itself or its network path; a service-scoped metric query will show which metrics (delay, socket, mem) moved.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "top": 15
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1526,
+        "completion_tokens": 210,
+        "max_tokens": 16000,
+        "answer_chars": 578,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00515,
+        "finish_reason": "stop"
+      },
+      "thought": "Evidence for productcatalogservice is in metrics and traces, but fault type is ambiguous (delay vs mem); check recommendationservice's own traces to reject it and see whether its latency is only inherited from productcatalogservice.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E8",
+      "tool_seconds": 0.7
+    }
+  ],
+  "proposed_fix": null,
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 18.3,
+    "tool_seconds": 2.1,
+    "prompt_tokens": 8691,
+    "completion_tokens": 1458,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 20.3,
+    "cost_usd": 0.031962000000000004
+  }
+}

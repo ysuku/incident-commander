@@ -1,0 +1,434 @@
+{
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "delay"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E4",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.91->204.31ms (52.29x), errors 0.0->0.0; inbound calls self-time p50 3.23->203.37ms (62.94x), errors 0.0->0.0; outbound calls slowed to 6 callees (cartservice, currencyservice, emailservice, paymentservice, productcatalogservice, shippingservice): delay on checkoutservice's own network",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-90 z=351.72 (1758.6%); checkoutservice_latency-50 z=93.24 (1859.5%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-90",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.2->0.2ms (0.99x), errors 0.0->0.0; inbound calls self-time p50 3.68->204.09ms (55.44x), errors 0.0->0.0; BUT the inbound slowdown is only on calls from checkoutservice, which is also slow to cartservice, currencyservice, paymentservice, productcatalogservice, shippingservice: likely checkoutservice's own network, not emailservice",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice",
+      "why": "Its own span self-time is unchanged (0.2->0.2ms, 0.99x) and the inbound slowdown is only on calls from checkoutservice, which is also slow to 5 other callees (E3), so the delay sits on the caller side."
+    },
+    {
+      "candidate": "shippingservice",
+      "why": "Its latency-90 deviation in E1 is likely the same caller-side effect, since checkoutservice's outbound calls to all 6 callees including shippingservice are slowed (E4). Nothing in the evidence shows shippingservice has its own fault."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Investigate checkoutservice's node/pod network for added latency, and only after confirming a cause, move the checkoutservice pod to another node as a reversible mitigation.",
+    "steps": [
+      "Identify the node and pod hosting checkoutservice and compare its network latency (ping/tcp connect time) to the 6 callees against a pod on a different node.",
+      "Check for network-level delay on the pod/node: tc qdisc rules (netem), CNI/NetworkPolicy changes, or a sidecar/proxy introducing latency.",
+      "Check node network and conntrack health (interface drops, conntrack count vs limit) to confirm or rule out R3 as the cause before any change.",
+      "If the node is implicated, cordon it and request human approval to reschedule the checkoutservice pod to a different node (rolling restart, one replica at a time).",
+      "After the move, verify checkoutservice latency-50/90 and outbound span self-time return toward baseline (~3-4ms p50)."
+    ],
+    "preconditions": [
+      "Confirm checkoutservice has more than one replica or tolerates a rolling restart without dropping checkouts.",
+      "Confirm other nodes have spare cpu/memory capacity to host the pod.",
+      "Confirm no recent deploy or network policy change on checkoutservice that could be rolled back more simply.",
+      "Human on-call approves any cordon or reschedule action."
+    ],
+    "rollback": "Uncordon the node and reschedule or scale the checkoutservice pod back to its original placement; revert any tc/NetworkPolicy change to its prior saved state.",
+    "runbook_refs": [
+      "runbooks/node/NodeNetworkReceiveErrs.md#action",
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+    ],
+    "contradictions": [
+      {
+        "runbook": "R2",
+        "step": "Replace physical cable",
+        "evidence": "E4",
+        "why": "Errors are 0.0->0.0 and the delay hits only checkoutservice's own outbound calls to all callees, which does not indicate a physical link fault, so hardware replacement is not supported and is excluded."
+      },
+      {
+        "runbook": "R3",
+        "step": "Bump conntrack limit directly on the node, remembering to make it persistent across node reboots.",
+        "evidence": "E4",
+        "why": "There is no evidence of conntrack exhaustion (zero errors, only added latency), so a persistent node-level limit change is unsupported and excluded; only the read-only check is kept."
+      }
+    ],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 6,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.0,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 723,
+        "completion_tokens": 147,
+        "max_tokens": 16000,
+        "answer_chars": 426,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00292,
+        "finish_reason": "stop"
+      },
+      "thought": "Latency deviations are largest on emailservice, but downstream callers like checkoutservice may just be reflecting it; I need the call graph to see who depends on whom before drilling further.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.6
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 918,
+        "completion_tokens": 173,
+        "max_tokens": 16000,
+        "answer_chars": 479,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00357,
+        "finish_reason": "stop"
+      },
+      "thought": "Emailservice has the top latency deviation and checkoutservice depends on it, so I need trace evidence from emailservice's own and inbound latency to give a second independent telemetry kind beyond metrics.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.97
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 1115,
+        "completion_tokens": 190,
+        "max_tokens": 16000,
+        "answer_chars": 497,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00413,
+        "finish_reason": "stop"
+      },
+      "thought": "E3 suggests checkoutservice's own network may be the source since it is slow to all downstreams; I need checkoutservice-specific traces to confirm the pattern before concluding.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 1.1
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1330,
+        "completion_tokens": 202,
+        "max_tokens": 16000,
+        "answer_chars": 498,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00468,
+        "finish_reason": "stop"
+      },
+      "thought": "Traces (E3, E4) point at checkoutservice, but a second independent telemetry kind is needed, so I will check checkoutservice's own metrics for a delay signature.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 3.5,
+        "prompt_tokens": 1449,
+        "completion_tokens": 452,
+        "max_tokens": 16000,
+        "answer_chars": 1203,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00742,
+        "finish_reason": "stop"
+      },
+      "thought": "Two independent telemetry kinds already point at checkoutservice (traces E4 and metrics E5), while the emailservice trace data (E3) shows its own self-time unchanged, so I can finish with a delay fault on checkoutservice.",
+      "action": {
+        "finish": {
+          "root_cause_service": "checkoutservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E4",
+            "E5",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice",
+              "why": "Its own span self-time is unchanged (0.2->0.2ms, 0.99x) and the inbound slowdown is only on calls from checkoutservice, which is also slow to 5 other callees (E3), so the delay sits on the caller side."
+            },
+            {
+              "candidate": "shippingservice",
+              "why": "Its latency-90 deviation in E1 is likely the same caller-side effect, since checkoutservice's outbound calls to all 6 callees including shippingservice are slowed (E4). Nothing in the evidence shows shippingservice has its own fault."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Investigate and remediate the network delay on the checkoutservice pod/node (e.g. check for injected latency, tc/netem rules, or node network problems), then reschedule or restart the pod if needed and monitor latency recovery.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=902.94 (4514.7%); shippingservice_latency-90 z=524.32 (2621.6%); checkoutservice_latency-90 z=351.72 (1758.6%); emailservice_latency-50 z=267.35 (1336.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice",
+        "paymentservice",
+        "shippingservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.2->0.2ms (0.99x), errors 0.0->0.0; inbound calls self-time p50 3.68->204.09ms (55.44x), errors 0.0->0.0; BUT the inbound slowdown is only on calls from checkoutservice, which is also slow to cartservice, currencyservice, paymentservice, productcatalogservice, shippingservice: likely checkoutservice's own network, not emailservice",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.91->204.31ms (52.29x), errors 0.0->0.0; inbound calls self-time p50 3.23->203.37ms (62.94x), errors 0.0->0.0; outbound calls slowed to 6 callees (cartservice, currencyservice, emailservice, paymentservice, productcatalogservice, shippingservice): delay on checkoutservice's own network",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=checkoutservice]: checkoutservice_latency-90 z=351.72 (1758.6%); checkoutservice_latency-50 z=93.24 (1859.5%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-90",
+      "implicates": [
+        "checkoutservice"
+      ]
+    }
+  ],
+  "fix_advisor": {
+    "query": "checkoutservice network latency injected on its pod, every call slow, resources normal",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "KubeletPodStartUpLatencyHigh",
+        "kind": "symptom",
+        "distance": 0.413,
+        "source_ref": "runbooks/kubernetes/KubeletPodStartUpLatencyHigh.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "action",
+        "distance": 0.448,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#action"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "action",
+        "distance": 0.437,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "KubeAggregatedAPIDown",
+        "kind": "action",
+        "distance": 0.489,
+        "source_ref": "runbooks/kubernetes/KubeAggregatedAPIDown.md#action"
+      }
+    ],
+    "tool_seconds": 0.66,
+    "model_call": {
+      "seconds": 7.0,
+      "prompt_tokens": 1732,
+      "completion_tokens": 884,
+      "max_tokens": 16000,
+      "answer_chars": 2503,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.0123,
+      "finish_reason": "stop"
+    },
+    "contradictions": [
+      {
+        "runbook": "R2",
+        "step": "Replace physical cable",
+        "evidence": "E4",
+        "why": "Errors are 0.0->0.0 and the delay hits only checkoutservice's own outbound calls to all callees, which does not indicate a physical link fault, so hardware replacement is not supported and is excluded."
+      },
+      {
+        "runbook": "R3",
+        "step": "Bump conntrack limit directly on the node, remembering to make it persistent across node reboots.",
+        "evidence": "E4",
+        "why": "There is no evidence of conntrack exhaustion (zero errors, only added latency), so a persistent node-level limit change is unsupported and excluded; only the read-only check is kept."
+      }
+    ],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Investigate checkoutservice's node/pod network for added latency, and only after confirming a cause, move the checkoutservice pod to another node as a reversible mitigation.",
+      "steps": [
+        "Identify the node and pod hosting checkoutservice and compare its network latency (ping/tcp connect time) to the 6 callees against a pod on a different node.",
+        "Check for network-level delay on the pod/node: tc qdisc rules (netem), CNI/NetworkPolicy changes, or a sidecar/proxy introducing latency.",
+        "Check node network and conntrack health (interface drops, conntrack count vs limit) to confirm or rule out R3 as the cause before any change.",
+        "If the node is implicated, cordon it and request human approval to reschedule the checkoutservice pod to a different node (rolling restart, one replica at a time).",
+        "After the move, verify checkoutservice latency-50/90 and outbound span self-time return toward baseline (~3-4ms p50)."
+      ],
+      "preconditions": [
+        "Confirm checkoutservice has more than one replica or tolerates a rolling restart without dropping checkouts.",
+        "Confirm other nodes have spare cpu/memory capacity to host the pod.",
+        "Confirm no recent deploy or network policy change on checkoutservice that could be rolled back more simply.",
+        "Human on-call approves any cordon or reschedule action."
+      ],
+      "rollback": "Uncordon the node and reschedule or scale the checkoutservice pod back to its original placement; revert any tc/NetworkPolicy change to its prior saved state."
+    },
+    "rationale": "Evidence (E4, E5, E3) shows checkoutservice's own spans and every outbound call slowed ~50-60x with zero errors, while downstream services' own spans are unchanged, which points to delay on checkoutservice's pod/node network; R2 and R3 are loosely relevant for investigation, but none matches the no-",
+    "runbook_refs": [
+      "R2",
+      "R3"
+    ],
+    "commander_draft": "Investigate and remediate the network delay on the checkoutservice pod/node (e.g. check for injected latency, tc/netem rules, or node network problems), then reschedule or restart the pod if needed and monitor latency recovery."
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 2,
+    "review_required": true,
+    "review_reason": "runbook contradicts the evidence: R2 step \"Replace physical cable\" contradicts E4; R3 step \"Bump conntrack limit directly on the node, remembering to ma\" contradicts E4"
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 7,
+    "model_seconds": 17.9,
+    "tool_seconds": 3.4,
+    "prompt_tokens": 7856,
+    "completion_tokens": 2125,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 21.2,
+    "cost_usd": 0.036962
+  }
+}

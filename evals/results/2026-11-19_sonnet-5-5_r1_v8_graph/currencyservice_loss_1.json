@@ -1,0 +1,402 @@
+{
+  "status": "escalated",
+  "reason": "step budget (8) exhausted",
+  "escalation": {
+    "code": "budget_exhausted",
+    "reason": "step budget (8) exhausted",
+    "hypotheses": [
+      {
+        "service": "currencyservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "loss",
+        "score": 6,
+        "evidence": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "summary": "confirmed latency_up (latency z=931.09), conn_pressure (socket z=143.11), cpu_not_up (cpu z=-4.91), trace_slow (traces implicate the service), errors_up (span error rate +0.172)"
+      },
+      {
+        "service": "currencyservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "socket",
+        "score": 3,
+        "evidence": [
+          "E1",
+          "E2",
+          "E3"
+        ],
+        "summary": "confirmed socket_up (socket z=143.11), trace_slow (traces implicate the service)"
+      },
+      {
+        "service": "frontend",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "mem",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=153.98)"
+      },
+      {
+        "service": "frontend",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "delay",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=153.98)"
+      },
+      {
+        "service": "cartservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "mem",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=31.59)"
+      },
+      {
+        "service": "cartservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "delay",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=31.59)"
+      }
+    ],
+    "note": "no diagnosis passed the citation gate within the step budget; hypotheses are ranked in code from the evidence already on the board (no new tool calls): a fault type is listed only where one of its signals is confirmed"
+  },
+  "candidates": [
+    "currencyservice: delay (latency-50/90 up 23-46x, inbound self-time 4.39x, own span self-time flat)",
+    "currencyservice: socket (socket z=143, mem z=30)",
+    "frontend: downstream victim, not root cause"
+  ],
+  "notes": [
+    "step 5: metric_query({'service': 'currencyservice'}) was already called; its result is E3. Choose a different query."
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=3024855755.89; frontend-external_error z=3023113730.93; currencyservice_latency-90 z=931.09 (4655.5%); currencyservice_latency-50 z=462.58 (2312.9%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "cartservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.1->0.13ms (1.24x), errors 0.0->0.0; inbound calls self-time p50 65.29->286.4ms (4.39x), errors 0.0->0.1715",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-90 z=931.09 (4655.5%); currencyservice_latency-50 z=462.58 (2312.9%); currencyservice_socket z=143.11 (715.5%); currencyservice_mem z=30.47 (152.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-90",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "checked [service='currencyservice', level='error']: no log lines at that level (38591 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='currencyservice', query='timeout']: no line contains that literal text (38591 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='currencyservice', query='connection']: no line contains that literal text (38591 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 702,
+        "completion_tokens": 175,
+        "max_tokens": 16000,
+        "answer_chars": 470,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00315,
+        "finish_reason": "stop"
+      },
+      "thought": "Currencyservice latency shows a huge deviation; I need a second independent telemetry kind (traces) for currencyservice, including inbound caller-observed latency, to confirm it.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.77
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 916,
+        "completion_tokens": 177,
+        "max_tokens": 16000,
+        "answer_chars": 480,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0036,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, but the fault type (delay vs cpu vs others) is unresolved, so I'll check its resource metrics.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.7,
+        "prompt_tokens": 1073,
+        "completion_tokens": 208,
+        "max_tokens": 16000,
+        "answer_chars": 550,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00423,
+        "finish_reason": "stop"
+      },
+      "thought": "Socket metric deviates strongly on currencyservice while own span self-time is unchanged but inbound latency rose 4x, so I should check logs to get a second independent signal and discriminate delay vs socket vs cpu.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1137,
+        "completion_tokens": 194,
+        "max_tokens": 16000,
+        "answer_chars": 549,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00421,
+        "finish_reason": "stop"
+      },
+      "thought": "Need to distinguish delay from socket fault and confirm with a second independent kind; check the service map for callers and whether other services show anomalies, starting with currencyservice socket/latency metrics in detail.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "repeated_call",
+      "detail": "same as E3"
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1189,
+        "completion_tokens": 175,
+        "max_tokens": 16000,
+        "answer_chars": 497,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00413,
+        "finish_reason": "stop"
+      },
+      "thought": "Need to discriminate between delay and socket fault for currencyservice, and check the callers' view; the service map will confirm who depends on currencyservice and whether another service could be upstream.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.41
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1299,
+        "completion_tokens": 208,
+        "max_tokens": 16000,
+        "answer_chars": 558,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00468,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, but logs have not yet been checked for a non-error signal; I need a second look at logs to separate delay from socket and to confirm the telemetry kinds agree.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice",
+          "query": "timeout",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 1379,
+        "completion_tokens": 211,
+        "max_tokens": 16000,
+        "answer_chars": 540,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00487,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, but delay vs socket is still unresolved, so I'll check whether any logs corroborate a socket problem; if none, I'll rely on the metrics and traces.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice",
+          "query": "connection",
+          "limit": 5
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.06
+    }
+  ],
+  "proposed_fix": null,
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 15.2,
+    "tool_seconds": 1.4,
+    "prompt_tokens": 8284,
+    "completion_tokens": 1425,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 16.8,
+    "cost_usd": 0.030818
+  }
+}

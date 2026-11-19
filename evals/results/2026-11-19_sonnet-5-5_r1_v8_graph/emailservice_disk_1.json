@@ -1,0 +1,948 @@
+{
+  "status": "escalated",
+  "reason": "tie: emailservice: mem or emailservice: disk, indistinguishable in this data",
+  "escalation": {
+    "code": "tot_tie",
+    "reason": "tie: emailservice: mem or emailservice: disk, indistinguishable in this data",
+    "hypotheses": [
+      {
+        "service": "emailservice",
+        "fault_type": "mem",
+        "score": 5,
+        "status": "tied",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed mem_up (mem z=41.89), latency_up (latency z=72.32), socket_not_saturated (socket z=0), trace_slow (traces implicate the service)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E6",
+          "E8",
+          "E10"
+        ]
+      },
+      {
+        "service": "emailservice",
+        "fault_type": "disk",
+        "score": 5,
+        "status": "tied",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)); confirmed mem_up (mem z=41.89), cpu_up (cpu z=525.45), socket_not_saturated (socket z=0), trace_slow (traces implicate the service)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E7",
+          "E9"
+        ]
+      }
+    ],
+    "note": "the tied branches passed the gate and cannot be told apart in this data; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "emailservice: mem (score 5, tied; confirmed mem_up, latency_up, socket_not_saturated, trace_slow)",
+    "emailservice: disk (score 5, tied; confirmed mem_up, cpu_up, socket_not_saturated, trace_slow)",
+    "emailservice: cpu (score 2, pruned; confirmed cpu_up, socket_not_saturated, trace_slow)",
+    "checkoutservice: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 3.49->9.61ms (2.75x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "605 matching lines; by svc/level {'emailservice/INFO': 605}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L84974",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_diskio z=9.610578736261943e+18; emailservice_cpu z=525.45 (6238.4%); emailservice_latency-90 z=72.32 (361.6%); emailservice_latency-50 z=44.97 (224.8%)",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice]; largest is only checkoutservice_latency-50 z=0.46 (7.9%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-50",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice, metric=mem]: emailservice_mem z=41.89 (209.5%)",
+      "source_ref": "simple_metrics.csv:emailservice_mem",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice, metric=diskio]: emailservice_diskio z=9.610578736261943e+18",
+      "source_ref": "simple_metrics.csv:emailservice_diskio",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=socket]; largest is only emailservice_socket z=0.0 (0.0%)",
+      "source_ref": "simple_metrics.csv:emailservice_socket",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='disk']: no line contains that literal text (605 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E10",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='memory']: no line contains that literal text (605 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.0,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 713,
+        "completion_tokens": 147,
+        "max_tokens": 16000,
+        "answer_chars": 380,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0029,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at emailservice (CPU, diskio, latency); I need an independent kind of telemetry, so check traces for emailservice's own and inbound latency.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.01
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 908,
+        "completion_tokens": 150,
+        "max_tokens": 16000,
+        "answer_chars": 394,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00332,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but cpu vs disk fault is still ambiguous, so I check logs for emailservice to get a third, independent signal.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 3.4,
+        "prompt_tokens": 1021,
+        "completion_tokens": 457,
+        "max_tokens": 16000,
+        "answer_chars": 1191,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00661,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2 inbound latency) both point at emailservice; CPU z=525 with latency rise fits a CPU fault, and the diskio z is likely a degenerate baseline artifact. Logs show only INFO lines, so they are not discriminating, but metrics and traces are two independent kinds, so I can finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: disk io fault",
+              "why": "diskio z=9.6e18 is a degenerate baseline artifact (likely near-zero variance), while CPU rose 6238% alongside latency-90 +361% (E1); the logs show no disk errors (E3)."
+            },
+            {
+              "candidate": "checkoutservice: downstream victim of emailservice latency",
+              "why": "No evidence of checkoutservice deviation in E1; the latency is observed on inbound calls to emailservice (E2), so checkoutservice is a caller affected by it, not the origin."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Investigate the CPU saturation on emailservice, then raise its CPU limits or scale out replicas and throttle the load; a non-destructive restart is optional if saturation persists.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "cpu (score 2) vs mem (5), disk (5), loss (2) for emailservice"
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: mem",
+      "thought": "Memory is not yet shown in the ranked deviations; querying emailservice's memory metric directly checks whether mem z >= 15, which separates mem from disk (diskio already elevated).",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1163,
+        "completion_tokens": 155,
+        "max_tokens": 16000,
+        "answer_chars": 411,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00388,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: disk",
+      "thought": "Disk hypothesis needs diskio rise to be independent of memory; log search for disk/IO errors or write activity in emailservice could separate it, but the cleanest check is the socket metric (socket_no",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 1250,
+        "completion_tokens": 218,
+        "max_tokens": 16000,
+        "answer_chars": 623,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00468,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: mem",
+      "thought": "Socket saturation is a signature condition not yet checked, and its absence plus other emailservice metrics helps separate a memory fault from a disk fault; querying the socket metric for emailservice",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1313,
+        "completion_tokens": 178,
+        "max_tokens": 16000,
+        "answer_chars": 504,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00441,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: disk",
+      "thought": "Mem z=41.89 already exceeds the 15 threshold, so mem is not separated by magnitude; the disk hypothesis needs a log signature of I/O trouble (e.g. write/disk/IO errors) that a memory fault would not p",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk",
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1414,
+        "completion_tokens": 203,
+        "max_tokens": 16000,
+        "answer_chars": 515,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00486,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: mem",
+      "thought": "Memory z=41.89 already holds, but the rival (disk) needs separating; the diskio z of 9.6e18 looks like a zero-baseline artifact, and checking mem-related log text such as OOM or GC would help, though ",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "memory",
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1477,
+        "completion_tokens": 238,
+        "max_tokens": 16000,
+        "answer_chars": 661,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00533,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: disk",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: metric_query({'service': 'emailservice', 'top': 10}) already on the board; the heuristic had no test left",
+      "model_call": {
+        "seconds": 3.0,
+        "prompt_tokens": 1568,
+        "completion_tokens": 230,
+        "max_tokens": 16000,
+        "answer_chars": 650,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00544,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "tied",
+    "trigger": "T1 cpu (score 2) vs mem (5), disk (5), loss (2) for emailservice",
+    "suspect": "emailservice",
+    "rival": "checkoutservice",
+    "selected": null,
+    "tied": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "mem",
+        "reason": "top fault types for emailservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=72.32",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "mem"
+            },
+            "depth": 1,
+            "predicted": "emailservice memory shows a large deviation (z >= 15) after the alert, while socket metrics stay unsaturated (z < 25).",
+            "rationale": "Memory is not yet shown in the ranked deviations; querying emailservice's memory metric directly checks whether mem z >= 15, which separates mem from disk (diskio already elevated).",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "socket"
+            },
+            "depth": 2,
+            "predicted": "emailservice_socket z < 25 (not saturated), consistent with a mem fault where mem z=41.89 already exceeds 15 and latency is elevated without socket exhaustion.",
+            "rationale": "Socket saturation is a signature condition not yet checked, and its absence plus other emailservice metrics helps separate a memory fault from a disk fault; querying the socket metric for emailservice",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "log_search",
+            "args": {
+              "query": "memory",
+              "service": "emailservice",
+              "limit": 10
+            },
+            "depth": 3,
+            "predicted": "Memory-related lines (e.g. high memory usage, GC, OOM warnings, allocation) appear in emailservice logs near the alert, whereas disk searches returned nothing; this supports mem over disk.",
+            "rationale": "Memory z=41.89 already holds, but the rival (disk) needs separating; the diskio z of 9.6e18 looks like a zero-baseline artifact, and checking mem-related log text such as OOM or GC would help, though ",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "disk",
+        "reason": "top fault types for emailservice by metric signature (score 5)",
+        "status": "open",
+        "close_reason": "",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=525.45",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "emailservice_diskio shows a large sustained rise after the alert (z far above threshold), while socket metrics stay unsaturated, supporting disk over mem as primary fault",
+            "rationale": "Disk hypothesis needs diskio rise to be independent of memory; log search for disk/IO errors or write activity in emailservice could separate it, but the cleanest check is the socket metric (socket_no",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "emailservice",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Log lines mentioning disk/IO/write errors or slow I/O for emailservice appear after the alert, supporting a disk fault; a pure memory fault would show none, or OOM/memory lines instead.",
+            "rationale": "Mem z=41.89 already exceeds the 15 threshold, so mem is not separated by magnitude; the disk hypothesis needs a log signature of I/O trouble (e.g. write/disk/IO errors) that a memory fault would not p",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "mem",
+        "reason": "top fault types for emailservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=72.32",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "mem"
+            },
+            "depth": 1,
+            "predicted": "emailservice memory shows a large deviation (z >= 15) after the alert, while socket metrics stay unsaturated (z < 25).",
+            "rationale": "Memory is not yet shown in the ranked deviations; querying emailservice's memory metric directly checks whether mem z >= 15, which separates mem from disk (diskio already elevated).",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "socket"
+            },
+            "depth": 2,
+            "predicted": "emailservice_socket z < 25 (not saturated), consistent with a mem fault where mem z=41.89 already exceeds 15 and latency is elevated without socket exhaustion.",
+            "rationale": "Socket saturation is a signature condition not yet checked, and its absence plus other emailservice metrics helps separate a memory fault from a disk fault; querying the socket metric for emailservice",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "log_search",
+            "args": {
+              "query": "memory",
+              "service": "emailservice",
+              "limit": 10
+            },
+            "depth": 3,
+            "predicted": "Memory-related lines (e.g. high memory usage, GC, OOM warnings, allocation) appear in emailservice logs near the alert, whereas disk searches returned nothing; this supports mem over disk.",
+            "rationale": "Memory z=41.89 already holds, but the rival (disk) needs separating; the diskio z of 9.6e18 looks like a zero-baseline artifact, and checking mem-related log text such as OOM or GC would help, though ",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "disk",
+        "reason": "top fault types for emailservice by metric signature (score 5)",
+        "status": "tied",
+        "close_reason": "indistinguishable from another branch in this data",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=525.45",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "emailservice_diskio shows a large sustained rise after the alert (z far above threshold), while socket metrics stay unsaturated, supporting disk over mem as primary fault",
+            "rationale": "Disk hypothesis needs diskio rise to be independent of memory; log search for disk/IO errors or write activity in emailservice could separate it, but the cleanest check is the socket metric (socket_no",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "emailservice",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Log lines mentioning disk/IO/write errors or slow I/O for emailservice appear after the alert, supporting a disk fault; a pure memory fault would show none, or OOM/memory lines instead.",
+            "rationale": "Mem z=41.89 already exceeds the 15 threshold, so mem is not separated by magnitude; the disk hypothesis needs a log signature of I/O trouble (e.g. write/disk/IO errors) that a memory fault would not p",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "emailservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for emailservice by metric signature (score 2)",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=525.45",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=41.89",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "checkoutservice",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 6+ below the best (5)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E5",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.06",
+            "eid": "E5",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.39",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E5",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ],
+      "B4": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 20.9,
+    "tool_seconds": 1.3,
+    "prompt_tokens": 11416,
+    "completion_tokens": 2053,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 22.2,
+    "cost_usd": 0.043362
+  }
+}

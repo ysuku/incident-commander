@@ -1,0 +1,33 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 3116,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.603
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "recommendationservice latency-90 and latency-50 rose by about 4467% and 3096% (z=+893 and +619), far above any other series, and frontend latency rose after it, which fits a downstream effect. There is no CPU, memory or socket anomaly on recommendationservice, and its workload is slightly down (-6.3%), so this looks like added latency rather than resource exhaustion. Its only callee, productcatalogservice, is flat (latency-50 +8%), which points at recommendationservice itself or its network path. The logs contain no warning or error lines, so the fault type is inferred from the metric pattern alone.",
+  "proposed_fix": {
+    "description": "Check recommendationservice for network delay (tc/netem rules, egress path, node-level conntrack pressure) and, if an injected or misconfigured delay is found, remove it. Restarting the pod is a non-destructive fallback if no cause is found.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.4,
+    "prompt_tokens": 1598,
+    "completion_tokens": 349,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.7,
+    "cost_usd": 0.006686
+  }
+}

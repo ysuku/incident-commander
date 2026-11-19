@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 4098,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.601
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.623
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.641
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#action",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.636
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "productcatalogservice",
+    "fault_type": "mem"
+  },
+  "confidence": "medium",
+  "rationale": "productcatalogservice_mem rose about 12x (1.06e7 to 1.29e8, z=+223.66), by far the largest anomaly of the 73 series, with CPU (+475%) and sockets (+74%) also elevated, while every other service's metrics are flat. All worst traces pass through productcatalogservice, which is the shared downstream of the frontend, checkout, and recommendation callers, consistent with it being the source of the slowdown; logs contain no warnings or errors, so there is no direct confirmation.",
+  "proposed_fix": {
+    "description": "Inspect productcatalogservice for a memory leak or unbounded cache growth (heap profile, recent deploys/config changes), and check its memory limit. If a recent release introduced it, roll back; otherwise restart the pod as a temporary mitigation after capturing a heap dump.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.9,
+    "prompt_tokens": 2005,
+    "completion_tokens": 329,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.1,
+    "cost_usd": 0.0073
+  }
+}

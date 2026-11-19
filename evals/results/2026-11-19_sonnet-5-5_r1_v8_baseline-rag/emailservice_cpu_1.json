@@ -1,0 +1,43 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 3400,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.574
+    },
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.648
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.624
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice_cpu rose from 0.278 to 18.47 (+6545%, z=+589) and its latency-50/90 rose 289%/411%, while emailservice mem (+13.7%, z=2.7) and socket (+2.9%) barely moved, so the signal is CPU rather than memory or socket. Confidence is only medium because the slowest traces mostly go frontendservice -> currencyservice -> productcatalogservice and do not include emailservice, error spans appear only in frontendservice, there are no warning or error logs, and the other services' latencies are flat or lower.",
+  "proposed_fix": {
+    "description": "Inspect emailservice CPU usage and throttling, then raise its CPU limit or add replicas. If a runaway process is found, restart the emailservice pod. Also check why the frontendservice -> currencyservice traces are slow (1.5-1.8 s), since that path does not involve emailservice.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 4.0,
+    "prompt_tokens": 1748,
+    "completion_tokens": 353,
+    "tool_seconds": 1.3,
+    "wall_seconds": 5.3,
+    "cost_usd": 0.007026
+  }
+}

@@ -1,0 +1,366 @@
+{
+  "status": "escalated",
+  "reason": "step budget (8) exhausted",
+  "escalation": {
+    "code": "budget_exhausted",
+    "reason": "step budget (8) exhausted",
+    "hypotheses": [
+      {
+        "service": "currencyservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "delay",
+        "score": 5,
+        "evidence": [
+          "E1",
+          "E2",
+          "E3",
+          "E5"
+        ],
+        "summary": "confirmed latency_up (latency z=408.44), resources_flat (max resource mem z=0.18), trace_slow (traces implicate the service), no_errors (span error rate +0.000)"
+      },
+      {
+        "service": "currencyservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "loss",
+        "score": 2,
+        "evidence": [
+          "E1",
+          "E2",
+          "E3",
+          "E5"
+        ],
+        "summary": "confirmed latency_up (latency z=408.44), cpu_not_up (cpu z=-0.89), trace_slow (traces implicate the service); contradicted conn_pressure (mem z=0.18); inconclusive errors_up (span error rate +0.000)"
+      },
+      {
+        "service": "frontend",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "mem",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=103.51)"
+      },
+      {
+        "service": "frontend",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "delay",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=103.51)"
+      },
+      {
+        "service": "checkoutservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "mem",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=82.07)"
+      },
+      {
+        "service": "checkoutservice",
+        "kinds": [
+          "metrics"
+        ],
+        "fault_type": "delay",
+        "score": 1,
+        "evidence": [
+          "E1"
+        ],
+        "summary": "confirmed latency_up (latency z=82.07)"
+      }
+    ],
+    "note": "no diagnosis passed the citation gate within the step budget; hypotheses are ranked in code from the evidence already on the board (no new tool calls): a fault type is listed only where one of its signals is confirmed"
+  },
+  "candidates": [
+    "currencyservice: delay fault (own span self-time unchanged, inbound latency 40x)",
+    "currencyservice: cpu saturation",
+    "frontend: victim of slow downstream calls",
+    "checkoutservice: victim calling currencyservice"
+  ],
+  "notes": [
+    "step 6: metric_query({'service': 'currencyservice', 'top': 10}) was already called; its result is E3. Choose a different query."
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_latency-50 z=408.44 (2042.2%); frontend_latency-90 z=103.51 (692.6%); checkoutservice_latency-90 z=82.07 (580.9%); frontend_latency-50 z=69.5 (643.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "checkoutservice",
+        "currencyservice",
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.14->0.14ms (0.99x), errors 0.0->0.0; inbound calls self-time p50 5.13->204.83ms (39.9x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-50 z=408.44 (2042.2%); currencyservice_latency-90 z=29.0 (319.0%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "45834 matching lines; by svc/level {'currencyservice/info': 45834}; [currencyservice/info] Getting supported currencies...; [currencyservice/info] conversion request successful",
+      "source_ref": "logs.csv#L89971",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-50 z=408.44 (2042.2%); currencyservice_latency-90 z=29.0 (319.0%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-50",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "checked [service='currencyservice', level='error']: no log lines at that level (45834 lines searched, levels present ['info']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 589,
+        "completion_tokens": 73,
+        "max_tokens": 16000,
+        "answer_chars": 198,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00191,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query that ranks every service and metric.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 719,
+        "completion_tokens": 148,
+        "max_tokens": 16000,
+        "answer_chars": 398,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00292,
+        "finish_reason": "stop"
+      },
+      "thought": "currencyservice latency-50 is the top deviation; I need traces to confirm it is the source and not just a victim, and to find the fault type.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.08
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 925,
+        "completion_tokens": 199,
+        "max_tokens": 16000,
+        "answer_chars": 539,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00384,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, but the fault type is still ambiguous (delay vs cpu), so I'll check currencyservice's own resource metrics before finishing.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1064,
+        "completion_tokens": 189,
+        "max_tokens": 16000,
+        "answer_chars": 502,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00402,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, but I still need to separate delay from cpu/socket faults, so I'll check currencyservice logs for errors or timeouts.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 1137,
+        "completion_tokens": 202,
+        "max_tokens": 16000,
+        "answer_chars": 553,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00429,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, but logs only show info lines and no fault signature; checking currencyservice's CPU/memory/network metrics will separate delay from cpu/socket faults before finishing.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "top": 15
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 3.6,
+        "prompt_tokens": 1236,
+        "completion_tokens": 189,
+        "max_tokens": 16000,
+        "answer_chars": 505,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00436,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, but I still need to separate delay from cpu, so I will check currencyservice's cpu/mem/network metrics before finishing.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice",
+          "top": 10
+        }
+      },
+      "outcome": "repeated_call",
+      "detail": "same as E3"
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1290,
+        "completion_tokens": 179,
+        "max_tokens": 16000,
+        "answer_chars": 499,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00437,
+        "finish_reason": "stop"
+      },
+      "thought": "Need to discriminate delay from cpu/socket: check currencyservice resource metrics via logs is not helpful, so look at the service map to confirm callers and that no other downstream explains the latency.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.56
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1401,
+        "completion_tokens": 202,
+        "max_tokens": 16000,
+        "answer_chars": 538,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00482,
+        "finish_reason": "stop"
+      },
+      "thought": "Need to distinguish delay from cpu on currencyservice; checking whether CPU/mem/socket metrics for currencyservice deviate, via a log search for errors/warnings as an independent check.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.07
+    }
+  ],
+  "proposed_fix": null,
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 14.7,
+    "tool_seconds": 1.8,
+    "prompt_tokens": 8361,
+    "completion_tokens": 1381,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 16.5,
+    "cost_usd": 0.030532
+  }
+}
