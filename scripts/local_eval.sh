@@ -79,12 +79,13 @@ print(' '.join(c.case_id for c in loaders.list_cases(system)
 echo "$(echo $CASES | wc -w | tr -d ' ') cases -> $DIR | flags: $FLAGS"
 
 for c in ${=CASES}; do
-  [ -f "$DIR/${c//\//_}.json" ] && continue
+  f="$DIR/${c//\//_}.json"   # a saved crash record (status "error") is not a result: run it again
+  [ -f "$f" ] && ! grep -q '^  "status": "error"' "$f" && continue
   [ "$(code_hash)" != "$CODE" ] && { echo "CODE_CHANGED: src/ edited mid-run; stopping"; exit 2; }
   start_server
   $PY -m incident_commander.cli eval --model env --runs "$RUNS" --cases "$c" --out "$OUT" $FLAGS || exit 1
 done
 stop_server
 # every case is saved: this pass calls no model, it only rescores and writes the summary
-$PY -m incident_commander.cli eval --model env --runs "$RUNS" --cases "$GLOB" --out "$OUT" $FLAGS || exit 1
+$PY -m incident_commander.cli eval --model env --runs "$RUNS" --cases "$GLOB" --out "$OUT" --saved-only $FLAGS || exit 1
 echo ALL_DONE

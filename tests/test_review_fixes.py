@@ -153,11 +153,13 @@ def test_unfamiliar_names_the_affected_service_and_is_scored_on_it():
 
 
 @needs_data
-@pytest.mark.parametrize("case_id,suspect", [("checkoutservice_loss/1", "frontend"),
-                                             ("currencyservice_disk/2", "frontend-external")])
+@pytest.mark.parametrize("case_id,suspect", [("currencyservice_loss/2", "frontend"),
+                                             ("currencyservice_loss/3", "frontend")])
 def test_known_faults_with_a_wrong_suspect_are_not_called_unfamiliar(case_id, suspect):
-    """Two of the 11 (of 90) dev cases the review found: the label-free suspect
-    is a caller whose resources are flat. Now 0 of 90."""
+    """The label-free suspect is a caller whose resources are flat: 11 of 90 dev
+    cases were called unfamiliar before the review, 0 since. (The two cases first
+    pinned here, checkoutservice_loss/1 and currencyservice_disk/2, now get the
+    true service as suspect: a zero-baseline error series no longer outranks it.)"""
     spec = importlib.util.spec_from_file_location("tot_offline", config.REPO_ROOT / "scripts" / "tot_offline.py")
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)

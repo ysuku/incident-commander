@@ -83,7 +83,7 @@ def _dataset_root(system: str) -> Path:
 
 def _read_case(system: str, fault_dir: Path, run_dir: Path) -> IncidentCase:
     service, _, fault = fault_dir.name.rpartition("_")
-    inject = int((run_dir / CASE_FILES["inject_time"]).read_text().strip())
+    inject = int(float((run_dir / CASE_FILES["inject_time"]).read_text().strip()))  # "1700000300.0" too
     return IncidentCase(
         case_id=f"{fault_dir.name}/{run_dir.name}",
         system=system,
@@ -125,16 +125,22 @@ def load_logs(case: IncidentCase, columns: list[str] | None = None):
 
     RE3 logs have no `level` column (time, timestamp, container_name, message,
     pod_name, node_name) and no severity in the message text. When `level` is
-    asked for and the file has none, every line gets the level "unknown": the
-    line counts stay true, a search for level="error" finds nothing and says the
-    only level present is "unknown", and no line counts as a warning or error."""
+    asked for and the file has none (no such column, or the column is empty on
+    every line), every line gets the level "unknown": the line counts stay true,
+    a search for level="error" finds nothing and says the only level present is
+    "unknown", and no line counts as a warning or error."""
     import pandas as pd
     path = case.path("logs")
-    if columns and "level" in columns and "level" not in pd.read_csv(path, nrows=0).columns:
+    if not columns or "level" not in columns:
+        return pd.read_csv(path, usecols=columns)
+    if "level" not in pd.read_csv(path, nrows=0).columns:
         df = pd.read_csv(path, usecols=[c for c in columns if c != "level"])
         df["level"] = NO_LEVEL
         return df[columns]
-    return pd.read_csv(path, usecols=columns)
+    df = pd.read_csv(path, usecols=columns)
+    if len(df) and df["level"].isna().all():
+        df["level"] = NO_LEVEL
+    return df
 
 
 def load_simple_metrics(case: IncidentCase):

@@ -14,7 +14,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from incident_commander import cli, config, evaluate, loaders, loop
+from incident_commander import cli, config, evaluate, loaders, loop, tools
 from incident_commander import signatures as sig
 from incident_commander import tot as tot_mod
 from incident_commander.mcp_server import (BRANCH_TOOLS, DESCRIPTIONS, KIND_TOOLS, ToolClient,
@@ -316,7 +316,10 @@ def test_default_row_tool_list_and_dispatch_are_unchanged(monkeypatch, tmp_path)
     assert "| Fault | n | correct | service_only | wrong | escalated |\n|---|---|---|---|---|---|\n" in summary
 
 
-def test_default_tot_result_has_no_hidden_key():
+def test_default_tot_result_has_no_hidden_key(monkeypatch):
+    def no_spans(case, **kw):   # the service exports no spans: a refusal, not a crash on the data
+        raise tools.Refusal("unknown service 'svc'; trace services are []")
+    monkeypatch.setattr(tools, "trace_lookup", no_spans)
     tb, run = hidden_run()
     with tb:
         put_metrics(run, "svc", **CPU)

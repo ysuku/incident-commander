@@ -98,7 +98,7 @@ def cmd_eval(args) -> None:
         model_name, args.arch, tot or "off", args.system, args.hide or "none", len(cases),
         _shown(out, REPO_ROOT), f"${args.max_usd}" if args.max_usd else "none")
     evaluate.run_eval(cases, lambda: make_model(args.model)[0], out, args.max_usd, tot=tot, arch=args.arch,
-                      hide=hide, whole_run=whole)
+                      hide=hide, whole_run=whole, saved_only=args.saved_only)
     print((out / "summary.md").read_text())
 
 
@@ -211,6 +211,8 @@ def main() -> None:
     ep.add_argument("--hide", choices=["metrics", "logs", "traces"],
                     help="robustness ablation (6.1): withhold one telemetry kind from every role; "
                          "the two-kinds gate is NOT relaxed, so expect more escalations")
+    ep.add_argument("--saved-only", action="store_true",
+                    help="run nothing: score the briefs already saved in --out and write the summary")
     ep.set_defaults(fn=cmd_eval)
 
     rp = sub.add_parser("rescore", help="Re-score saved briefs in a results folder (no model calls)")

@@ -264,7 +264,11 @@ def features(service: str, observations: dict, implicates: dict,
         if name == "metric_query":
             for d in res.get("top_deviations", []):
                 if _norm(d["service"]) == want:
-                    f.z.setdefault(d["metric"], (float(d["z"]), eid))
+                    # a series with no baseline of its own (flat 0 or absent before the alert) carries
+                    # the bounded z = +/-20: a flag, not a size. The thresholds here were calibrated
+                    # on measured z values, so such a series stays unusable, as it always was.
+                    z = float("nan") if d.get("baseline") in ("zero", "absent") else float(d["z"])
+                    f.z.setdefault(d["metric"], (z, eid))
             if _norm(args.get("service")) == want and not args.get("metric") and f.metrics_scoped is None:
                 f.metrics_scoped = eid
         elif name == "trace_lookup" and _norm(res.get("service")) == want and f.trace is None:

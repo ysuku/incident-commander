@@ -17,6 +17,7 @@ one BranchBoard per incident. They are not diagnostic tools, so the ReAct prompt
 never lists them (ToolClient.diagnostic); the ToT controller calls them.
 """
 import argparse
+import functools
 import json
 import logging
 from contextlib import ExitStack
@@ -61,19 +62,23 @@ def build_server(case: IncidentCase) -> FastMCP:
                                   "state for this session; nothing writes to the incident).")
 
     @server.tool(description=DESCRIPTIONS["metric_query"])
+    @_guard
     def metric_query(service: str | None = None, metric: str | None = None, top: int = 10) -> dict:
         return tools.metric_query(case, service=service, metric=metric, top=top)
 
     @server.tool(description=DESCRIPTIONS["log_search"])
+    @_guard
     def log_search(query: str = "", service: str | None = None,
                    level: str | None = None, limit: int = 20) -> dict:
         return tools.log_search(case, query=query, service=service, level=level, limit=limit)
 
     @server.tool(description=DESCRIPTIONS["trace_lookup"])
+    @_guard
     def trace_lookup(failing_only: bool = True, limit: int = 10, service: str | None = None) -> dict:
         return tools.trace_lookup(case, failing_only=failing_only, limit=limit, service=service)
 
     @server.tool(description=DESCRIPTIONS["service_map"])
+    @_guard
     def service_map() -> dict:
         return tools.service_map(case)
 
@@ -104,7 +109,34 @@ def build_server(case: IncidentCase) -> FastMCP:
 
 
 class ToolError(ValueError):
-    """The server answered isError: bad args, unknown name, or the tool raised."""
+    """The server answered isError for a call the model can correct: bad args, an
+    unknown name, a refusal from the tool (tools.Refusal)."""
+
+
+class ToolCrash(RuntimeError):
+    """A telemetry tool raised on the data itself (a missing column, a file that
+    is not there). Not a ValueError on purpose: the loop treats ValueError as the
+    model's mistake and carries on, which would turn an unreadable case into an
+    ordinary-looking escalation. This one reaches the eval runner, which records
+    the case as an error."""
+
+
+CRASH = "TOOL CRASH: "
+
+
+def _guard(fn):
+    """Wrap a telemetry tool: a Refusal passes through (the model can fix the
+    call); anything else is marked as a crash. Only text crosses MCP, so the
+    marker is in the message and ToolClient.call turns it back into ToolCrash."""
+    @functools.wraps(fn)
+    def run(*args, **kwargs):
+        try:
+            return fn(*args, **kwargs)
+        except tools.Refusal:
+            raise
+        except Exception as e:
+            raise RuntimeError(f"{CRASH}{type(e).__name__}: {e}") from e
+    return run
 
 
 class ToolClient:
@@ -136,6 +168,8 @@ class ToolClient:
         text = " ".join(c.text for c in r.content if getattr(c, "text", None))
         if r.isError:
             msg = " ".join(text.removeprefix(f"Error executing tool {name}: ").split())
+            if msg.startswith(CRASH):
+                raise ToolCrash(f"{name}: {msg[len(CRASH):][:300]}")
             raise ToolError(msg[:300])  # pydantic errors are multi-line; notes are one line
         if r.structuredContent is not None:
             # FastMCP wraps non-object returns (list[dict]) as {"result": ...}

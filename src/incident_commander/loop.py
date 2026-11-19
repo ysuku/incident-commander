@@ -20,6 +20,7 @@ only when the first pass is ambiguous (tot.py):
 Cases that are already clear (most delay faults) pay one extra tool call, no model call.
 """
 import json
+import math
 import logging
 import re
 import time
@@ -37,7 +38,8 @@ ERR_RISE_SIGNIFICANT = 0.05    # error-rate rise (absolute) on a service's spans
 log = logging.getLogger("incident_commander")
 MAX_PARSE_FAILURES = 2
 TOT_AFTER_STEPS = 3
-BAD_LOG_LEVELS = {"warn", "warning", "error", "err", "fatal", "critical"}
+BAD_LOG_LEVELS = {"warn", "warning", "error", "err", "fatal", "critical", "severe"}
+LOG_RISE = 2.0   # warning/error lines per second after the alert vs before: this much higher is a rise
 FIX_KEYS = ("description",)  # what the model may put in a fix; approval fields are set in code
 
 SYSTEM_PROMPT = """You are Incident Commander, diagnosing one recorded microservice incident.
@@ -64,15 +66,23 @@ def _summarize(name: str, result, args: dict | None = None) -> tuple[str, str, s
     """
     args = args or {}
     if name == "metric_query":
-        top = result["top_deviations"]
+        rows = result["top_deviations"]
+        # a NaN z (no data on one side of the alert) is "not comparable", never "no deviation"
+        top = [d for d in rows if math.isfinite(d["z"])]
         # an empty or null filter is no filter: never print it as a scope
         scope = ", ".join(f"{k}={v}" for k, v in args.items()
                           if k in ("service", "metric") and v) or "all services"
-        if not top:
+        if not rows:
             return "metrics", f"no metric series in scope [{scope}]", "simple_metrics.csv", []
+        if not top:
+            return ("metrics", f"NOT comparable in scope [{scope}]: {[d['series'] for d in rows[:4]]} "
+                    "have no data on one side of the alert, so no before/after change can be computed. "
+                    "This is not 'no deviation'", rows[0]["source_ref"], [])
         sig = [d for d in top if abs(d["z"]) >= Z_SIGNIFICANT]
-        fmt = lambda d: (f"{d['series']} z={d['z']} "
-                         f"({d['pct_change']}%)" if d["pct_change"] is not None else f"{d['series']} z={d['z']}")
+        fmt = lambda d: (f"{d['series']} z={d['z']}"
+                         + (f" ({d['pct_change']}%)" if d["pct_change"] is not None else "")
+                         + (" (no data before the alert, read as a baseline of 0)"
+                            if d.get("baseline") == "absent" else ""))
         if not sig:
             return ("metrics", f"NO significant deviation (|z|>={Z_SIGNIFICANT:g}) in scope [{scope}]; "
                     f"largest is only {fmt(top[0])}", top[0]["source_ref"], [])
@@ -88,9 +98,25 @@ def _summarize(name: str, result, args: dict | None = None) -> tuple[str, str, s
         # Ordinary info lines are a mention, not a symptom: only warning/error lines
         # implicate a service. A query does not change that: "request" matches every
         # line an idle service writes, so a matched query alone implicates nobody.
-        svcs = sorted({s for k, c in by.items() if c > 0
-                       for s, _, lvl in [k.rpartition("/")] if lvl.lower() in BAD_LOG_LEVELS})
-        return "logs", f"{n} matching lines; by svc/level {by}; {lines or 'no sample'}", ref, svcs
+        # And only a RISE implicates: lines a service also wrote before the alert, at
+        # a similar rate, are how it always logs, whatever their level.
+        bad = {k: c for k, c in by.items() if c > 0 and k.rpartition("/")[2].lower() in BAD_LOG_LEVELS}
+        rose = {k for k in bad if _log_rise(result, k)}
+        svcs = sorted({k.rpartition("/")[0] for k in rose})
+        routine = sorted(set(bad) - rose)
+        notes = ""
+        if routine:
+            notes += (f"; NOT a symptom: {routine} did not rise after the alert (as many per second "
+                      "before it, or none after it): routine for that service, implicates nobody")
+        if result.get("sample_from") == "before_alert":
+            notes += "; no matching line after the alert: the sample lines are from BEFORE it"
+        if result.get("sample_from") == "no_split":
+            notes += ("; no log line in this case is dated after the alert, so lines before and after "
+                      "it could not be told apart: the sample lines are the last matches")
+        if not result.get("severity_recorded", True):
+            notes += ("; these logs record no severity (every line has level 'unknown'), so no line "
+                      "counts as a warning or error: a text match is a mention, it implicates nobody")
+        return "logs", f"{n} matching lines; by svc/level {by}; {lines or 'no sample'}{notes}", ref, svcs
     if name == "trace_lookup" and "service" in result:
         svc = result["service"]
         moved = lambda s: bool(s and s["n_after"]) and (
@@ -160,13 +186,41 @@ def _summarize(name: str, result, args: dict | None = None) -> tuple[str, str, s
     return "map", str(result)[:200], name, []
 
 
+def _log_rise(result: dict, key: str) -> bool:
+    """Did the "<service>/<level>" lines rise after the alert? True when there were
+    none before it, or the rate after is at least LOG_RISE times the rate before.
+    A result without the before/after split (an older saved result) keeps the old
+    reading: any line counts."""
+    after_by, win = result.get("after_alert_by_service_level"), result.get("window_seconds") or {}
+    if after_by is None:
+        return True
+    total = result["matches_by_service_level"].get(key, 0)
+    after = after_by.get(key, 0)
+    before = total - after
+    if after <= 0:
+        return False
+    if before <= 0:
+        return True
+    w_before, w_after = win.get("before") or 0, win.get("after") or 0
+    if w_before <= 0 or w_after <= 0:
+        return True   # no window to compare rates over
+    return (after / w_after) >= LOG_RISE * (before / w_before)
+
+
 def _no_log_lines(result: dict, args: dict) -> str:
     """Wording for a log search with zero lines. A query that missed is a filter
     that matched nothing; a valid level with no lines is a checked absence. Neither
-    says a service is healthy, and neither implicates anyone."""
+    says a service is healthy, and neither implicates anyone. On logs that record
+    no severity, a level filter checked nothing, and the wording must say so."""
     filt = ", ".join(f"{k}={args[k]!r}" for k in ("service", "level", "query") if args.get(k))
     scope, levels = result.get("scope_lines"), result.get("levels_present")
+    if args.get("level") and not result.get("severity_recorded", True):
+        return (f"NOT checked [{filt}]: these logs record no severity (the level of all {scope} lines "
+                "searched is empty or 'unknown'), so a level filter cannot find anything. This says nothing about errors. "
+                "Search the message text instead, e.g. query='error' or query='exception'")
     searched = f"{scope} lines searched, levels present {levels}" if scope is not None else "0 lines"
+    if args.get("level") and result.get("unlevelled_lines"):
+        searched += f"; {result['unlevelled_lines']} of them carry no level and were NOT checked"
     if args.get("query"):
         return (f"filter matched nothing [{filt}]: no line contains that literal text ({searched}); "
                 "a filter that misses is not a finding about any service")

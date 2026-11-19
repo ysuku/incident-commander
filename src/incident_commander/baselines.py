@@ -31,6 +31,7 @@ KINDS = ("plain", "rag")
 FAULTS = ("cpu", "mem", "disk", "socket", "delay", "loss")
 TOP_METRICS = 15
 LOG_SAMPLES = 8
+LOG_TEXT_SWEEP = ("error", "exception", "failed")  # searched in the message text when the logs record no severity
 WORST_TRACES = 5
 RUNBOOK_K = 4
 RUNBOOK_CHARS = 700      # per retrieved chunk in the prompt
@@ -48,9 +49,17 @@ or, if the digest does not support a diagnosis:
 
 def digest(case: IncidentCase) -> tuple[str, dict]:
     """(text for the prompt, the raw tool results). Fixed calls, fixed arguments."""
+    logs = {lvl: tools.log_search(case, level=lvl, limit=LOG_SAMPLES) for lvl in ("error", "warning")}
+    log_title = "## Logs: warning and error lines"
+    if not any(r.get("severity_recorded", True) for r in logs.values()):
+        # no severity in these logs (RE3): a level sweep is empty by construction and
+        # would read as "0 errors". Take the first look by message text instead.
+        logs = {f"text '{q}'": tools.log_search(case, query=q, limit=LOG_SAMPLES) for q in LOG_TEXT_SWEEP}
+        log_title = ("## Logs: these logs record no severity; lines whose message contains "
+                     + ", ".join(f"'{q}'" for q in LOG_TEXT_SWEEP))
     raw = {"service_map": tools.service_map(case),
            "metrics": tools.metric_query(case, top=TOP_METRICS),
-           "logs": {lvl: tools.log_search(case, level=lvl, limit=LOG_SAMPLES) for lvl in ("error", "warning")},
+           "logs": logs,
            "traces": tools.trace_lookup(case, failing_only=True, limit=WORST_TRACES)}
     lines = ["## Service map (caller -> callees, from traces)"]
     lines += [f"{a} -> {', '.join(b)}" for a, b in raw["service_map"]["edges"].items()]
@@ -59,7 +68,7 @@ def digest(case: IncidentCase) -> tuple[str, dict]:
                   "(mean after the alert vs the baseline before it)"]
     lines += [f"{d['series']}: before {d['before_mean']:g}, after {d['after_mean']:g}, "
               f"change {_pct(d)}, z={d['z']:+.2f}" for d in m["top_deviations"]]
-    lines += ["", "## Logs: warning and error lines"]
+    lines += ["", log_title]
     for lvl, r in raw["logs"].items():
         lines.append(f"{lvl}: {r['total_matches']} lines of {r['scope_lines']} searched "
                      f"(levels present: {', '.join(r.get('levels_present') or []) or 'none'}); "

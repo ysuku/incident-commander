@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import csv
 import json
+import os
 import logging
 import math
 import re
@@ -272,6 +273,26 @@ def rescore(cases: list, results_dir: Path, out_dir: Path) -> list[dict]:
     return rows
 
 
+def _saved(path: Path) -> dict | None:
+    """The brief saved for a case, or None when there is none to read: no file, or
+    a file cut short by a kill while it was being written."""
+    if not path.exists():
+        return None
+    try:
+        brief = json.loads(path.read_text())
+    except ValueError:
+        return None
+    return brief if isinstance(brief, dict) else None
+
+
+def _finished(path: Path) -> bool:
+    """Does this case have a result? The record of a crash (status "error": the API
+    was down, a tool could not read the data) is not one: the case runs again on
+    resume."""
+    brief = _saved(path)
+    return brief is not None and brief.get("status") != "error"
+
+
 def _heldout_check(cases: list, out_dir: Path) -> None:
     """The one-shot rule for the held-out system: once a run over it is complete,
     no second run may look at it. Keyed on the stamp, which is written only when
@@ -283,7 +304,8 @@ def _heldout_check(cases: list, out_dir: Path) -> None:
             raise RuntimeError(f"{HELDOUT_SYSTEM!r} was already evaluated once, in {stamp.parent} "
                                f"({HELDOUT_STAMP}). The held-out run is one-shot: a second run "
                                "would be tuned on the first one's result.")
-    missing = [c.case_id for c in cases if not _case_path(out_dir, c).exists()]
+    # a crash record is part of the run: it may be retried here, in the stamped folder, and nowhere else
+    missing = [c.case_id for c in cases if _saved(_case_path(out_dir, c)) is None]
     if (out_dir / HELDOUT_STAMP).exists() and missing:
         raise RuntimeError(f"{out_dir} is stamped complete ({HELDOUT_STAMP}) but {len(missing)} of the "
                            f"requested cases were not part of it (first: {missing[0]}). The held-out "
@@ -291,14 +313,16 @@ def _heldout_check(cases: list, out_dir: Path) -> None:
 
 
 def _heldout_stamp(whole_run: list, out_dir: Path) -> None:
-    """Stamp the folder once every case of the WHOLE run has a saved brief. The
-    whole run, not the cases of this call: scripts/local_eval.sh runs one case
+    """Stamp the folder once every case of the WHOLE run has a saved brief. Every
+    case attempted means the held-out data has been looked at, so the run is
+    closed to other folders from then on, error rows included; run_eval still
+    re-runs those in this folder. The whole run, not the cases of this call: scripts/local_eval.sh runs one case
     per call, and a --cases/--limit smoke run is a part too. Stamping on a part
     would close the run after its first case and refuse the rest."""
     stamp = out_dir / HELDOUT_STAMP
     if stamp.exists():
         return
-    done = sum(_case_path(out_dir, c).exists() for c in whole_run)
+    done = sum(_saved(_case_path(out_dir, c)) is not None for c in whole_run)
     if done < len(whole_run):
         log.info("HELD-OUT run not complete: %d of %d cases saved; not stamped yet (the one-shot "
                  "rule applies once it is)", done, len(whole_run))
@@ -311,29 +335,48 @@ def _heldout_stamp(whole_run: list, out_dir: Path) -> None:
 
 def run_eval(cases: list, make_model, out_dir: Path, max_usd: float | None = None,
              tot: str | None = None, arch: str = "linear", hide=(),
-             whole_run: list | None = None) -> list[dict]:
-    """Run each case (skipping ones already saved in out_dir); returns all rows.
+             whole_run: list | None = None, saved_only: bool = False) -> list[dict]:
+    """Run each case (skipping ones that already have a result in out_dir; a
+    saved crash record is run again); returns all rows.
     whole_run: every case the run consists of, when `cases` is only a part of it
-    (one case per call, --cases, --limit). Read only for the held-out stamp."""
+    (one case per call, --cases, --limit). Read only for the held-out stamp.
+    saved_only: run nothing and build no model; score what is saved and write the
+    summary (the last pass of scripts/local_eval.sh, after its server has stopped)."""
     out_dir.mkdir(parents=True, exist_ok=True)
     heldout = any(c.system == HELDOUT_SYSTEM for c in cases)
     if heldout:
         _heldout_check(cases, out_dir)
-    rows, spent = [], 0.0
+    cost = lambda b: (b.get("usage") or {}).get("cost_usd") or 0.0
+    # the cap is on what the folder has cost so far: every saved brief counts, a crash
+    # record too, wherever it sits in the list (a case run again can precede finished ones)
+    paid = sum(cost(b) for b in (_saved(_case_path(out_dir, c)) for c in cases) if b)
+    rows, spent, capped = [], 0.0, False
     for i, case in enumerate(cases, 1):
         path = _case_path(out_dir, case)
-        if path.exists():
-            brief = json.loads(path.read_text())
-            if sorted(brief.get("telemetry_hidden") or []) != sorted(hide):
-                # resuming with a different --hide would mix two experiments in one folder
-                raise ValueError(f"{path.name} was saved with hidden telemetry "
-                                 f"{brief.get('telemetry_hidden') or 'none'}, this run hides "
-                                 f"{sorted(hide) or 'none'}; use another --out")
-        else:
-            if max_usd is not None and spent >= max_usd:
-                log.info("STOP: spend cap $%.2f reached ($%.2f); %d cases left", max_usd, spent,
-                         len(cases) - i + 1)
-                break
+        brief, failed_usd = _saved(path), 0.0
+        if brief is not None and sorted(brief.get("telemetry_hidden") or []) != sorted(hide):
+            # resuming with a different --hide would mix two experiments in one folder
+            raise ValueError(f"{path.name} was saved with hidden telemetry "
+                             f"{brief.get('telemetry_hidden') or 'none'}, this run hides "
+                             f"{sorted(hide) or 'none'}; use another --out")
+        # a crash record is not a result: the case runs again (what the failed try cost still counts)
+        to_run = brief is None or (brief.get("status") == "error" and not saved_only)
+        if to_run and saved_only:
+            log.info("    %s: no saved brief; not in this summary", case.case_id)
+            continue
+        if to_run and max_usd is not None and paid >= max_usd:
+            if not capped:
+                log.info("STOP: spend cap $%.2f reached ($%.2f); %d cases left", max_usd, paid,
+                         sum(not _finished(_case_path(out_dir, c)) for c in cases[i - 1:]))
+            capped = True
+            if brief is None:
+                continue        # never run: no row
+            to_run = False      # a saved crash record stays in the results as its error row
+        if to_run:
+            if brief is not None:
+                failed_usd = cost(brief)
+                log.info("    %s: saved run ended in an error (%s); running it again", case.case_id,
+                         str(brief.get("error"))[:120])
             log.info("=== [%d/%d] %s", i, len(cases), case.case_id)
             model = make_model()
             t0 = time.monotonic()
@@ -346,8 +389,14 @@ def run_eval(cases: list, make_model, out_dir: Path, max_usd: float | None = Non
                          "usage": {"wall_seconds": round(time.monotonic() - t0, 1)}}
                 if hide:
                     brief["telemetry_hidden"] = sorted(hide)
-            brief.setdefault("usage", {})["cost_usd"] = getattr(model, "cost_usd", 0.0)
-            path.write_text(json.dumps(brief, indent=2, default=str), encoding="utf-8")
+            paid += getattr(model, "cost_usd", 0.0)
+            brief.setdefault("usage", {})["cost_usd"] = getattr(model, "cost_usd", 0.0) + failed_usd
+            if failed_usd:
+                brief["usage"]["failed_attempts_usd"] = failed_usd  # included in cost_usd
+            # write beside, then swap: a kill mid-write must not leave half a brief under the real name
+            tmp = path.with_suffix(".json.tmp")
+            tmp.write_text(json.dumps(brief, indent=2, default=str), encoding="utf-8")
+            os.replace(tmp, path)
         outcome = score(case, brief)
         row = _row(case, brief, outcome)
         spent += row["cost_usd"]
