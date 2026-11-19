@@ -1,0 +1,631 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "checkoutservice",
+        "fault_type": "disk",
+        "score": -1,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)); contradicted mem_up (mem z=-0.04), cpu_up (cpu z=0.34); confirmed socket_not_saturated (socket z=0), trace_slow (traces implicate the service)",
+        "evidence": [
+          "E5",
+          "E7",
+          "E9",
+          "E10"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "checkoutservice: disk (score -1, open; confirmed socket_not_saturated, trace_slow)",
+    "frontend: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=1393897.36; frontend-external_error z=1393897.36",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontend->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "4832 traces after alert; worst: frontend -> checkoutservice -> productcatalogservice -> paymentservice 29.8ms errors=5; frontend -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 122.4ms errors=2; frontend -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 116.3ms errors=2",
+      "source_ref": "traces.csv:traceID=d60cd0f952b41c53beda2fc7ac2c8d9b",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_error z=1393897.36; frontend-external_error z=1393897.36",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice]; largest is only checkoutservice_latency-90 z=-1.57 (-17.0%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_latency-90",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=frontend, metric=diskio]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=checkoutservice, metric=diskio]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='frontend', query='disk']: no line contains that literal text (24518 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.46->3.28ms (0.95x), errors 0.0->0.074; inbound calls self-time p50 1.66->1.64ms (0.98x), errors 0.0->0.0068",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "traces",
+      "summary": "traces for frontend: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 2.87->2.87ms (1.0x), errors 0.0898->0.0924",
+      "source_ref": "traces.csv:serviceName=frontend",
+      "implicates": []
+    },
+    {
+      "eid": "E11",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_error z=1393897.36; frontend-external_error z=1393897.36",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.0,
+        "prompt_tokens": 592,
+        "completion_tokens": 91,
+        "max_tokens": 16000,
+        "answer_chars": 244,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00209,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.3,
+        "prompt_tokens": 696,
+        "completion_tokens": 125,
+        "max_tokens": 16000,
+        "answer_chars": 366,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00264,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 only shows frontend errors, which is likely a symptom; I need the service dependency map to see what frontend calls before drilling into the downstream services.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.21
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.7,
+        "prompt_tokens": 833,
+        "completion_tokens": 190,
+        "max_tokens": 16000,
+        "answer_chars": 534,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00357,
+        "finish_reason": "stop"
+      },
+      "thought": "Frontend errors are likely a symptom, so I need to see which downstream service shows its own anomalies in traces, starting with the worst failing request paths.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.25
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "frontend: disk",
+      "thought": "Frontend disk hypothesis requires frontend diskio and mem/cpu rises, while checkoutservice showed no deviations (E5); querying frontend's disk-related metrics directly tests the signature, and fronten",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1199,
+        "completion_tokens": 178,
+        "max_tokens": 16000,
+        "answer_chars": 482,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00418,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: disk",
+      "thought": "Checkoutservice shows no significant metric deviation so far (E5), so a disk-fault signature (diskio, mem, cpu rising) should be checked directly with a diskio query on checkoutservice, which also sep",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1243,
+        "completion_tokens": 190,
+        "max_tokens": 16000,
+        "answer_chars": 524,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00439,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "frontend: disk",
+      "thought": "Disk, memory and CPU metrics for frontend haven't been inspected; a trace lookup on frontend's own spans would show whether it slows itself, while checkoutservice shows no metric deviation, so a log s",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk",
+          "service": "frontend",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 1290,
+        "completion_tokens": 199,
+        "max_tokens": 16000,
+        "answer_chars": 542,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00457,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: disk",
+      "thought": "Checking checkoutservice's own and inbound span latency and errors before vs after the alert tests the trace_slow signature, and it separates checkoutservice from frontend, which only shows errors as ",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 1369,
+        "completion_tokens": 179,
+        "max_tokens": 16000,
+        "answer_chars": 511,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00453,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.39
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "checkoutservice: disk",
+      "thought": "Disk, memory and CPU metrics for checkoutservice and frontend are absent or flat, so I need a test that separates the two candidates. A trace lookup on frontend gives its own and inbound latency and e",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "frontend",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 1493,
+        "completion_tokens": 233,
+        "max_tokens": 16000,
+        "answer_chars": 652,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00532,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.4
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "frontend: disk",
+      "thought": "Frontend's signature needs memory and CPU rises plus slowed own spans; a metric_query with no filters on frontend would reveal whether mem/cpu deviate (E10 already shows no latency change), whereas a ",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "top": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1585,
+        "completion_tokens": 190,
+        "max_tokens": 16000,
+        "answer_chars": 497,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00507,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "frontend",
+    "rival": "checkoutservice",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B2",
+        "service": "checkoutservice",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": -1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E5",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=-0.04",
+            "eid": "E5",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=0.34",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E5",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E9",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "A checkoutservice diskio series shows a clear rise after the alert, together with elevated mem and cpu, whereas frontend has no diskio series at all.",
+            "rationale": "Checkoutservice shows no significant metric deviation so far (E5), so a disk-fault signature (diskio, mem, cpu rising) should be checked directly with a diskio query on checkoutservice, which also sep",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "checkoutservice",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "checkoutservice's own and inbound spans show markedly higher latency after the alert than before, with frontend-to-checkout calls slowed and errors concentrated there.",
+            "rationale": "Checking checkoutservice's own and inbound span latency and errors before vs after the alert tests the trace_slow signature, and it separates checkoutservice from frontend, which only shows errors as ",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "frontend",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 3,
+            "predicted": "Frontend's own self-time stays flat, with errors only inherited from downstream calls to checkoutservice. Checkoutservice's own spans show the error origin, which supports checkoutservice over fronten",
+            "rationale": "Disk, memory and CPU metrics for checkoutservice and frontend are absent or flat, so I need a test that separates the two candidates. A trace lookup on frontend gives its own and inbound latency and e",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B1",
+        "service": "frontend",
+        "fault_type": "disk",
+        "reason": "top fault types for frontend by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -3 if every untested signal held) is 2+ below the best (-1)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.15",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.23",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=1.04",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E10",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "frontend diskio shows a significant rise after the alert, along with mem and cpu increases, while checkoutservice shows none.",
+            "rationale": "Frontend disk hypothesis requires frontend diskio and mem/cpu rises, while checkoutservice showed no deviations (E5); querying frontend's disk-related metrics directly tests the signature, and fronten",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "frontend",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Frontend logs contain disk-related errors (e.g. 'no space left on device', I/O errors, slow writes) after the alert, while checkoutservice logs show none.",
+            "rationale": "Disk, memory and CPU metrics for frontend haven't been inspected; a trace lookup on frontend's own spans would show whether it slows itself, while checkoutservice shows no metric deviation, so a log s",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "top": 20
+            },
+            "depth": 3,
+            "predicted": "frontend shows mem z>=15 and cpu z>=3 alongside the error spike, with no socket saturation; checkoutservice showed none (E5)",
+            "rationale": "Frontend's signature needs memory and CPU rises plus slowed own spans; a metric_query with no filters on frontend would reveal whether mem/cpu deviate (E10 already shows no latency change), whereas a ",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ],
+      "B1": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 18.8,
+    "tool_seconds": 1.4,
+    "prompt_tokens": 10300,
+    "completion_tokens": 1575,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 20.1,
+    "cost_usd": 0.03635
+  }
+}

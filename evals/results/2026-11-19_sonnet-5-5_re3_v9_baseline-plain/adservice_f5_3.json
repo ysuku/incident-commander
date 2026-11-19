@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2404,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "adservice",
+    "fault_type": "loss"
+  },
+  "confidence": "low",
+  "rationale": "adservice is the only service with a large anomaly: its error rate went from 0 to 0.30, p50 latency rose about 18x (0.003 to 0.0556) and p90 about 35x, and workload fell 85%. Its CPU, memory and socket usage all dropped (z about -1.6), so this is not resource exhaustion but a network-level fault. Loss and delay both fit that, and I chose loss over delay because errors accompany the latency rise. The digest has no logs and no adservice traces, and the downstream frontend latency change is small, so the fault type is uncertain.",
+  "proposed_fix": {
+    "description": "Check network health between frontend and adservice (packet loss, retransmits, any injected network fault or chaos rule on the adservice pod). If a fault is found, remove it, or reschedule or restart the adservice pod on a healthy node. Have the frontend degrade gracefully by skipping ads on timeout.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 7.4,
+    "prompt_tokens": 1349,
+    "completion_tokens": 846,
+    "tool_seconds": 0.5,
+    "wall_seconds": 7.9,
+    "cost_usd": 0.011158
+  }
+}

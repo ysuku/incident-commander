@@ -1,0 +1,1165 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate; leaders level: cartservice: mem or cartservice: disk (score 1, 2 telemetry kind(s) each)",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate; leaders level: cartservice: mem or cartservice: disk (score 1, 2 telemetry kind(s) each)",
+    "hypotheses": [
+      {
+        "service": "cartservice",
+        "fault_type": "mem",
+        "score": 1,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "inconclusive mem_up (mem z=7.15); contradicted latency_up (latency z=-0.7); confirmed socket_not_saturated (socket z=12.66), trace_slow (traces implicate the service)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E7",
+          "E9",
+          "E12",
+          "E14"
+        ]
+      },
+      {
+        "service": "cartservice",
+        "fault_type": "disk",
+        "score": 1,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)); inconclusive mem_up (mem z=7.15); contradicted cpu_up (cpu z=2.49); confirmed socket_not_saturated (socket z=12.66), trace_slow (traces implicate the service)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E7",
+          "E10",
+          "E13"
+        ]
+      },
+      {
+        "service": "cartservice",
+        "fault_type": "socket",
+        "score": 1,
+        "status": "open",
+        "kinds": [
+          "traces"
+        ],
+        "summary": "inconclusive socket_up (socket z=12.66); confirmed trace_slow (traces implicate the service)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E11"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "cartservice: mem (score 1, open; confirmed socket_not_saturated, trace_slow)",
+    "cartservice: disk (score 1, open; confirmed socket_not_saturated, trace_slow)",
+    "cartservice: socket (score 1, open; confirmed trace_slow)",
+    "frontend: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [
+    "tot B2 cartservice:disk depth 3: metric_query(service='cartservice', metric='io') failed: unknown metric 'io'; available metrics are ['cpu', 'diskio', 'error', 'latency-50', 'latency-90', 'mem', 'socket', 'workload']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=549590846.05; frontend_error z=549478502.08; cartservice_socket z=12.66 (63.3%); cartservice_mem z=7.15 (35.7%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "cartservice",
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for cartservice: SIGNIFICANT change; inbound calls self-time p50 4.65->4.74ms (1.02x), errors 0.0->0.1237",
+      "source_ref": "traces.csv:serviceName=cartservice",
+      "implicates": [
+        "cartservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "checked [service='cartservice', level='error']: no log lines at that level (7475 lines searched, levels present ['unknown']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='cartservice', query='connection']: no line contains that literal text (7475 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "7475 matching lines; by svc/level {'cartservice/unknown': 7475}; [cartservice/unknown] GetCartAsync called with userId=78f35a25-cfe3-4c45-9afb-16e30476dcef; [cartservice/unknown] GetCartAsync called with userId=26012e49-c7ec-49f3-947a-c8c581746fbe",
+      "source_ref": "logs.csv#L35863",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontend->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=cartservice]: cartservice_socket z=12.66 (63.3%); cartservice_mem z=7.15 (35.7%)",
+      "source_ref": "simple_metrics.csv:cartservice_socket",
+      "implicates": [
+        "cartservice"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend-external_error z=549590846.05; frontend_error z=549478502.08",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=cartservice]: cartservice_socket z=12.66 (63.3%); cartservice_mem z=7.15 (35.7%)",
+      "source_ref": "simple_metrics.csv:cartservice_socket",
+      "implicates": [
+        "cartservice"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=cartservice, metric=diskio]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E11",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=cartservice, metric=socket]: cartservice_socket z=12.66 (63.3%)",
+      "source_ref": "simple_metrics.csv:cartservice_socket",
+      "implicates": [
+        "cartservice"
+      ]
+    },
+    {
+      "eid": "E12",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=cartservice, metric=mem]: cartservice_mem z=7.15 (35.7%)",
+      "source_ref": "simple_metrics.csv:cartservice_mem",
+      "implicates": [
+        "cartservice"
+      ]
+    },
+    {
+      "eid": "E13",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='cartservice', query='disk']: no line contains that literal text (7475 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E14",
+      "kind": "traces",
+      "summary": "traces for cartservice: SIGNIFICANT change; inbound calls self-time p50 4.65->4.74ms (1.02x), errors 0.0->0.1237",
+      "source_ref": "traces.csv:serviceName=cartservice",
+      "implicates": [
+        "cartservice"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.0,
+        "prompt_tokens": 592,
+        "completion_tokens": 91,
+        "max_tokens": 16000,
+        "answer_chars": 244,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00209,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.03
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 736,
+        "completion_tokens": 178,
+        "max_tokens": 16000,
+        "answer_chars": 458,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00325,
+        "finish_reason": "stop"
+      },
+      "thought": "Frontend errors are likely symptoms; cartservice socket/mem deviations are suspicious, so I need to see who calls cartservice and its trace latency/errors to find a second independent telemetry kind.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "cartservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.36
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 874,
+        "completion_tokens": 156,
+        "max_tokens": 16000,
+        "answer_chars": 389,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00331,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at cartservice, so I need log evidence to separate socket from mem and confirm the fault type.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "cartservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.9,
+        "prompt_tokens": 935,
+        "completion_tokens": 176,
+        "max_tokens": 16000,
+        "answer_chars": 466,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00363,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at cartservice, but logs have no support yet; search logs for socket/connection errors in cartservice to get a second independent kind of evidence for the fault type.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "connection",
+          "service": "cartservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.3,
+        "prompt_tokens": 1015,
+        "completion_tokens": 171,
+        "max_tokens": 16000,
+        "answer_chars": 422,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00374,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at cartservice, but logs have no evidence yet; I need a log signal for cartservice to satisfy the two-kinds rule and to separate socket from mem.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "cartservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1163,
+        "completion_tokens": 168,
+        "max_tokens": 16000,
+        "answer_chars": 453,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00401,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at cartservice, but I need to confirm the call path and check whether other services show anomalies, so I'll look at the service map to verify cartservice is a dependency of frontend and rule out other upstreams.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.18
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 1272,
+        "completion_tokens": 166,
+        "max_tokens": 16000,
+        "answer_chars": 428,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0042,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at cartservice, but I need to confirm the socket-vs-mem split and check the log evidence for a second independent signal, so I query cartservice metrics directly.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "cartservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 3.3,
+        "prompt_tokens": 1358,
+        "completion_tokens": 424,
+        "max_tokens": 16000,
+        "answer_chars": 1115,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00696,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (socket z=12.66) and traces (inbound errors 0->12.4%) both point at cartservice, and socket is the strongest metric deviation versus mem; the logs show nothing that contradicts it, so I can finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "cartservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E7"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "cartservice: mem fault",
+              "why": "mem z=7.15 (E7) is weaker than socket z=12.66, and the 12% inbound error rate (E2) fits socket exhaustion better than memory pressure; mem is likely a secondary effect."
+            },
+            {
+              "candidate": "frontend: symptom only",
+              "why": "frontend error z-scores (E1) are the alert symptom; the dependency map (E6) shows frontend does not call cartservice in the traced edges, and cartservice shows its own inbound errors (E2), so frontend is not the origin."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Restart or reset cartservice's connections and check its socket/connection limits and leaks; then monitor socket count and error rate. Non-destructive rolling restart of one replica first.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "socket (score 1) vs mem (1), disk (1) for cartservice"
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "cartservice: mem",
+      "thought": "Querying cartservice disk and memory metrics directly will show whether mem z reaches >=15 and whether disk metrics deviate, separating mem from disk (current mem z=7.15 is below the signature thresho",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "cartservice",
+          "top": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 1348,
+        "completion_tokens": 167,
+        "max_tokens": 16000,
+        "answer_chars": 458,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00437,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "cartservice: disk",
+      "thought": "Querying cartservice's diskio metric directly tests the disk hypothesis: the disk signature requires diskio to rise, while the memory rival does not predict that, and no diskio deviation appears in th",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "cartservice",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1448,
+        "completion_tokens": 169,
+        "max_tokens": 16000,
+        "answer_chars": 468,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00459,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B3",
+      "hypothesis": "cartservice: socket",
+      "thought": "The signature requires cartservice's own/inbound spans to slow down, so a per-service trace lookup is the discriminating test; so far E2 shows only 1.02x p50 self-time, which is weak support for socke",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "cartservice",
+          "metric": "socket"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.0,
+        "prompt_tokens": 1450,
+        "completion_tokens": 225,
+        "max_tokens": 16000,
+        "answer_chars": 623,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00515,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 12,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "cartservice: mem",
+      "thought": "Mem z=7.15 is below the signature's 15 threshold and diskio has no series, so checking cartservice's own latency/error trace change (latency z>=3) and whether slowdown is on its spans best tests the m",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "cartservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E12",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1552,
+        "completion_tokens": 204,
+        "max_tokens": 16000,
+        "answer_chars": 554,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00514,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 13,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "cartservice: disk",
+      "thought": "Disk I/O was queried for cartservice and no series exists (E10); a broader search for any disk-related metric across all services, or for disk-related log text, would show whether disk evidence exists",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk",
+          "service": "cartservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E13",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1639,
+        "completion_tokens": 223,
+        "max_tokens": 16000,
+        "answer_chars": 636,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00551,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 14,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "cartservice: mem",
+      "thought": "Mem z=7.15 is below the signature's 15 threshold and cartservice self-time barely changed, so I need the cartservice inbound latency, error and caller-observed breakdown to check whether the latency z",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "cartservice",
+          "failing_only": false,
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E14",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 1705,
+        "completion_tokens": 223,
+        "max_tokens": 16000,
+        "answer_chars": 639,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00564,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.35
+    },
+    {
+      "step": 15,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "cartservice: disk",
+      "thought": "Diskio series for cartservice is absent (E10) and disk log searches matched nothing, so the one remaining check is whether any disk-related metric exists for cartservice (fs, io, read/write); a listin",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "cartservice",
+          "metric": "io"
+        }
+      },
+      "outcome": "tot_test_failed",
+      "observed": null,
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1804,
+        "completion_tokens": 209,
+        "max_tokens": 16000,
+        "answer_chars": 587,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0057,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T1 socket (score 1) vs mem (1), disk (1) for cartservice",
+    "suspect": "cartservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "cartservice",
+        "fault_type": "mem",
+        "reason": "top fault types for cartservice by metric signature (score 1)",
+        "status": "open",
+        "close_reason": "",
+        "score": 1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=7.15",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "latency z=-0.7",
+            "eid": "E7",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=12.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "cartservice",
+              "top": 20
+            },
+            "depth": 1,
+            "predicted": "cartservice mem shows a large upward deviation with no disk I/O deviation; disk metrics stay near baseline while mem rises, with socket not saturated",
+            "rationale": "Querying cartservice disk and memory metrics directly will show whether mem z reaches >=15 and whether disk metrics deviate, separating mem from disk (current mem z=7.15 is below the signature thresho",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "metric_query",
+            "args": {
+              "service": "cartservice",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "cartservice_mem shows a sustained rise after the alert (z elevated, ideally >=15), with no disk I/O series deviating, supporting mem over disk",
+            "rationale": "Mem z=7.15 is below the signature's 15 threshold and diskio has no series, so checking cartservice's own latency/error trace change (latency z>=3) and whether slowdown is on its spans best tests the m",
+            "by": "model"
+          },
+          {
+            "eid": "E14",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "cartservice",
+              "failing_only": false,
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "Cartservice inbound spans show caller-observed latency rising after the alert, along with errors, consistent with memory pressure rather than disk I/O; disk would show no such pattern.",
+            "rationale": "Mem z=7.15 is below the signature's 15 threshold and cartservice self-time barely changed, so I need the cartservice inbound latency, error and caller-observed breakdown to check whether the latency z",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "cartservice",
+        "fault_type": "disk",
+        "reason": "top fault types for cartservice by metric signature (score 1)",
+        "status": "open",
+        "close_reason": "",
+        "score": 1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E7",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=7.15",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=2.49",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=12.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "cartservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "cartservice diskio shows a significant rise after the alert, beyond mem and socket deviations; if flat, disk is refuted in favor of mem.",
+            "rationale": "Querying cartservice's diskio metric directly tests the disk hypothesis: the disk signature requires diskio to rise, while the memory rival does not predict that, and no diskio deviation appears in th",
+            "by": "model"
+          },
+          {
+            "eid": "E13",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "cartservice",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Log lines mentioning disk (e.g. I/O errors, write failures, no space left) in cartservice, which would support disk over mem; if none match, the disk hypothesis is unsupported.",
+            "rationale": "Disk I/O was queried for cartservice and no series exists (E10); a broader search for any disk-related metric across all services, or for disk-related log text, would show whether disk evidence exists",
+            "by": "model"
+          },
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "cartservice",
+              "metric": "io"
+            },
+            "depth": 3,
+            "predicted": "A cartservice disk I/O or filesystem series shows a significant rise, while mem z stays below 15, which would separate disk from mem; if no series exists, the disk hypothesis is refuted.",
+            "rationale": "Diskio series for cartservice is absent (E10) and disk log searches matched nothing, so the one remaining check is whether any disk-related metric exists for cartservice (fs, io, read/write); a listin",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "cartservice",
+        "fault_type": "socket",
+        "reason": "top fault types for cartservice by metric signature (score 1)",
+        "status": "open",
+        "close_reason": "",
+        "score": 1,
+        "kinds": [
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=12.66",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E11",
+            "tool": "metric_query",
+            "args": {
+              "service": "cartservice",
+              "metric": "socket"
+            },
+            "depth": 1,
+            "predicted": "cartservice_socket shows a sustained, large post-alert rise (z>=25 at finer granularity or a clear step change), exceeding the mem deviation, consistent with socket exhaustion causing inbound errors/s",
+            "rationale": "The signature requires cartservice's own/inbound spans to slow down, so a per-service trace lookup is the discriminating test; so far E2 shows only 1.02x p50 self-time, which is weak support for socke",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 2+ below the best (1)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E8",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.11",
+            "eid": "E8",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.82",
+            "eid": "E8",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=2.39",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 7,
+    "generator_calls": 7,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [
+      {
+        "branch_id": "B1",
+        "service": "cartservice",
+        "fault_type": "mem",
+        "reason": "top fault types for cartservice by metric signature (score 1)",
+        "status": "open",
+        "close_reason": "",
+        "score": 1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=7.15",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "latency z=-0.7",
+            "eid": "E7",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=12.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "cartservice",
+              "top": 20
+            },
+            "depth": 1,
+            "predicted": "cartservice mem shows a large upward deviation with no disk I/O deviation; disk metrics stay near baseline while mem rises, with socket not saturated",
+            "rationale": "Querying cartservice disk and memory metrics directly will show whether mem z reaches >=15 and whether disk metrics deviate, separating mem from disk (current mem z=7.15 is below the signature thresho",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "metric_query",
+            "args": {
+              "service": "cartservice",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "cartservice_mem shows a sustained rise after the alert (z elevated, ideally >=15), with no disk I/O series deviating, supporting mem over disk",
+            "rationale": "Mem z=7.15 is below the signature's 15 threshold and diskio has no series, so checking cartservice's own latency/error trace change (latency z>=3) and whether slowdown is on its spans best tests the m",
+            "by": "model"
+          },
+          {
+            "eid": "E14",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "cartservice",
+              "failing_only": false,
+              "limit": 20
+            },
+            "depth": 3,
+            "predicted": "Cartservice inbound spans show caller-observed latency rising after the alert, along with errors, consistent with memory pressure rather than disk I/O; disk would show no such pattern.",
+            "rationale": "Mem z=7.15 is below the signature's 15 threshold and cartservice self-time barely changed, so I need the cartservice inbound latency, error and caller-observed breakdown to check whether the latency z",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "cartservice",
+        "fault_type": "disk",
+        "reason": "top fault types for cartservice by metric signature (score 1)",
+        "status": "open",
+        "close_reason": "",
+        "score": 1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E7",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=7.15",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=2.49",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=12.66",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "cartservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "cartservice diskio shows a significant rise after the alert, beyond mem and socket deviations; if flat, disk is refuted in favor of mem.",
+            "rationale": "Querying cartservice's diskio metric directly tests the disk hypothesis: the disk signature requires diskio to rise, while the memory rival does not predict that, and no diskio deviation appears in th",
+            "by": "model"
+          },
+          {
+            "eid": "E13",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "cartservice",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Log lines mentioning disk (e.g. I/O errors, write failures, no space left) in cartservice, which would support disk over mem; if none match, the disk hypothesis is unsupported.",
+            "rationale": "Disk I/O was queried for cartservice and no series exists (E10); a broader search for any disk-related metric across all services, or for disk-related log text, would show whether disk evidence exists",
+            "by": "model"
+          },
+          {
+            "eid": null,
+            "tool": "metric_query",
+            "args": {
+              "service": "cartservice",
+              "metric": "io"
+            },
+            "depth": 3,
+            "predicted": "A cartservice disk I/O or filesystem series shows a significant rise, while mem z stays below 15, which would separate disk from mem; if no series exists, the disk hypothesis is refuted.",
+            "rationale": "Diskio series for cartservice is absent (E10) and disk log searches matched nothing, so the one remaining check is whether any disk-related metric exists for cartservice (fs, io, read/write); a listin",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ],
+      "B4": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 15,
+    "model_seconds": 32.1,
+    "tool_seconds": 1.1,
+    "prompt_tokens": 18891,
+    "completion_tokens": 2950,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 33.3,
+    "cost_usd": 0.067282
+  }
+}

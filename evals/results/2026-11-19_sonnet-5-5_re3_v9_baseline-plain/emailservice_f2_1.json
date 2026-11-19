@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2670,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice is the only service with a major anomaly: latency-90 rose from 0.0046 to 0.1769 (z=+746) and latency-50 from 0.003 to 0.0686 (z=+436), while its CPU is flat (+7%) and no other service's latency moved. Its socket count and memory dropped and its workload fell 88%, which fits a network delay fault rather than CPU, memory, or disk saturation, but the logs are empty and the traces do not show emailservice directly, so the fault type is inferred.",
+  "proposed_fix": {
+    "description": "Inspect emailservice's network path (e.g. check for injected latency with tc/netem or a service mesh fault rule on its pod/node) and remove it, or restart/reschedule the emailservice pod onto a healthy node if the delay persists; checkoutservice's call to emailservice should also get a timeout and retry.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.8,
+    "prompt_tokens": 1449,
+    "completion_tokens": 337,
+    "tool_seconds": 0.5,
+    "wall_seconds": 3.2,
+    "cost_usd": 0.006268
+  }
+}

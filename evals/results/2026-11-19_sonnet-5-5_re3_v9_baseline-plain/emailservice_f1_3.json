@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2687,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice latency-90 rose about 1864% (z=+372.75) and latency-50 about 931% (z=+186.23), while its CPU, memory and socket metrics fell and no other service shows a comparable shift, which points to injected network delay rather than resource exhaustion. emailservice is a callee of checkoutservice, and the error spans in checkoutservice and frontend fit a downstream slowdown propagating upward. Confidence is medium because the logs are empty and the listed trace paths do not include emailservice.",
+  "proposed_fix": {
+    "description": "Inspect emailservice's network path for added latency (e.g. tc/netem rules, a degraded node or sidecar) and remove it. Meanwhile, make checkoutservice's email call asynchronous or give it a short timeout so a slow emailservice does not fail checkout.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.2,
+    "prompt_tokens": 1457,
+    "completion_tokens": 323,
+    "tool_seconds": 0.5,
+    "wall_seconds": 3.7,
+    "cost_usd": 0.006144
+  }
+}

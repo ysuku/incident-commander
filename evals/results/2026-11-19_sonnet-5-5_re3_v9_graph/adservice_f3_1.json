@@ -1,0 +1,378 @@
+{
+  "root_cause": {
+    "service": "adservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: adservice_error z=20825242.72; adservice_cpu z=22.89 (202.9%); adservice_latency-90 z=10.62 (53.1%); adservice_socket z=7.24 (36.2%)",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for adservice: SIGNIFICANT change; inbound calls self-time p50 3.71->3.74ms (1.01x), errors 0.0->0.9812",
+      "source_ref": "traces.csv:serviceName=adservice",
+      "implicates": [
+        "adservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "adservice: socket fault",
+      "why": "Socket deviation is much weaker (z=7.24, 36.2%) than cpu (z=22.89, 202.9%) in E1, so it is more likely a side effect."
+    },
+    {
+      "candidate": "frontend: secondary symptoms",
+      "why": "E2 shows the errors occur on inbound calls to adservice itself (0.0->0.9812), and E1 shows no frontend deviations among the top-ranked metrics; so adservice is the source rather than a downstream victim."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Confirm whether adservice is CPU-throttled and erroring, then, with human approval, modestly raise the CPU limit on the adservice container only if throttling is confirmed, while investigating the cause of the errors.",
+    "steps": [
+      "Inspect adservice pods: kubectl top pod, container CPU usage vs requests/limits, and the container_cpu_cfs_throttled_periods ratio.",
+      "Check adservice logs and recent deploys/config changes for the source of the 98% error rate (the errors are the primary symptom).",
+      "If throttling is confirmed alongside the errors, propose a bounded increase to the adservice container CPU limit (requests can stay the same), e.g. +50%, for human approval.",
+      "Apply the change via a normal rollout, then watch adservice_cpu, adservice_error and latency-90 for 10-15 minutes.",
+      "If CPU is not throttled, do not change limits; escalate to debugging the error source (dependencies, bad release, crash loops)."
+    ],
+    "preconditions": [
+      "Confirm adservice CPU is actually near its limit and throttled, not just elevated.",
+      "Confirm node has spare CPU capacity for the larger limit.",
+      "Confirm a human has approved the limit change and the current manifest is saved.",
+      "Check that no other rollout is in progress for adservice."
+    ],
+    "rollback": "Re-apply the saved previous adservice manifest (or kubectl rollout undo) to restore the original CPU limit.",
+    "runbook_refs": [
+      "runbooks/kubernetes/CPUThrottlingHigh.md#action",
+      "runbooks/kubernetes/CPUThrottlingHigh.md#symptom"
+    ],
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "The alert is purely informative and unless there is some other issue with the application, it can be skipped.",
+        "evidence": "E2",
+        "why": "adservice has a 0.9812 error rate in traces, which is another application issue, so the CPU signal cannot be skipped."
+      }
+    ],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 592,
+        "completion_tokens": 90,
+        "max_tokens": 16000,
+        "answer_chars": 244,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00208,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank every service and metric by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.22
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 739,
+        "completion_tokens": 148,
+        "max_tokens": 16000,
+        "answer_chars": 390,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00296,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at adservice (cpu, error, latency), but I need an independent telemetry kind such as traces to corroborate it before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "adservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.36
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 866,
+        "completion_tokens": 150,
+        "max_tokens": 16000,
+        "answer_chars": 418,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00323,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at adservice, but I need to check logs as a third independent source and to separate cpu from socket fault type.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "adservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 928,
+        "completion_tokens": 172,
+        "max_tokens": 16000,
+        "answer_chars": 481,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00358,
+        "finish_reason": "stop"
+      },
+      "thought": "Logs have not yet been checked for adservice-specific content beyond the error level; a general log search on adservice is needed to get a second independent telemetry kind (logs) supporting or distinguishing cpu vs socket.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "adservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 3.9,
+        "prompt_tokens": 1027,
+        "completion_tokens": 444,
+        "max_tokens": 16000,
+        "answer_chars": 1072,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00649,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1 cpu z=22.89, +202.9%) and traces (E2 errors 0->0.98) both point at adservice, so I can finish with cpu as the fault type, rejecting socket and frontend.",
+      "action": {
+        "finish": {
+          "root_cause_service": "adservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "adservice: socket fault",
+              "why": "Socket deviation is much weaker (z=7.24, 36.2%) than cpu (z=22.89, 202.9%) in E1, so it is more likely a side effect."
+            },
+            {
+              "candidate": "frontend: secondary symptoms",
+              "why": "E2 shows the errors occur on inbound calls to adservice itself (0.0->0.9812), and E1 shows no frontend deviations among the top-ranked metrics; so adservice is the source rather than a downstream victim."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Restart or scale out adservice and investigate the source of CPU saturation (e.g. runaway load or a CPU-burning process); add CPU limits and autoscaling.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: adservice_error z=20825242.72; adservice_cpu z=22.89 (202.9%); adservice_latency-90 z=10.62 (53.1%); adservice_socket z=7.24 (36.2%)",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for adservice: SIGNIFICANT change; inbound calls self-time p50 3.71->3.74ms (1.01x), errors 0.0->0.9812",
+      "source_ref": "traces.csv:serviceName=adservice",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "checked [service='adservice', level='error']: no log lines at that level (2213 lines searched, levels present ['unknown']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "2213 matching lines; by svc/level {'adservice/unknown': 2213}; [adservice/unknown] received ad request (context_words=[]); [adservice/unknown] received ad request (context_words=[clothing, tops])",
+      "source_ref": "logs.csv#L34810",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=adservice]: adservice_error z=20825242.72; adservice_cpu z=22.89 (202.9%); adservice_latency-90 z=10.62 (53.1%); adservice_socket z=7.24 (36.2%)",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice"
+      ]
+    }
+  ],
+  "fix_advisor": {
+    "query": "adservice CPU at its limit and throttled, latency rising",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "CPUThrottlingHigh",
+        "kind": "symptom",
+        "distance": 0.574,
+        "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "NodeNetworkTransmitErrs",
+        "kind": "action",
+        "distance": 0.646,
+        "source_ref": "runbooks/node/NodeNetworkTransmitErrs.md#action"
+      },
+      {
+        "id": "R3",
+        "alert": "CPUThrottlingHigh",
+        "kind": "action",
+        "distance": 0.615,
+        "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#action"
+      }
+    ],
+    "tool_seconds": 0.4,
+    "model_call": {
+      "seconds": 6.6,
+      "prompt_tokens": 1293,
+      "completion_tokens": 719,
+      "max_tokens": 16000,
+      "answer_chars": 2023,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.00978,
+      "finish_reason": "stop"
+    },
+    "contradictions": [
+      {
+        "runbook": "R1",
+        "step": "The alert is purely informative and unless there is some other issue with the application, it can be skipped.",
+        "evidence": "E2",
+        "why": "adservice has a 0.9812 error rate in traces, which is another application issue, so the CPU signal cannot be skipped."
+      }
+    ],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Confirm whether adservice is CPU-throttled and erroring, then, with human approval, modestly raise the CPU limit on the adservice container only if throttling is confirmed, while investigating the cause of the errors.",
+      "steps": [
+        "Inspect adservice pods: kubectl top pod, container CPU usage vs requests/limits, and the container_cpu_cfs_throttled_periods ratio.",
+        "Check adservice logs and recent deploys/config changes for the source of the 98% error rate (the errors are the primary symptom).",
+        "If throttling is confirmed alongside the errors, propose a bounded increase to the adservice container CPU limit (requests can stay the same), e.g. +50%, for human approval.",
+        "Apply the change via a normal rollout, then watch adservice_cpu, adservice_error and latency-90 for 10-15 minutes.",
+        "If CPU is not throttled, do not change limits; escalate to debugging the error source (dependencies, bad release, crash loops)."
+      ],
+      "preconditions": [
+        "Confirm adservice CPU is actually near its limit and throttled, not just elevated.",
+        "Confirm node has spare CPU capacity for the larger limit.",
+        "Confirm a human has approved the limit change and the current manifest is saved.",
+        "Check that no other rollout is in progress for adservice."
+      ],
+      "rollback": "Re-apply the saved previous adservice manifest (or kubectl rollout undo) to restore the original CPU limit."
+    },
+    "rationale": "adservice shows CPU at +202.9% and a 98.12% error rate, but self-time p50 is unchanged (3.71->3.74ms), so the errors are the real application issue and the CPU rise may be a symptom or a limit/request mismatch; R3's 'mixed with other alerts' guidance applies, so any limit change should be small, gat",
+    "runbook_refs": [
+      "R3",
+      "R1"
+    ],
+    "commander_draft": "Restart or scale out adservice and investigate the source of CPU saturation (e.g. runaway load or a CPU-burning process); add CPU limits and autoscaling."
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 1,
+    "review_required": true,
+    "review_reason": "runbook contradicts the evidence: R1 step \"The alert is purely informative and unless there is some oth\" contradicts E2"
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 6,
+    "model_seconds": 17.5,
+    "tool_seconds": 1.1,
+    "prompt_tokens": 5445,
+    "completion_tokens": 1723,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 18.6,
+    "cost_usd": 0.02812
+  }
+}

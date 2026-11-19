@@ -1,0 +1,365 @@
+{
+  "status": "escalated",
+  "reason": "step budget (8) exhausted",
+  "escalation": {
+    "code": "budget_exhausted",
+    "reason": "step budget (8) exhausted",
+    "hypotheses": [
+      {
+        "service": "adservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "loss",
+        "score": 3,
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E7"
+        ],
+        "summary": "confirmed latency_up (latency z=191.31), cpu_not_up (cpu z=-1.64), trace_slow (traces implicate the service), errors_up (span error rate +0.983); contradicted conn_pressure (mem z=-1.26)"
+      },
+      {
+        "service": "adservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "delay",
+        "score": 2,
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E7"
+        ],
+        "summary": "confirmed latency_up (latency z=191.31), resources_flat (max resource mem z=-1.26), trace_slow (traces implicate the service); contradicted no_errors (span error rate +0.983)"
+      },
+      {
+        "service": "frontend",
+        "kinds": [],
+        "fault_type": null,
+        "score": null,
+        "evidence": [],
+        "summary": "named by the model; nothing on the board implicates it; no fault type has a confirmed signal"
+      }
+    ],
+    "note": "no diagnosis passed the citation gate within the step budget; hypotheses are ranked in code from the evidence already on the board (no new tool calls): a fault type is listed only where one of its signals is confirmed"
+  },
+  "candidates": [
+    "adservice: socket fault (fast-failing, 98% errors, low self-time)",
+    "adservice: cpu exhaustion",
+    "adservice: delay fault",
+    "frontend: symptom only, caller of adservice"
+  ],
+  "notes": [
+    "step 8: metric_query({'service': 'adservice', 'top': 20}) was already called; its result is E7. Choose a different query."
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: adservice_error z=277364771.15; adservice_latency-50 z=191.31 (1242.3%); adservice_latency-90 z=152.6 (3062.5%); adservice_workload z=-13.16 (-84.6%)",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for adservice: SIGNIFICANT change; inbound calls self-time p50 4.49->0.41ms (0.09x), errors 0.0->0.9828",
+      "source_ref": "traces.csv:serviceName=adservice",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "checked [service='adservice', level='error']: no log lines at that level (2296 lines searched, levels present ['unknown']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=adservice]: adservice_error z=277364771.15; adservice_latency-50 z=191.31 (1242.3%); adservice_latency-90 z=152.6 (3062.5%); adservice_workload z=-13.16 (-84.6%)",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='adservice', query='connection']: no line contains that literal text (2296 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "logs",
+      "summary": "2296 matching lines; by svc/level {'adservice/unknown': 2296}; [adservice/unknown] received ad request (context_words=[decor, home]); [adservice/unknown] received ad request (context_words=[])",
+      "source_ref": "logs.csv#L35549",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=adservice]: adservice_error z=277364771.15; adservice_latency-50 z=191.31 (1242.3%); adservice_latency-90 z=152.6 (3062.5%); adservice_workload z=-13.16 (-84.6%)",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 592,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 704,
+        "completion_tokens": 153,
+        "max_tokens": 16000,
+        "answer_chars": 395,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00294,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at adservice; I need an independent telemetry kind (traces or logs) for adservice, so check its own and inbound latency/errors in traces.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "adservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.36
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 873,
+        "completion_tokens": 184,
+        "max_tokens": 16000,
+        "answer_chars": 487,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00359,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point to adservice, but the fault type is still unclear, so I'll search adservice logs for evidence that separates delay, cpu, mem, socket and loss faults.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "adservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 951,
+        "completion_tokens": 185,
+        "max_tokens": 16000,
+        "answer_chars": 486,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00375,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at adservice, but fault type is still ambiguous, so I'll look at adservice's other resource metrics (cpu, mem, socket) to discriminate fault type.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1083,
+        "completion_tokens": 185,
+        "max_tokens": 16000,
+        "answer_chars": 496,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00402,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at adservice, but fault type is ambiguous; searching logs for adservice connection or network messages to discriminate socket from cpu or delay.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "adservice",
+          "query": "connection",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.9,
+        "prompt_tokens": 1158,
+        "completion_tokens": 172,
+        "max_tokens": 16000,
+        "answer_chars": 460,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00404,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at adservice, but fault type is unresolved; searching logs for adservice lines without a filter on level may show the failure mode.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "adservice",
+          "limit": 15
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1255,
+        "completion_tokens": 187,
+        "max_tokens": 16000,
+        "answer_chars": 499,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00438,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at adservice, but fault type is unresolved; checking adservice's own and inbound latency/errors in traces before vs after will help discriminate socket from cpu or delay.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice",
+          "top": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1377,
+        "completion_tokens": 189,
+        "max_tokens": 16000,
+        "answer_chars": 482,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00464,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at adservice, but fault type is still ambiguous (socket vs cpu vs delay vs loss), so I'll look at the metric ranking for adservice's resource metrics before finishing.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice",
+          "top": 20
+        }
+      },
+      "outcome": "repeated_call",
+      "detail": "same as E7"
+    }
+  ],
+  "proposed_fix": null,
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "commander",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 16.8,
+    "tool_seconds": 0.5,
+    "prompt_tokens": 7993,
+    "completion_tokens": 1332,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 17.3,
+    "cost_usd": 0.029306000000000002
+  }
+}

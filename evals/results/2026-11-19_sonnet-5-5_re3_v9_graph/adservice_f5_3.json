@@ -1,0 +1,906 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "adservice",
+        "fault_type": "loss",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=346.78), cpu_not_up (cpu z=-1.62), trace_slow (traces implicate the service), errors_up (span error rate +0.989); contradicted conn_pressure (mem z=-1.61)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E8",
+          "E10",
+          "E12"
+        ]
+      },
+      {
+        "service": "adservice",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=346.78), resources_flat (max resource mem z=-1.61), trace_slow (traces implicate the service); contradicted no_errors (span error rate +0.989)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E11"
+        ]
+      },
+      {
+        "service": "frontend",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=8.99), resources_flat (max resource cpu z=0.16), trace_slow (traces implicate the service); contradicted no_errors (span error rate +0.050)",
+        "evidence": [
+          "E1",
+          "E7",
+          "E9"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "adservice: loss (score 3, open; confirmed latency_up, cpu_not_up, trace_slow, errors_up)",
+    "adservice: delay (score 2, open; confirmed latency_up, resources_flat, trace_slow)",
+    "frontend: delay (score 2, open; confirmed latency_up, resources_flat, trace_slow)",
+    "adservice: disk (score -1, pruned; confirmed socket_not_saturated, trace_slow)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: adservice_error z=300732316.23; adservice_latency-50 z=346.78 (1733.9%); adservice_latency-90 z=342.63 (3444.2%); adservice_workload z=-10.03 (-84.8%)",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice",
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for adservice: SIGNIFICANT change; inbound calls self-time p50 4.2->0.35ms (0.08x), errors 0.0->0.9886",
+      "source_ref": "traces.csv:serviceName=adservice",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "checked [service='adservice', level='error']: no log lines at that level (2292 lines searched, levels present ['unknown']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='adservice', query='error']: no line contains that literal text (2292 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "2292 matching lines; by svc/level {'adservice/unknown': 2292}; [adservice/unknown] received ad request (context_words=[kitchen]); [adservice/unknown] received ad request (context_words=[decor, home])",
+      "source_ref": "logs.csv#L34943",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=adservice]: adservice_error z=300732316.23; adservice_latency-50 z=346.78 (1733.9%); adservice_latency-90 z=342.63 (3444.2%); adservice_workload z=-10.03 (-84.8%)",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_latency-90 z=8.99 (44.9%)",
+      "source_ref": "simple_metrics.csv:frontend_latency-90",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=adservice, metric=socket]; largest is only adservice_socket z=-1.76 (-62.0%)",
+      "source_ref": "simple_metrics.csv:adservice_socket",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "traces",
+      "summary": "traces for frontend: SIGNIFICANT change; own spans self-time p50 1.93->1.8ms (0.93x), errors 0.0908->0.1412",
+      "source_ref": "traces.csv:serviceName=frontend",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=adservice, metric=cpu]; largest is only adservice_cpu z=-1.62 (-70.3%)",
+      "source_ref": "simple_metrics.csv:adservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E11",
+      "kind": "traces",
+      "summary": "traces for adservice: SIGNIFICANT change; inbound calls self-time p50 4.2->0.35ms (0.08x), errors 0.0->0.9886",
+      "source_ref": "traces.csv:serviceName=adservice",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E12",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=adservice, metric=mem]; largest is only adservice_mem z=-1.61 (-59.8%)",
+      "source_ref": "simple_metrics.csv:adservice_mem",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 592,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 704,
+        "completion_tokens": 152,
+        "max_tokens": 16000,
+        "answer_chars": 416,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00293,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point to adservice; I need an independent telemetry kind (traces) to check adservice's own and inbound latency/errors before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "adservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.36
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 870,
+        "completion_tokens": 167,
+        "max_tokens": 16000,
+        "answer_chars": 436,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00341,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at adservice, but fault type is unclear; searching adservice logs for the failure mode (socket, mem, cpu, etc.) will discriminate.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "adservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 935,
+        "completion_tokens": 190,
+        "max_tokens": 16000,
+        "answer_chars": 528,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00377,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at adservice, but fault type is unclear and logs are unlabeled, so I will search the adservice logs for connection or error text to separate socket from cpu/mem.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "adservice",
+          "query": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 1032,
+        "completion_tokens": 180,
+        "max_tokens": 16000,
+        "answer_chars": 517,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00386,
+        "finish_reason": "stop"
+      },
+      "thought": "Logs have no error level, so I need an independent log signal for adservice; searching adservice logs without level filter may reveal connection or resource symptoms to pair with metrics and traces.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "adservice",
+          "limit": 15
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1133,
+        "completion_tokens": 164,
+        "max_tokens": 16000,
+        "answer_chars": 421,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00391,
+        "finish_reason": "stop"
+      },
+      "thought": "Need to discriminate fault type for adservice; query its specific metrics (cpu, mem, socket, network) to separate resource exhaustion from socket/delay/loss.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 8.2,
+        "prompt_tokens": 1244,
+        "completion_tokens": 960,
+        "max_tokens": 16000,
+        "answer_chars": 1394,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.01209,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1/E6) and traces (E2) independently point at adservice, and no other service deviates, so I can finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "adservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E6"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend (caller showing symptoms only)",
+              "why": "E1 ranks all services and only adservice metrics deviate. E2 shows the errors on inbound calls to adservice (0.0->0.9886), so frontend is only observing the failure."
+            },
+            {
+              "candidate": "adservice cpu/mem exhaustion",
+              "why": "E2 shows self-time falling (p50 4.2->0.35ms), so requests fail fast rather than slowly under load. E1 shows workload down 84.8%, which fits connections failing, not resource saturation."
+            },
+            {
+              "candidate": "delay or loss on adservice",
+              "why": "The signature is near-100% errors with low self-time (E2), which fits refused or reset connections better than added latency or packet loss. The latency rise in E1 is seen by callers and is not in adservice's own processing. This is the least certain call, because the logs (E3-E5) carry no error text to confirm it."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Check adservice's listener and connection state (port binding, connection resets, network policy or sidecar), then restore it. If it is wedged, do a controlled restart of the adservice pod. Verify the error rate returns to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "socket has a contradicted must-have signal for adservice"
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "adservice: loss",
+      "thought": "Loss predicts memory/socket pressure on adservice with no CPU rise, while delay would show no conn pressure; a no-filter-free per-service metric query for adservice's mem/socket/cpu metrics separates ",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice",
+          "metric": "socket",
+          "top": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 1249,
+        "completion_tokens": 172,
+        "max_tokens": 16000,
+        "answer_chars": 450,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00422,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "adservice: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'service': 'adservice', 'failing_only': True, 'limit': 10}) alread; the heuristic had no test left",
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 1321,
+        "completion_tokens": 205,
+        "max_tokens": 16000,
+        "answer_chars": 578,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00469,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "frontend: delay",
+      "thought": "If frontend delay were the root cause, frontend's own and inbound spans would be slow while adservice stays healthy; the evidence shows adservice with ~99% errors, so checking frontend's own span late",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "frontend",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1321,
+        "completion_tokens": 171,
+        "max_tokens": 16000,
+        "answer_chars": 488,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00435,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.39
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "adservice: loss",
+      "thought": "Loss predicts memory or socket pressure with no CPU rise, while delay would show CPU or self-time growth. Querying adservice cpu and memory metrics separates them, since E8 already shows no socket dev",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1417,
+        "completion_tokens": 180,
+        "max_tokens": 16000,
+        "answer_chars": 498,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00463,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 12,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "adservice: delay",
+      "thought": "Delay predicts adservice spans get slower with no errors, while loss predicts high errors and reduced workload; E2 already shows 98.9% errors and faster self-time, so I check the caller-observed inbou",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "adservice",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1492,
+        "completion_tokens": 207,
+        "max_tokens": 16000,
+        "answer_chars": 611,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00505,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.36
+    },
+    {
+      "step": 13,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "adservice: loss",
+      "thought": "Loss (packet loss or connection reset) should leave memory or socket pressure and fast-failing spans, whereas delay would inflate self-time. Memory has not been checked for adservice, and a z>=5 there",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E12",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 1589,
+        "completion_tokens": 184,
+        "max_tokens": 16000,
+        "answer_chars": 509,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00502,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 14,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "adservice: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'service': 'adservice', 'failing_only': False, 'limit': 10}) alrea; the heuristic had no test left",
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1661,
+        "completion_tokens": 213,
+        "max_tokens": 16000,
+        "answer_chars": 620,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00545,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T1 socket has a contradicted must-have signal for adservice",
+    "suspect": "adservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "adservice",
+        "fault_type": "loss",
+        "reason": "top fault types for adservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=346.78",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=-1.61",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-1.62",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.989",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "adservice",
+              "metric": "socket",
+              "top": 10
+            },
+            "depth": 1,
+            "predicted": "adservice socket/network metrics show z>=5 deviation (conn pressure) while CPU z<3, consistent with loss rather than delay",
+            "rationale": "Loss predicts memory/socket pressure on adservice with no CPU rise, while delay would show no conn pressure; a no-filter-free per-service metric query for adservice's mem/socket/cpu metrics separates ",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "adservice",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "adservice cpu shows no significant deviation (z<3), consistent with loss (errors with low self-time) rather than delay or CPU exhaustion; any memory change would be a separate check.",
+            "rationale": "Loss predicts memory or socket pressure with no CPU rise, while delay would show CPU or self-time growth. Querying adservice cpu and memory metrics separates them, since E8 already shows no socket dev",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "metric_query",
+            "args": {
+              "service": "adservice",
+              "metric": "mem"
+            },
+            "depth": 3,
+            "predicted": "adservice memory shows a significant deviation (z>=5) while CPU stays flat, which fits loss/connection pressure; no memory deviation would weaken the loss hypothesis.",
+            "rationale": "Loss (packet loss or connection reset) should leave memory or socket pressure and fast-failing spans, whereas delay would inflate self-time. Memory has not been checked for adservice, and a z>=5 there",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "adservice",
+        "fault_type": "delay",
+        "reason": "top fault types for adservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=346.78",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource mem z=-1.61",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "span error rate +0.989",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E11",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "adservice",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Inbound adservice spans show markedly increased duration with error rate staying near 0; if instead near-100% errors persist with short durations, delay is refuted and loss is favored.",
+            "rationale": "Delay predicts adservice spans get slower with no errors, while loss predicts high errors and reduced workload; E2 already shows 98.9% errors and faster self-time, so I check the caller-observed inbou",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=8.99",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.16",
+            "eid": "E7",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E9",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "span error rate +0.050",
+            "eid": "E9",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "frontend",
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "Frontend's own and inbound spans show slower latency with errors staying low (<0.05), and its slowdown is not explained by downstream adservice errors.",
+            "rationale": "If frontend delay were the root cause, frontend's own and inbound spans would be slow while adservice stays healthy; the evidence shows adservice with ~99% errors, so checking frontend's own span late",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "adservice",
+        "fault_type": "disk",
+        "reason": "top fault types for adservice by metric signature (score -1)",
+        "status": "pruned",
+        "close_reason": "score -1 (at most -1 if every untested signal held) is 4+ below the best (3)",
+        "score": -1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E6",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=-1.61",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-1.62",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=-1.76",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 7,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 14,
+    "model_seconds": 35.0,
+    "tool_seconds": 1.3,
+    "prompt_tokens": 16560,
+    "completion_tokens": 3222,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 36.5,
+    "cost_usd": 0.06534000000000001
+  }
+}

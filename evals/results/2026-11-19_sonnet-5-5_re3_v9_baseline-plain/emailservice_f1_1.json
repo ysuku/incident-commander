@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2686,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice latency-90 rose from 0.0046 to 0.1498 (+3157%, z=+631) and latency-50 rose +1131%, while its CPU and memory did not rise (mem -4.7%) and its socket count and workload fell, which points to injected delay rather than resource exhaustion. Error spans in the worst traces sit in checkoutservice and frontend, and checkoutservice is emailservice's only caller in the map, consistent with the delay propagating upstream; no logs are available to confirm.",
+  "proposed_fix": {
+    "description": "Investigate and remove the source of added latency on emailservice (e.g. check for network delay/traffic-shaping rules or a slow dependency on its pods), then restart or reschedule the affected emailservice pods if the delay persists; also consider a timeout and circuit breaker on checkoutservice's email call.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 4.2,
+    "prompt_tokens": 1447,
+    "completion_tokens": 331,
+    "tool_seconds": 0.5,
+    "wall_seconds": 4.7,
+    "cost_usd": 0.006204
+  }
+}

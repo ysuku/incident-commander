@@ -1,0 +1,822 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "emailservice",
+        "fault_type": "loss",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=601.89), cpu_not_up (cpu z=-0.7), trace_slow (traces implicate the service), errors_up (span error rate +0.969); contradicted conn_pressure (mem z=-1.1)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E9",
+          "E11"
+        ]
+      },
+      {
+        "service": "emailservice",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=601.89), resources_flat (max resource cpu z=-0.7), trace_slow (traces implicate the service); contradicted no_errors (span error rate +0.969)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E10",
+          "E12"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "emailservice: loss (score 3, open; confirmed latency_up, cpu_not_up, trace_slow, errors_up)",
+    "emailservice: delay (score 2, open; confirmed latency_up, resources_flat, trace_slow)",
+    "emailservice: disk (score -1, pruned; confirmed socket_not_saturated, trace_slow)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=601.89 (3009.5%); emailservice_latency-50 z=254.28 (1271.4%); frontend-external_error z=6.42 (4404.7%); emailservice_socket z=-3.33 (-16.7%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.14->0.14ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 4.1->0.42ms (0.1x), errors 0.0->0.969",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "checked [service='emailservice', level='error']: no log lines at that level (157 lines searched, levels present ['unknown']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='connection']: no line contains that literal text (157 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontend->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "logs",
+      "summary": "157 matching lines; by svc/level {'emailservice/unknown': 157}; [emailservice/unknown] A request to send order confirmation email to danaperry@example.com has been rec; [emailservice/unknown] A request to send order confirmation email to tpowers@example.org has been recei",
+      "source_ref": "logs.csv#L35781",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=601.89 (3009.5%); emailservice_latency-50 z=254.28 (1271.4%); emailservice_socket z=-3.33 (-16.7%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=601.89 (3009.5%); emailservice_latency-50 z=254.28 (1271.4%); emailservice_socket z=-3.33 (-16.7%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E9",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.44->3.23ms (0.94x), errors 0.0->0.0691; inbound calls self-time p50 1.66->1.63ms (0.99x), errors 0.0->0.0077",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.14->0.14ms (0.97x), errors 0.0->0.0; inbound calls self-time p50 4.1->0.42ms (0.1x), errors 0.0->0.969",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E11",
+      "kind": "logs",
+      "summary": "125 matching lines; by svc/level {'checkoutservice/unknown': 125}; [checkoutservice/unknown] order confirmation email sent to \"danaperry@example.com\"; [checkoutservice/unknown] order confirmation email sent to \"tpowers@example.org\"",
+      "source_ref": "logs.csv#L35782",
+      "implicates": []
+    },
+    {
+      "eid": "E12",
+      "kind": "traces",
+      "summary": "4718 traces after alert; worst: frontend -> checkoutservice -> productcatalogservice -> paymentservice 25.5ms errors=5; frontend -> checkoutservice -> productcatalogservice -> paymentservice -> recommendationservice -> currencyservice 287.5ms errors=2; frontend -> checkoutservice -> productcatalogservice -> paymentservice -> recommendationservice -> currencyservice 278.4ms errors=2",
+      "source_ref": "traces.csv:traceID=bb0b391a7fe1c6d6be3ea43fe2ef19fc",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 0.9,
+        "prompt_tokens": 592,
+        "completion_tokens": 76,
+        "max_tokens": 16000,
+        "answer_chars": 200,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00194,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with the unfiltered metric_query to rank all services and metrics by deviation, as instructed.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 718,
+        "completion_tokens": 140,
+        "max_tokens": 16000,
+        "answer_chars": 378,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00284,
+        "finish_reason": "stop"
+      },
+      "thought": "Emailservice dominates the metric deviations, so I'll check its own and inbound trace latency to get a second independent telemetry kind.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.34
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.2,
+        "prompt_tokens": 910,
+        "completion_tokens": 157,
+        "max_tokens": 16000,
+        "answer_chars": 437,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00339,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but I need log evidence as a third independent kind and to discriminate socket vs delay, so I'll search emailservice logs for errors.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 974,
+        "completion_tokens": 145,
+        "max_tokens": 16000,
+        "answer_chars": 403,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0034,
+        "finish_reason": "stop"
+      },
+      "thought": "Need a second independent telemetry kind on emailservice (logs) to discriminate socket vs delay; search logs for connection-related messages.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "query": "connection",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.3,
+        "prompt_tokens": 1053,
+        "completion_tokens": 145,
+        "max_tokens": 16000,
+        "answer_chars": 424,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00356,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but the fault type is unclear, and the log filters so far returned nothing. A service_map call will confirm the dependency direction and show whether the frontend is a victim.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.19
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1162,
+        "completion_tokens": 191,
+        "max_tokens": 16000,
+        "answer_chars": 501,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00423,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but fault type is ambiguous (socket vs delay vs loss); searching emailservice logs for any lines will test for socket or timeout signals.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1315,
+        "completion_tokens": 204,
+        "max_tokens": 16000,
+        "answer_chars": 521,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00467,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but the fault type is ambiguous between delay and socket; I'll check emailservice's metrics for CPU, memory, disk, socket, or loss signals to pick the fault type.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 15
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 4.0,
+        "prompt_tokens": 1434,
+        "completion_tokens": 491,
+        "max_tokens": 16000,
+        "answer_chars": 1286,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00778,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice with latency spikes, and no CPU, memory, or disk deviation was ranked, so I can finish with a delay fault.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E7"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: socket fault",
+              "why": "The socket metric moved only -16.7% (z=-3.33) against latency-90 at +3009% (z=601.89) in E1/E7. A small socket drop fits fewer requests being served rather than a socket fault being the cause."
+            },
+            {
+              "candidate": "emailservice: cpu fault",
+              "why": "E1 and E7 list no CPU deviation for emailservice, and its own spans' self-time is unchanged at 0.97x (E2). That is not what CPU saturation would look like."
+            },
+            {
+              "candidate": "checkoutservice (caller)",
+              "why": "E2 shows the errors and latency in calls inbound to emailservice, while emailservice's own span self-time is flat. Nothing in E1 ranks checkoutservice as deviating."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Inspect emailservice for injected network latency, for example a tc netem delay rule or a slow dependency on its network path, and remove it. Then restart the pod if latency stays high. Verify that latency-90 returns to baseline.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "delay (score 2) vs loss (3) for emailservice"
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: loss",
+      "thought": "Loss (packet drop) should show failed inbound calls from checkoutservice with error spans, while delay should show slow but successful calls; inspecting the caller-side trace for checkoutservice shows",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "service": "checkoutservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 1489,
+        "completion_tokens": 204,
+        "max_tokens": 16000,
+        "answer_chars": 598,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00502,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.38
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: delay",
+      "thought": "Delay vs loss: a delay fault leaves the service's own latency metrics elevated with the requests still completing, whereas loss would show dropped requests/timeouts and reduced throughput. Looking at ",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "service": "emailservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 1600,
+        "completion_tokens": 260,
+        "max_tokens": 16000,
+        "answer_chars": 790,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0058,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.35
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: loss",
+      "thought": "Loss (packet loss) should show retransmission/connection errors or timeouts in checkoutservice's calls to emailservice, whereas delay would show uniformly slow but successful calls; checking checkouts",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "email",
+          "service": "checkoutservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 1733,
+        "completion_tokens": 204,
+        "max_tokens": 16000,
+        "answer_chars": 581,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00551,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 12,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'service': 'checkoutservice', 'failing_only': True, 'limit': 10}) ; the heuristic had no test left",
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1834,
+        "completion_tokens": 235,
+        "max_tokens": 16000,
+        "answer_chars": 662,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00602,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 13,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: loss",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'failing_only': True, 'limit': 10, 'service': 'emailservice'}) alr; the heuristic had no test left",
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1848,
+        "completion_tokens": 259,
+        "max_tokens": 16000,
+        "answer_chars": 733,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00629,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 14,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: delay",
+      "thought": "Delay vs loss: a delay fault keeps emailservice processing requests so its own spans and logs continue to show completed sends at a normal rate, while loss drops requests so inbound latency would be s",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E12",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1834,
+        "completion_tokens": 295,
+        "max_tokens": 16000,
+        "answer_chars": 859,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00662,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.25
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T1 delay (score 2) vs loss (3) for emailservice",
+    "suspect": "emailservice",
+    "rival": null,
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "loss",
+        "reason": "top fault types for emailservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=601.89",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=-1.1",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-0.7",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.969",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E9",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "service": "checkoutservice",
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "Failing checkoutservice->emailservice spans with errors (about 97% error rate) and short self-time, consistent with dropped or refused connections rather than purely added latency.",
+            "rationale": "Loss (packet drop) should show failed inbound calls from checkoutservice with error spans, while delay should show slow but successful calls; inspecting the caller-side trace for checkoutservice shows",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "log_search",
+            "args": {
+              "query": "email",
+              "service": "checkoutservice",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "checkoutservice logs show failed or timed-out email sends (connection errors/deadline exceeded), consistent with loss and ~97% inbound error rate rather than merely slow successful responses",
+            "rationale": "Loss (packet loss) should show retransmission/connection errors or timeouts in checkoutservice's calls to emailservice, whereas delay would show uniformly slow but successful calls; checking checkouts",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "delay",
+        "reason": "top fault types for emailservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=601.89",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=-0.7",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "span error rate +0.969",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E10",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "service": "emailservice",
+              "limit": 20
+            },
+            "depth": 1,
+            "predicted": "Failing emailservice inbound spans from checkoutservice show greatly increased duration (long, timeout-like latency) with the service still processing requests, consistent with delay rather than dropp",
+            "rationale": "Delay vs loss: a delay fault leaves the service's own latency metrics elevated with the requests still completing, whereas loss would show dropped requests/timeouts and reduced throughput. Looking at ",
+            "by": "model"
+          },
+          {
+            "eid": "E12",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "limit": 10
+            },
+            "depth": 3,
+            "predicted": "Failing paths show checkoutservice->emailservice calls with high duration (slow, timing out) rather than fast drops, consistent with delay; inbound errors are mostly deadline-type, and emailservice ow",
+            "rationale": "Delay vs loss: a delay fault keeps emailservice processing requests so its own spans and logs continue to show completed sends at a normal rate, while loss drops requests so inbound latency would be s",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "emailservice",
+        "fault_type": "disk",
+        "reason": "top fault types for emailservice by metric signature (score -1)",
+        "status": "pruned",
+        "close_reason": "score -1 (at most -1 if every untested signal held) is 4+ below the best (3)",
+        "score": -1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E7",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=-1.1",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.7",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=-3.33",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 4,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 14,
+    "model_seconds": 30.1,
+    "tool_seconds": 1.7,
+    "prompt_tokens": 18496,
+    "completion_tokens": 3006,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 31.9,
+    "cost_usd": 0.067052
+  }
+}

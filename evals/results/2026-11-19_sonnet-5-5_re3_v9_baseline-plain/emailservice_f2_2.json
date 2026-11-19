@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2657,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice latency-90 rose from 0.0047 to 0.1454 (z=+601) and latency-50 from 0.003 to 0.0417 (z=+254), by far the largest anomalies, while its CPU, memory and socket metrics did not rise (cpu -10%, mem -5.5%, socket 3 to 2.5), which fits an injected delay rather than resource exhaustion. emailservice is a callee of checkoutservice, which fits the frontend external errors (z=+6.42). The traces and logs are uninformative: the listed paths do not include emailservice and no log lines were available, so confidence is medium.",
+  "proposed_fix": {
+    "description": "Inspect emailservice for network delay injection or slow dependencies (e.g. tc netem rules, slow SMTP/upstream calls) and remove the source of delay; add a timeout or circuit breaker on checkoutservice's call to emailservice so order flow does not block on it.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 4.5,
+    "prompt_tokens": 1445,
+    "completion_tokens": 360,
+    "tool_seconds": 0.5,
+    "wall_seconds": 4.9,
+    "cost_usd": 0.00649
+  }
+}

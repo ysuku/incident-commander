@@ -1,0 +1,615 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "unknown",
+        "fault_type": "cpu",
+        "score": 0,
+        "status": "open",
+        "kinds": [],
+        "summary": "no signal measured yet",
+        "evidence": [
+          "E4",
+          "E6",
+          "E8"
+        ]
+      },
+      {
+        "service": "adservice",
+        "fault_type": "disk",
+        "score": -1,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)); contradicted mem_up (mem z=0.23), cpu_up (cpu z=1.13); confirmed socket_not_saturated (socket z=0.22), trace_slow (traces implicate the service)",
+        "evidence": [
+          "E1",
+          "E3",
+          "E5",
+          "E6",
+          "E7",
+          "E9"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "unknown: cpu (score 0, open; confirmed none)",
+    "adservice: disk (score -1, open; confirmed socket_not_saturated, trace_slow)"
+  ],
+  "notes": [
+    "step 2: metric_query({}) was already called; its result is E1. Choose a different query.",
+    "tot root: metric signature of the rival: metric_query(service='unknown') failed: unknown service 'unknown'; metric services are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'frontend-external', 'paymentservice', 'productcatalogservice', 'recommendationservice', 'redis', 'shippingservice']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: adservice_error z=20804438.28",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "logs",
+      "summary": "checked [service='adservice', level='error']: no log lines at that level (9640 lines searched, levels present ['unknown']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=adservice]: adservice_error z=20804438.28",
+      "source_ref": "simple_metrics.csv:adservice_error",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=adservice, metric=cpu]; largest is only adservice_cpu z=1.13 (48.6%)",
+      "source_ref": "simple_metrics.csv:adservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=adservice, metric=diskio]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for adservice: SIGNIFICANT change; inbound calls self-time p50 4.15->2.96ms (0.71x), errors 0.0->0.8022",
+      "source_ref": "traces.csv:serviceName=adservice",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=adservice, metric=mem]; largest is only adservice_mem z=0.23 (7.0%)",
+      "source_ref": "simple_metrics.csv:adservice_mem",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [metric=cpu]; largest is only adservice_cpu z=1.13 (48.6%)",
+      "source_ref": "simple_metrics.csv:adservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='adservice', query='disk']: no line contains that literal text (9640 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.0,
+        "prompt_tokens": 592,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 640,
+        "completion_tokens": 109,
+        "max_tokens": 16000,
+        "answer_chars": 321,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00237,
+        "finish_reason": "stop"
+      },
+      "thought": "Only one metric deviation is known, so I should follow the instruction to call metric_query with no filters and get the full ranking across services and metrics.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "repeated_call",
+      "detail": "same as E1"
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 4.6,
+        "prompt_tokens": 733,
+        "completion_tokens": 119,
+        "max_tokens": 16000,
+        "answer_chars": 319,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00266,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at adservice errors; I need an independent telemetry kind, so check logs for adservice errors.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "adservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "unknown: cpu",
+      "thought": "To separate CPU from disk on adservice, query adservice's own metrics for CPU, memory and socket z-scores; CPU z>=3 with memory and socket unsaturated supports the CPU hypothesis, while a flat CPU fav",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice",
+          "metric": "cpu",
+          "top": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E4",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 910,
+        "completion_tokens": 190,
+        "max_tokens": 16000,
+        "answer_chars": 466,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00372,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "adservice: disk",
+      "thought": "Disk hypothesis requires adservice diskio and mem to rise; querying adservice's diskio metric directly tests it, while cpu is already flat (E4), which weakens the cpu rival.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1006,
+        "completion_tokens": 153,
+        "max_tokens": 16000,
+        "answer_chars": 408,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00354,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "unknown: cpu",
+      "thought": "A CPU fault on the unknown service must show up as slow spans in its inbound traffic, while a disk fault on adservice would show adservice's own spans slow with no CPU rise; trace_lookup on adservice ",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "adservice",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 1041,
+        "completion_tokens": 198,
+        "max_tokens": 16000,
+        "answer_chars": 552,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00406,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.36
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "adservice: disk",
+      "thought": "Memory is the key signature element for the disk hypothesis (mem z>=15) and has not been checked; a mem rise with flat CPU separates it from the CPU rival.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1133,
+        "completion_tokens": 151,
+        "max_tokens": 16000,
+        "answer_chars": 389,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00378,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "unknown: cpu",
+      "thought": "My hypothesis (an unknown-service CPU fault) needs a CPU spike somewhere other than adservice, so I will rank CPU deviations across all services; adservice's own CPU is flat (E4), which already counts",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "metric": "cpu",
+          "top": 12
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1208,
+        "completion_tokens": 175,
+        "max_tokens": 16000,
+        "answer_chars": 459,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00417,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "adservice: disk",
+      "thought": "Disk hypothesis needs diskio rise and mem z>=15 on adservice, but E4/E7 show no CPU or mem deviation and E5 shows no diskio series; a log search for disk/IO errors on adservice directly tests the disk",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk",
+          "service": "adservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 1298,
+        "completion_tokens": 176,
+        "max_tokens": 16000,
+        "answer_chars": 434,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00436,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.04
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "adservice",
+    "rival": "unknown",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B2",
+        "service": "unknown",
+        "fault_type": "cpu",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E4",
+            "tool": "metric_query",
+            "args": {
+              "service": "adservice",
+              "metric": "cpu",
+              "top": 10
+            },
+            "depth": 1,
+            "predicted": "adservice cpu shows z >= 3 after the alert, with mem z < 15 and socket z < 25, consistent with CPU saturation rather than disk.",
+            "rationale": "To separate CPU from disk on adservice, query adservice's own metrics for CPU, memory and socket z-scores; CPU z>=3 with memory and socket unsaturated supports the CPU hypothesis, while a flat CPU fav",
+            "by": "model"
+          },
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "adservice",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "adservice's own/inbound spans show little latency change or only errors, with no CPU-driven slowdown, which is inconsistent with a disk fault on adservice and leaves the CPU hypothesis on another serv",
+            "rationale": "A CPU fault on the unknown service must show up as slow spans in its inbound traffic, while a disk fault on adservice would show adservice's own spans slow with no CPU rise; trace_lookup on adservice ",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "metric": "cpu",
+              "top": 12
+            },
+            "depth": 3,
+            "predicted": "Some non-adservice service shows cpu z>=3 while adservice cpu stays flat, with mem and socket not saturated",
+            "rationale": "My hypothesis (an unknown-service CPU fault) needs a CPU spike somewhere other than adservice, so I will rank CPU deviations across all services; adservice's own CPU is flat (E4), which already counts",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B1",
+        "service": "adservice",
+        "fault_type": "disk",
+        "reason": "top fault types for adservice by metric signature (score -3)",
+        "status": "open",
+        "close_reason": "",
+        "score": -1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.23",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=1.13",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0.22",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E6",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "adservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "adservice diskio shows a large significant deviation after the alert (z high), with mem also elevated, while cpu stays flat",
+            "rationale": "Disk hypothesis requires adservice diskio and mem to rise; querying adservice's diskio metric directly tests it, while cpu is already flat (E4), which weakens the cpu rival.",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "adservice",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "adservice memory shows a large deviation (z>=15) while CPU stays flat, consistent with disk/IO-related fault rather than CPU.",
+            "rationale": "Memory is the key signature element for the disk hypothesis (mem z>=15) and has not been checked; a mem rise with flat CPU separates it from the CPU rival.",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "adservice",
+              "limit": 10
+            },
+            "depth": 3,
+            "predicted": "Log lines mentioning disk/IO errors or no space for adservice; if none, the disk hypothesis is unsupported.",
+            "rationale": "Disk hypothesis needs diskio rise and mem z>=15 on adservice, but E4/E7 show no CPU or mem deviation and E5 shows no diskio series; a log search for disk/IO errors on adservice directly tests the disk",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B1": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 19.2,
+    "tool_seconds": 0.5,
+    "prompt_tokens": 8561,
+    "completion_tokens": 1348,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 19.8,
+    "cost_usd": 0.030602
+  }
+}

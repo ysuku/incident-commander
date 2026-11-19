@@ -1,0 +1,458 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=6.26 (86.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.14ms (0.75x), errors 0.0->0.0; inbound calls self-time p50 3.86->2.43ms (0.63x), errors 0.0->0.9847",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "checkoutservice",
+      "why": "Its error increase (E6) is the caller-side effect of emailservice failures; E5 shows checkoutservice calls emailservice, and E2 shows inbound calls to emailservice failing at 98%, while no CPU deviation is shown for checkoutservice in E1."
+    },
+    {
+      "candidate": "frontend",
+      "why": "It only observes latency through its callers (E5) and shows no own metric deviation in E1."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Verify emailservice CPU limits/requests against actual usage and, if throttling is confirmed, raise the container's CPU limit in a reversible, human-approved change.",
+    "steps": [
+      "Check whether emailservice pods are being CPU throttled (e.g., container_cpu_cfs_throttled_periods_total) and compare current CPU usage to configured requests and limits.",
+      "Check emailservice pod health and recent restarts or deploys to understand why inbound calls are failing (E2 shows ~98% inbound errors).",
+      "Check the node kernel version and node CPU headroom where emailservice runs (R3).",
+      "If throttling is confirmed and the app is behaving erratically (inbound errors per E2), propose a modest increase to the emailservice container CPU limit only, leaving requests unchanged (R3), and get on-call approval before applying.",
+      "After applying, watch emailservice_cpu and inbound error rate for several minutes to confirm recovery."
+    ],
+    "preconditions": [
+      "Confirm throttling or CPU saturation actually exists for emailservice; R1 says throttling alone is informational.",
+      "Confirm the inbound errors in E2 are not caused by an upstream or caller-side problem or a bad deploy.",
+      "Confirm the node has spare CPU capacity to honor a higher limit.",
+      "Record the current deployment manifest/limits so they can be restored."
+    ],
+    "rollback": "Revert the emailservice deployment to the previously recorded CPU limit (e.g., kubectl rollout undo or re-apply the saved manifest) and confirm pods return to the prior spec.",
+    "runbook_refs": [
+      "runbooks/kubernetes/CPUThrottlingHigh.md#action",
+      "runbooks/kubernetes/CPUThrottlingHigh.md#symptom"
+    ],
+    "contradictions": [],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 8,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 592,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.3,
+        "prompt_tokens": 650,
+        "completion_tokens": 126,
+        "max_tokens": 16000,
+        "answer_chars": 361,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00256,
+        "finish_reason": "stop"
+      },
+      "thought": "Only one evidence item so far; the instructions say to call metric_query with no filters first to get the full ranking across services and metrics.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "repeated_call",
+      "detail": "same as E1"
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 766,
+        "completion_tokens": 148,
+        "max_tokens": 16000,
+        "answer_chars": 397,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00301,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at emailservice CPU; I need an independent telemetry kind, so check traces for emailservice's own and inbound latency before vs after the alert.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.34
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 886,
+        "completion_tokens": 173,
+        "max_tokens": 16000,
+        "answer_chars": 463,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0035,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at emailservice; I need to check logs as a third kind and to confirm checkoutservice is only a downstream victim, so I search emailservice logs for errors.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 950,
+        "completion_tokens": 164,
+        "max_tokens": 16000,
+        "answer_chars": 444,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00354,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at emailservice, but error logs are empty; I need a log check with no level filter to get a third, log-based signal or confirm the logs are uninformative.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1067,
+        "completion_tokens": 159,
+        "max_tokens": 16000,
+        "answer_chars": 429,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00372,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2 inbound errors 98%) point at emailservice, but logs show no errors; I need to check the service map to confirm callers and see whether emailservice's failures propagate to checkoutservice.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.2
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 3.5,
+        "prompt_tokens": 1176,
+        "completion_tokens": 409,
+        "max_tokens": 16000,
+        "answer_chars": 411,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00644,
+        "finish_reason": "stop"
+      },
+      "thought": "Emailservice has CPU deviation (E1) and inbound error spike (E2), but I have no direct evidence rejecting checkoutservice as the origin, so I'll check its own spans versus inbound.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "checkoutservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.38
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 4.3,
+        "prompt_tokens": 1302,
+        "completion_tokens": 374,
+        "max_tokens": 16000,
+        "answer_chars": 982,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00634,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at emailservice; I have enough for two telemetry kinds, but a check of the other CPU-related metrics would be redundant, so I finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "checkoutservice",
+              "why": "Its error increase (E6) is the caller-side effect of emailservice failures; E5 shows checkoutservice calls emailservice, and E2 shows inbound calls to emailservice failing at 98%, while no CPU deviation is shown for checkoutservice in E1."
+            },
+            {
+              "candidate": "frontend",
+              "why": "It only observes latency through its callers (E5) and shows no own metric deviation in E1."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Raise emailservice CPU limits and/or scale out replicas, then investigate the cause of the CPU saturation; checkoutservice should retry or degrade gracefully when emails fail.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_cpu z=6.26 (86.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.14ms (0.75x), errors 0.0->0.0; inbound calls self-time p50 3.86->2.43ms (0.63x), errors 0.0->0.9847",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "checked [service='emailservice', level='error']: no log lines at that level (279 lines searched, levels present ['unknown']); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "279 matching lines; by svc/level {'emailservice/unknown': 279}; [emailservice/unknown] A request to send order confirmation email to melissa31@example.org has been rec; [emailservice/unknown] A request to send order confirmation email to cody87@example.org has been receiv",
+      "source_ref": "logs.csv#L35403",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontend->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for checkoutservice: SIGNIFICANT change; own spans self-time p50 3.01->2.77ms (0.92x), errors 0.002->0.0707; inbound calls self-time p50 1.97->1.88ms (0.95x), errors 0.0136->0.0076",
+      "source_ref": "traces.csv:serviceName=checkoutservice",
+      "implicates": [
+        "checkoutservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_cpu z=6.26 (86.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "fix_advisor": {
+    "query": "emailservice CPU at its limit and throttled, latency rising",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "CPUThrottlingHigh",
+        "kind": "symptom",
+        "distance": 0.546,
+        "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom"
+      },
+      {
+        "id": "R2",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "action",
+        "distance": 0.639,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#action"
+      },
+      {
+        "id": "R3",
+        "alert": "CPUThrottlingHigh",
+        "kind": "action",
+        "distance": 0.571,
+        "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "NodeNetworkTransmitErrs",
+        "kind": "action",
+        "distance": 0.646,
+        "source_ref": "runbooks/node/NodeNetworkTransmitErrs.md#action"
+      }
+    ],
+    "tool_seconds": 0.03,
+    "model_call": {
+      "seconds": 6.3,
+      "prompt_tokens": 1569,
+      "completion_tokens": 697,
+      "max_tokens": 16000,
+      "answer_chars": 1930,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.01011,
+      "finish_reason": "stop"
+    },
+    "contradictions": [],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Verify emailservice CPU limits/requests against actual usage and, if throttling is confirmed, raise the container's CPU limit in a reversible, human-approved change.",
+      "steps": [
+        "Check whether emailservice pods are being CPU throttled (e.g., container_cpu_cfs_throttled_periods_total) and compare current CPU usage to configured requests and limits.",
+        "Check emailservice pod health and recent restarts or deploys to understand why inbound calls are failing (E2 shows ~98% inbound errors).",
+        "Check the node kernel version and node CPU headroom where emailservice runs (R3).",
+        "If throttling is confirmed and the app is behaving erratically (inbound errors per E2), propose a modest increase to the emailservice container CPU limit only, leaving requests unchanged (R3), and get on-call approval before applying.",
+        "After applying, watch emailservice_cpu and inbound error rate for several minutes to confirm recovery."
+      ],
+      "preconditions": [
+        "Confirm throttling or CPU saturation actually exists for emailservice; R1 says throttling alone is informational.",
+        "Confirm the inbound errors in E2 are not caused by an upstream or caller-side problem or a bad deploy.",
+        "Confirm the node has spare CPU capacity to honor a higher limit.",
+        "Record the current deployment manifest/limits so they can be restored."
+      ],
+      "rollback": "Revert the emailservice deployment to the previously recorded CPU limit (e.g., kubectl rollout undo or re-apply the saved manifest) and confirm pods return to the prior spec."
+    },
+    "rationale": "emailservice CPU is a significant outlier (E1, z=6.26, 86.3%) and inbound calls to it are failing (E2, errors 0.0->0.9847) while its own span self-time fell, so the CPU pressure looks like saturation or throttling causing failed requests, which makes the CPUThrottlingHigh action runbook (R3) applica",
+    "runbook_refs": [
+      "R3",
+      "R1"
+    ],
+    "commander_draft": "Raise emailservice CPU limits and/or scale out replicas, then investigate the cause of the CPU saturation; checkoutservice should retry or degrade gracefully when emails fail."
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 0,
+    "review_required": false
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 25.3,
+    "tool_seconds": 1.1,
+    "prompt_tokens": 8958,
+    "completion_tokens": 2327,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 26.4,
+    "cost_usd": 0.041186
+  }
+}

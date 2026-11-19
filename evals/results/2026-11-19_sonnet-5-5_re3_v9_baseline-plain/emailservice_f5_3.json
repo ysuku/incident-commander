@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2642,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice shows by far the largest anomaly in the digest: latency-90 rose from 0.0046 to 0.1465 (+3085%, z=+617) and latency-50 from 0.003 to 0.0591 (z=+374), while its CPU, memory, and socket metrics all decreased, which rules out resource exhaustion and points to injected delay. emailservice is a callee of checkoutservice, which matches the error spans in checkoutservice and frontend, though the traces do not explicitly list emailservice and no logs are available to confirm.",
+  "proposed_fix": {
+    "description": "Inspect emailservice for network delay (e.g. tc netem rules or a degraded network path) and remove the delay or restart/reschedule the affected emailservice pod; checkoutservice could also make email sending asynchronous with a timeout so it does not block checkout.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.8,
+    "prompt_tokens": 1445,
+    "completion_tokens": 328,
+    "tool_seconds": 0.5,
+    "wall_seconds": 3.3,
+    "cost_usd": 0.00617
+  }
+}

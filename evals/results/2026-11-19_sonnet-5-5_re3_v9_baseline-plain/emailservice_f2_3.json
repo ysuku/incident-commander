@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2716,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice latency-90 rose from 0.0046 to 0.1474 (z=+620) and latency-50 from 0.003 to 0.0386 (z=+237), while its CPU, memory and socket metrics did not rise (cpu -17%, mem -7%, socket -13%) and its workload fell. This pattern points to injected network delay rather than resource exhaustion, and checkoutservice, its caller, shows a modest latency-90 increase (+48%) consistent with propagation; confidence is not high because no logs exist and the worst traces do not include emailservice spans.",
+  "proposed_fix": {
+    "description": "Inspect emailservice's network path (e.g. tc/netem rules, sidecar or network policy) for injected latency and remove it; if none is found, restart the emailservice pod to restore normal networking. Verify that p90 latency returns to about 5 ms.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.1,
+    "prompt_tokens": 1463,
+    "completion_tokens": 337,
+    "tool_seconds": 0.5,
+    "wall_seconds": 3.5,
+    "cost_usd": 0.006296
+  }
+}

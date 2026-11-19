@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2392,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "adservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "adservice is the only service with a large change: p50 latency rose about 15x (0.0032 to 0.0496, z=+222), p90 about 30x, and the error rate went from 0 to 0.17. Its workload fell 86% while cpu, mem and socket also fell, which fits a service stalled by injected delay rather than one starved of resources; the traces do not touch adservice, there are no log lines, and delay versus packet loss cannot be fully separated from this digest.",
+  "proposed_fix": {
+    "description": "Check adservice's network path for injected latency or a degraded node (e.g. tc/netem rules, sidecar or node network health) and remove or reroute it, then watch adservice latency-50/90 and error return to baseline. Do not restart or delete pods until the cause is confirmed.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 5.7,
+    "prompt_tokens": 1343,
+    "completion_tokens": 655,
+    "tool_seconds": 0.5,
+    "wall_seconds": 6.1,
+    "cost_usd": 0.009236
+  }
+}
