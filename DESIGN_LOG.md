@@ -756,7 +756,7 @@ unchanged). Folders `evals/results/2026-11-19_sonnet-5-5_r1_v8_*`. Total $2.44.
    them with a ToT handover (13 of those name the true service and fault, in a tie or first).
    The agent's value on this data is knowing when it does not know, not finding more causes.
 2. **The price of that is coverage.** 9 cases the single prompt got right are escalated by the
-   graph (mem and disk ties, and cases where only one telemetry kind implicates the service).
+   graph (3 ties, 3 where only one telemetry kind implicates the service, 3 that ran out of steps).
    The two-kinds gate plus the critic is strict enough to give up correct answers. That is the
    main thing to improve: accept more without admitting the 16 wrong ones.
 3. **The linear agent is the worst of both.** Fewer correct than one prompt (7 against 14), and
@@ -765,7 +765,7 @@ unchanged). Folders `evals/results/2026-11-19_sonnet-5-5_r1_v8_*`. Total $2.44.
 4. **Runbooks barely change a single prompt** (14 -> 15 correct; one wrong-service answer became
    an escalation). Consistent with keeping runbooks out of diagnosis.
 5. **Both baselines get `productcatalogservice_loss/1` wrong** (`recommendationservice: mem`),
-   the case linear got wrong on Qwen. Sonnet linear and both graph runs escalate it.
+   the case linear got wrong on Qwen. Sonnet linear names the right service with the wrong fault (`delay`); both graph runs escalate it.
 6. **Graph, Sonnet against Qwen (previous entry):** 10 / 0 / 0 / 20 against 13 / 0 / 0 / 17.
    Neither model ships a wrong answer on the graph; three cases apart on 30 is within noise.
    Sonnet takes 23 s per case, local Qwen 25 min.
@@ -798,8 +798,7 @@ are the same code in both).
 8. **Runbooks in the diagnosis prompt hurt the weaker model.** Qwen with retrieved runbooks drops
    from 14 correct to 7. It loses 7 cases and gains none, and 6 of the 7 lost answers change to
    `socket`: the model calls 14 of 30 cases `socket` with runbooks against 5 without. The
-   retrieved text pulls the fault label toward what the runbook describes. On Sonnet the same
-   text changed one case. This is direct evidence for the design rule that runbooks reach the
+   retrieved text pulls the fault label toward what the runbook describes. On Sonnet the same text changed the outcome of two cases and the correct count by one. This is direct evidence for the design rule that runbooks reach the
    Fix Advisor only, after the gate, and never the diagnosing agents.
 9. **Both Qwen baselines put `checkoutservice_delay/1` on `emailservice`**, a callee of the true
    service. On Qwen the linear agent names the right service for that case (with the wrong
@@ -830,8 +829,7 @@ so on this set the gate can only be met by metrics plus traces.
    six labels to choose from, one prompt picks one (delay 11, socket 8, cpu 5, mem 3, loss 1).
    All 28 name the right service, so the service is findable; the fault label is the invention.
 2. **The four graph answers that got through** are `adservice_f3` (cpu, loss), `cartservice_f1`
-   (socket) and `emailservice_f4` (cpu): the code fault produced a resource signature that fits
-   a known type and passed the critic. The no-model check predicted 6 such cases
+   (socket) and `emailservice_f4` (cpu): the code fault produced a resource signature that fits a known type and passed the gate (three as the Commander's own finish, with Tree-of-Thought not triggered; one selected by it). The no-model check predicted 6 such cases
    (`evals/tot_offline_truth_re3.md`).
 3. **The `unfamiliar` code itself fired once**, and about the wrong service. Most handovers are
    `tot_no_branch` (15) and `budget_exhausted` (10): the agent stops for want of a second
@@ -863,7 +861,7 @@ Also added: `scripts/preflight.py`, a $0 check that every tool can read every ca
 pass/fail only and is run on the held-out set right before its run.
 
 **The wrong-service case, explained.** The one wrong-service answer in the Qwen linear run
-(`productcatalogservice_loss/1` -> `frontend`) came from two of these defects together:
+(`productcatalogservice_loss/1` -> `frontendservice`) came from two of these defects together:
 `frontend_error` went from 0 to 0.021 and scored z = 2.1e7, while the faulty service's own error
 series had no samples before the alert and scored NaN. The first metrics call pointed at the
 caller. On the fixed code the faulty service's latency is the top row in that case.
@@ -888,4 +886,107 @@ caller. On the fixed code the faulty service's latency is the top row in that ca
   its first real use is on the held-out system.
 - Lines with an empty level are counted but not listed per service.
 
-**Pending:** dev set and RE3-OB again on the fixed code (Sonnet), then Train Ticket.
+**Dev set again on the fixed code.** Claude Sonnet 5.5, the same 30 cases, fingerprint
+`f677f7c89e4f` (commit `855658e`), folders `evals/results/2026-11-19_sonnet-5-5_r1_v10_*`, $2.43.
+These replace the table of the previous entry as the reference numbers; the earlier code's
+numbers are in the last row.
+
+| 30 cases, Sonnet 5.5, fixed code | Single prompt | Single prompt + runbooks | Linear agent | Multi-agent graph |
+|---|---|---|---|---|
+| correct (service + fault) | 13 | 13 | 6 | 9 |
+| right service, wrong fault | 15 | 15 | 12 | 0 |
+| wrong service | 2 | 2 | 0 | 0 |
+| escalated | 0 | 0 | 12 | 21 |
+| answers given / of which correct | 30 / 13 (43%) | 30 / 13 (43%) | 18 / 6 (33%) | 9 / 9 (100%) |
+| model calls / case | 1.0 | 1.0 | 6.5 | 9.4 |
+| cost (30 cases) | $0.18 | $0.20 | $0.76 | $1.29 |
+| wall time (30 cases) | 2 min | 2 min | 8 min | 13 min |
+| earlier code: correct / wrong fault / wrong service / escalated | 14 / 14 / 2 / 0 | 15 / 13 / 1 / 1 | 7 / 10 / 0 / 13 | 10 / 0 / 0 / 20 |
+
+- The picture of the previous entry holds on the fixed code: one prompt answers everything and
+  is wrong in 17 of 30; the graph answers 9 and all 9 are right. Every column moved by one or
+  two cases, which is what a second run of the same 30 cases gives.
+- Graph, case by case against the earlier run: 3 correct answers became `budget_exhausted`
+  handovers and 2 handovers became correct answers. Escalations: `tot_no_branch` 7, `tot_tie` 7,
+  `budget_exhausted` 7. Of the 21 handovers, 15 put the true service and fault first or in the
+  tie, 5 name the true service with another fault first, 1 ties two other fault types on the true service.
+- 8 cases the single prompt got right are escalated by the graph; 4 cases the graph got right
+  the single prompt got wrong.
+- `productcatalogservice_loss/1`: both baselines still name `recommendationservice`; the graph
+  hands it over with the true service and fault in the tie.
+
+**RE3-OB again on the fixed code.** Folders `evals/results/2026-11-19_sonnet-5-5_re3_v10_*`, $1.47.
+
+| 30 code-level fault cases, Sonnet 5.5, fixed code | Single prompt | Multi-agent graph |
+|---|---|---|
+| handed over, true service first | 1 | 24 |
+| handed over, true service not first | 0 | 3 |
+| diagnosed as a known fault type (confident and wrong) | 29 | 3 |
+
+The three graph answers are `adservice_f3/1` (cpu), `cartservice_f1/1` (socket) and
+`cartservice_f1/2` (cpu), each on the true service. Of the single prompt's 29, 27 name the true
+service and 2 another one. The `unfamiliar` code again fired once, about the wrong service; the
+other handovers are `budget_exhausted` 13 and `tot_no_branch` 13.
+
+## Module 7 — Held-out system: Train Ticket, one run
+
+**What was run.** RCAEval RE2-TT, repetition 1: 30 cases, 5 services x the 6 known fault types, on
+a system whose metrics name 68 components and whose traces name 27 services (Online Boutique:
+12 and 7), and that no code, threshold or prompt in this repository was built or checked
+against. Multi-agent graph, Claude Sonnet 5.5, the fixed code of the previous entry
+(fingerprint `f677f7c89e4f`). Order of events: archive extracted, `scripts/preflight.py` (every
+tool read all 30 cases, $0, pass/fail output only), then the run. Folder
+`evals/results/2026-11-19_sonnet-5-5_tt_r1_v10_graph`, $1.17, 14 minutes, 0 errors, stamped
+`heldout_complete.json`. It was run once and is not repeated; nothing was changed after seeing it.
+No baseline was run on this system: the one-shot rule allows one run.
+
+| 30 Train Ticket cases, graph, Sonnet 5.5 | Count |
+|---|---|
+| correct (service + fault) | 0 |
+| right service, wrong fault | 6 |
+| wrong service | 0 |
+| escalated | 24 |
+| of the 24 handovers: true service and fault first | 11 |
+| of the 24 handovers: true service named, another fault first | 7 |
+| of the 24 handovers: true service not named | 6 |
+
+**What carried over**
+1. **No wrong service.** The true service is the answer or is named in the handover in 24 of 30
+   cases, on a system several times the size of the dev system.
+2. **The tools and the gate ran unchanged.** Hyphenated service names, the span-graph fallback for
+   who calls whom, and HTTP status codes all worked; no case errored.
+
+**What did not carry over**
+3. **Fault type. All 6 answers have the wrong one**, so "every answer the graph gives is right"
+   holds on Online Boutique and not here.
+   - 4 `delay` cases were called `loss`, by Tree-of-Thought. On Train Ticket a network delay also
+     raises the service's socket count (z of 6 to 12). The `loss` signature reads that as
+     connection pressure, and it counts a missing error rise as inconclusive, not as evidence
+     against loss, so `loss` was selected with every other signal confirmed (score 5), and no `delay` branch for the true service was left among the ranked ones.
+   - 2 `socket` cases were called `cpu`, by the Commander's own finish. CPU rose more than the
+     socket count (z of 17 and 63 against 13 and 20), the finish fitted the `cpu` signature, and
+     the ambiguity trigger for Tree-of-Thought did not fire.
+   The signature thresholds were calibrated on one system. They are the part that is specific
+   to it.
+4. **Coverage. 24 of 30 were handed over, 23 of them as `tot_no_branch`:** at most one telemetry kind pointed at the service.
+   - Logs: the `level` column of Train Ticket's log files is empty on every line (the level is
+     inside the message text), so no log line counted as a warning or error. 0 of 35 log evidence entries
+     implicated anyone.
+   - Traces: the per-service trace view found a significant change for the true service in 7 of 28 lookups. In `cpu`, `mem` and `disk` cases the median self time of a Spring service's
+     spans did not move.
+   - So metrics alone pointed at the true service in 19 cases, metrics and traces in 7, nothing
+     in 4. The 7 two-kind cases are the 6 answers above and one `budget_exhausted` handover.
+
+**What this means for the design**
+- The two-kinds gate did its job on unseen data: it refused 23 cases with fewer than two kinds, and nothing it
+  let through named the wrong service.
+- The fault critic is the weak part away from home. Next steps, in order: calibrate the signature
+  thresholds per system from a few labelled incidents (or learn them); read severity from the
+  log text when there is no level column; replace the median-self-time trace signal with one
+  that sees a slow handler behind many fast calls.
+- Until then, on a new system the fault type in a brief should be read as a hypothesis and the
+  service as the finding.
+
+**Spend.** All Claude Sonnet 5.5 runs in this log: $8.97 (dev set on the earlier code $2.44, on the
+fixed code $2.43; RE3-OB $1.46 and $1.47; Train Ticket $1.17), under the $10 limit set for them.
+Local Qwen runs cost nothing.

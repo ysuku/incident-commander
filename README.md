@@ -14,12 +14,44 @@ behind it (every claim cites a log line, metric, trace, or document), the
 alternatives considered and rejected, and a proposed fix with any risky action
 held for explicit approval.
 
-> Status: **working agent, under evaluation.** Implemented: the ReAct loop, five read-only tools
+> Status: **working agent, evaluated on three datasets** (see Results). Implemented: the ReAct loop, five read-only tools
 > behind one MCP server, the evidence scratchpad and citation gate, runbook retrieval,
 > the dev-set eval runner, Tree-of-Thought hypothesis testing on ambiguity (`--tot`), and the
 > multi-agent LangGraph architecture with role-scoped tools and a Fix Advisor (`--arch graph`),
 > and the safety guardrails, structured escalation handover,
 > named safety metrics, and robustness harness (`--hide`, `rescore`). See [DESIGN_LOG.md](DESIGN_LOG.md).
+
+## Results
+Claude Sonnet 5.5, scored against the benchmark's labels; repetition 1 of each case, except the code-level set, which is 10 fault cases x 3 repetitions. A case is
+correct when both the root-cause service and the fault type are right. Details, the local-model
+runs, and the earlier code version are in [DESIGN_LOG.md](DESIGN_LOG.md); every brief is in
+`evals/results/`.
+
+**Online Boutique, the system the agent was built on (30 cases)**
+
+| | Single prompt | Single prompt + runbooks | Linear agent | Multi-agent graph |
+|---|---|---|---|---|
+| correct | 13 | 13 | 6 | 9 |
+| right service, wrong fault | 15 | 15 | 12 | 0 |
+| wrong service | 2 | 2 | 0 | 0 |
+| handed to a human | 0 | 0 | 12 | 21 |
+| cost for 30 cases | $0.18 | $0.20 | $0.76 | $1.29 |
+
+One prompt finds more causes than the agent and is wrong more often than right, with nothing in
+its output to tell the two apart. The multi-agent graph answers 9 cases, all correct, and hands
+the other 21 to a human, 15 of them with the true cause first or tied for first. The same
+pattern holds on a local Qwen3.6-27B model (graph: 13 correct, 0 wrong, 17 handed over).
+
+**Code-level faults, a fault type the agent was never told about (30 cases).** The right outcome
+is a handover. The graph hands over 27 of 30, 24 with the true service first; the single prompt
+labels 29 of 30 with one of the six fault types it knows.
+
+**Train Ticket, the held-out system, run once (30 cases).** 0 correct, 6 with the right service
+and the wrong fault type, 0 with the wrong service, 24 handed over (18 name the true service).
+Finding the service and refusing to guess carried over to an unseen system. The fault-type
+rules, calibrated on Online Boutique, did not: all six answers have the wrong fault type. Logs
+there record no severity (the level column is empty) and the trace signal fired in 7 of 28 lookups, so most cases had
+one kind of evidence and were handed over. This is the main limitation; see the design log.
 
 ## Project structure
 ```text
@@ -43,6 +75,7 @@ scripts/download_data.py  fetches RCAEval (Zenodo) and the Prometheus runbooks
 scripts/tot_offline.py    ToT over all dev cases with no model calls ($0); --hide for the ablation
 scripts/regate_offline.py re-run saved tool calls and finishes through the current gate ($0)
 scripts/local_eval.sh     resumable local-model eval runner (MLX, never touches a paid API)
+scripts/preflight.py      $0 check that every tool can read every case of a dataset, before a paid run
 data/                     public data only, raw downloads gitignored (see data/README.md)
 evals/                    evaluation cases and results
 tests/                    pytest
@@ -77,6 +110,8 @@ python -m incident_commander.cli rescore evals/results/<folder>     # safety met
 python scripts/regate_offline.py                                    # saved runs through the current gate, $0
 scripts/local_eval.sh <out_folder> --arch graph --tot model         # local Qwen run, resumable, $0
 scripts/local_eval.sh <out_folder> --arch plain                     # a baseline over the same cases
+python scripts/preflight.py --system online-boutique --runs 1       # can every tool read every case? $0
+python -m incident_commander.cli eval --system online-boutique-re3 --runs 1,2,3 --arch graph   # code-level faults
 python -m incident_commander.graph --mermaid                        # draw the graphs
 python -m pytest -q
 ```
@@ -100,8 +135,9 @@ All enforced in code, on every architecture unless noted:
 - **Input.** Tools reject unknown service, metric, level, and argument names and list the valid
   ones. A filter that matched nothing is worded as such, never as a finding.
 - **Output.** The citation gate needs two telemetry kinds that each implicate the claimed service:
-  warning/error log lines, a metric deviation, or a per-service trace view. A mention is not
-  enough. A per-service trace that points at the caller blocks the diagnosis (shared cause). On the
+  warning/error log lines that rose after the alert, a metric deviation, or a per-service trace
+  view. A mention is not enough, and neither are warnings a service was already logging before
+  the alert. A per-service trace that points at the caller blocks the diagnosis (shared cause). On the
   graph, fix references are checked and untraceable ones recorded as dropped.
 - **Action.** Every fix has `requires_approval` forced true whatever the model labelled it; the
   graph also records `approval.state = pending` and `review_required` when a runbook step
@@ -109,6 +145,8 @@ All enforced in code, on every architecture unless noted:
 - **Escalation.** An escalated brief carries `escalation = {code, reason, hypotheses, note}` with
   code `budget_exhausted`, `unparseable`, `tot_tie`, `tot_no_branch`, `tot_selected_gate_refused`,
   or `unfamiliar`, and ranked hypotheses with their evidence ids.
+- **Failures.** A tool that cannot read a case's data raises `ToolCrash`: the case is recorded
+  as an error, never as an ordinary escalation, and is run again on resume.
 - **Metrics.** `summary.md` has a safety-metrics section: correct, wrong-service, wrong-fault,
   escalations by code, handover quality, groundedness, cost, latency.
 
