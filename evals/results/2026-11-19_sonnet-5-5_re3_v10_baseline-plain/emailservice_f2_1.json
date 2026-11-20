@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 6921,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice shows by far the largest anomaly, with latency-90 up 3730% (z=+746) and latency-50 up 2179%, while its CPU is flat (+7%) and its socket and memory counts fell, which points to injected latency rather than CPU, memory or socket exhaustion. checkoutservice logs 140 'failed to send order confirmation ... no healthy upstream' errors, which fits a degraded emailservice, and emailservice itself logs a health-servicer TypeError. Delay is favoured over loss, but the digest cannot fully separate those two.",
+  "proposed_fix": {
+    "description": "Inspect the emailservice pod/node for injected network delay (e.g. tc netem rules or a chaos experiment) and remove it. Also fix the add_HealthServicer_to_server() call so health checks work, and add timeouts and retries in checkoutservice's email call so a slow emailservice does not fail checkout.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 6.4,
+    "prompt_tokens": 3179,
+    "completion_tokens": 686,
+    "tool_seconds": 0.6,
+    "wall_seconds": 7.0,
+    "cost_usd": 0.013218
+  }
+}

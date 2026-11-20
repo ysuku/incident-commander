@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 8875,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice latency-90 rose from 0.0046 to 0.1465 (z=+617) and latency-50 from 0.003 to 0.0591, while its CPU, memory and socket metrics fell and no other service shows a comparable shift. checkoutservice logs 160 'failed to send order confirmation ... no healthy upstream' errors, and emailservice logs 16 crash tracebacks ('non-dummy mode not implemented yet'), so the upstream is unhealthy; the latency spike best fits delay, though the tracebacks could also point to restarts.",
+  "proposed_fix": {
+    "description": "Inspect the emailservice deployment for the recent config change that set start(dummy_mode=False) and roll it back to dummy mode, or remove any injected network delay on emailservice. Then verify its pods are healthy and that checkoutservice order confirmations succeed.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.4,
+    "prompt_tokens": 3991,
+    "completion_tokens": 336,
+    "tool_seconds": 0.6,
+    "wall_seconds": 4.0,
+    "cost_usd": 0.011342
+  }
+}

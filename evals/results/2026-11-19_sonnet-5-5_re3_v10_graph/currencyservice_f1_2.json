@@ -1,0 +1,633 @@
+{
+  "status": "escalated",
+  "reason": "unfamiliar fault: no known fault type fits frontend - every fault type whose must-have signal can be observed is contradicted; frontend: disk is not ruled out only because its must-have signal cannot be observed in this data, which is not support for it",
+  "escalation": {
+    "code": "unfamiliar",
+    "reason": "unfamiliar fault: no known fault type fits frontend - every fault type whose must-have signal can be observed is contradicted; frontend: disk is not ruled out only because its must-have signal cannot be observed in this data, which is not support for it",
+    "hypotheses": [
+      {
+        "service": "frontend",
+        "fault_type": "unfamiliar",
+        "score": null,
+        "status": "unfamiliar",
+        "kinds": [],
+        "summary": "no known fault type fits; ruled out: frontend cpu by cpu_up (cpu z=-4.47); frontend loss by latency_up (latency z=-9.86); frontend mem by mem_up (mem z=0.06); frontend socket by socket_up (socket z=0); frontend delay by latency_up (latency z=-9.86)",
+        "evidence": [
+          "E1",
+          "E5"
+        ]
+      },
+      {
+        "service": "frontend",
+        "fault_type": "disk",
+        "score": -1,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "not ruled out only because its must-have signal is unobservable; not a lead; unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)); contradicted mem_up (mem z=0.06), cpu_up (cpu z=-4.47); confirmed socket_not_saturated (socket z=0), trace_slow (traces implicate the service)",
+        "evidence": [
+          "E5",
+          "E7",
+          "E9",
+          "E10"
+        ]
+      }
+    ],
+    "note": "treat as a fault outside the six known types; needs a human diagnosis; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "frontend: unfamiliar fault (no known fault type fits)",
+    "frontend: disk (score -1, open; confirmed socket_not_saturated, trace_slow) [not ruled out only because its must-have signal is unobservable; not a lead]",
+    "adservice: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend-external_error z=260.73 (101051.9%); frontend_error z=260.55 (100982.5%); adservice_workload z=-11.29 (-95.9%); frontend_latency-90 z=-9.98 (-49.9%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "adservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "frontend-external",
+        "productcatalogservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontend->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for adservice: NO significant change (<2x latency, <0.05 error rise); inbound calls self-time p50 3.88->4.09ms (1.05x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=adservice",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=adservice]: adservice_workload z=-11.29 (-95.9%)",
+      "source_ref": "simple_metrics.csv:adservice_workload",
+      "implicates": [
+        "adservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend-external_error z=260.73 (101051.9%); frontend_error z=260.55 (100982.5%); frontend_latency-90 z=-9.98 (-49.9%); frontend_latency-50 z=-9.86 (-49.3%)",
+      "source_ref": "simple_metrics.csv:frontend-external_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=adservice, metric=diskio]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=frontend, metric=diskio]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='adservice', query='disk']: no line contains that literal text (2249 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "traces",
+      "summary": "traces for frontend: SIGNIFICANT change; own spans self-time p50 2.88->2.56ms (0.89x), errors 0.0001->0.1517",
+      "source_ref": "traces.csv:serviceName=frontend",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=frontend, metric=mem]; largest is only frontend_mem z=0.06 (0.3%)",
+      "source_ref": "simple_metrics.csv:frontend_mem",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 592,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 710,
+        "completion_tokens": 139,
+        "max_tokens": 16000,
+        "answer_chars": 381,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00281,
+        "finish_reason": "stop"
+      },
+      "thought": "Frontend errors dominate but frontend is likely a symptom; adservice workload dropped 95.9%, so I need the service map to see who calls whom before narrowing down.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.14
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 897,
+        "completion_tokens": 180,
+        "max_tokens": 16000,
+        "answer_chars": 498,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00359,
+        "finish_reason": "stop"
+      },
+      "thought": "Adservice workload collapsed 95.9% but it is absent from the dependency map, so I need to check its own traces and inbound errors to see whether it is a cause or a bystander.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "adservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.29
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "adservice: disk",
+      "thought": "A disk fault on adservice should show up as a diskio rise and memory/cpu deviations in adservice's own metrics, whereas a frontend disk fault would show these on frontend; querying adservice's disk-re",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "adservice",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 1141,
+        "completion_tokens": 178,
+        "max_tokens": 16000,
+        "answer_chars": 470,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00406,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "frontend: disk",
+      "thought": "Frontend disk fault requires diskio and mem/cpu rises on frontend; querying frontend diskio directly checks the signature, while adservice has no diskio series so the rival can't be confirmed that way",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1185,
+        "completion_tokens": 148,
+        "max_tokens": 16000,
+        "answer_chars": 409,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00385,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "adservice: disk",
+      "thought": "Disk, memory and CPU signatures for adservice versus frontend are untested, so a log search on adservice for disk/IO errors can separate the two. Diskio metrics are absent, so logs are the best remain",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "disk",
+          "service": "adservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1229,
+        "completion_tokens": 169,
+        "max_tokens": 16000,
+        "answer_chars": 451,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00415,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.12
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "frontend: disk",
+      "thought": "Frontend's own and inbound span latency before vs after the alert will show whether frontend itself slowed down (trace_slow in the signature), which adservice's unchanged traces (E3) do not; this sepa",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "frontend",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1308,
+        "completion_tokens": 177,
+        "max_tokens": 16000,
+        "answer_chars": 507,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00439,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.29
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "frontend: disk",
+      "thought": "Frontend disk hypothesis requires mem and cpu rises on frontend; a full frontend metric query shows whether cpu/mem deviate (E5 shows none, so likely falsified), and this is the unrun check of those s",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "mem",
+          "top": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1385,
+        "completion_tokens": 177,
+        "max_tokens": 16000,
+        "answer_chars": 439,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00454,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "adservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B2",
+        "service": "frontend",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": -1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E5",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.06",
+            "eid": "E5",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-4.47",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E5",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E9",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "frontend diskio series shows a significant rise after the alert, along with memory/cpu deviations",
+            "rationale": "Frontend disk fault requires diskio and mem/cpu rises on frontend; querying frontend diskio directly checks the signature, while adservice has no diskio series so the rival can't be confirmed that way",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "frontend",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Frontend's own and inbound spans show a significant latency increase and elevated errors after the alert, while adservice stays flat, consistent with a frontend-local disk fault.",
+            "rationale": "Frontend's own and inbound span latency before vs after the alert will show whether frontend itself slowed down (trace_slow in the signature), which adservice's unchanged traces (E3) do not; this sepa",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "mem",
+              "top": 10
+            },
+            "depth": 3,
+            "predicted": "Frontend memory shows z>=15 and cpu z>=3 deviations if disk is true; otherwise no mem/cpu series deviate.",
+            "rationale": "Frontend disk hypothesis requires mem and cpu rises on frontend; a full frontend metric query shows whether cpu/mem deviate (E5 shows none, so likely falsified), and this is the unrun check of those s",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B1",
+        "service": "adservice",
+        "fault_type": "disk",
+        "reason": "top fault types for adservice by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -3 if every untested signal held) is 2+ below the best (-1)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=-0.04",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-1.75",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "adservice",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "adservice shows a diskio rise (and mem z>=15, cpu z>=3) with socket z<25, while frontend shows no diskio deviation.",
+            "rationale": "A disk fault on adservice should show up as a diskio rise and memory/cpu deviations in adservice's own metrics, whereas a frontend disk fault would show these on frontend; querying adservice's disk-re",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "log_search",
+            "args": {
+              "query": "disk",
+              "service": "adservice",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "adservice logs show disk/IO errors (e.g. no space left, write failures) around 13:16Z, while frontend logs do not",
+            "rationale": "Disk, memory and CPU signatures for adservice versus frontend are untested, so a log search on adservice for disk/IO errors can separate the two. Diskio metrics are absent, so logs are the best remain",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 5,
+    "unfamiliar": true,
+    "ruled_out": [
+      {
+        "service": "frontend",
+        "fault_type": "cpu",
+        "signal": "cpu_up",
+        "observed": "cpu z=-4.47",
+        "eid": "E5"
+      },
+      {
+        "service": "frontend",
+        "fault_type": "loss",
+        "signal": "latency_up",
+        "observed": "latency z=-9.86",
+        "eid": "E1"
+      },
+      {
+        "service": "frontend",
+        "fault_type": "mem",
+        "signal": "mem_up",
+        "observed": "mem z=0.06",
+        "eid": "E5"
+      },
+      {
+        "service": "frontend",
+        "fault_type": "socket",
+        "signal": "socket_up",
+        "observed": "socket z=0",
+        "eid": "E5"
+      },
+      {
+        "service": "frontend",
+        "fault_type": "delay",
+        "signal": "latency_up",
+        "observed": "latency z=-9.86",
+        "eid": "E1"
+      }
+    ],
+    "co_leaders": [],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ],
+      "B1": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 16.0,
+    "tool_seconds": 0.9,
+    "prompt_tokens": 8447,
+    "completion_tokens": 1245,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 17.0,
+    "cost_usd": 0.029344
+  }
+}

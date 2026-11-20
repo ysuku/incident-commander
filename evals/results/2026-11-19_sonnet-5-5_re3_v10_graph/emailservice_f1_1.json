@@ -1,0 +1,849 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "emailservice",
+        "fault_type": "loss",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=631.34), cpu_not_up (cpu z=0.34), trace_slow (traces implicate the service), errors_up (span error rate +0.993); contradicted conn_pressure (mem z=-0.95)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E5",
+          "E7",
+          "E9",
+          "E11"
+        ]
+      },
+      {
+        "service": "emailservice",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=631.34), resources_flat (max resource cpu z=0.34), trace_slow (traces implicate the service); contradicted no_errors (span error rate +0.993)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E5",
+          "E8",
+          "E10"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "emailservice: loss (score 3, open; confirmed latency_up, cpu_not_up, trace_slow, errors_up)",
+    "emailservice: delay (score 2, open; confirmed latency_up, resources_flat, trace_slow)",
+    "emailservice: disk (score -1, pruned; confirmed socket_not_saturated, trace_slow)",
+    "frontend: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=631.34 (3156.7%); emailservice_latency-50 z=226.27 (1131.3%); frontend_error z=20.0",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice",
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.14->0.17ms (1.17x), errors 0.0->0.0; inbound calls self-time p50 2.41->0.44ms (0.18x), errors 0.0->0.9928",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "NOT checked [service='emailservice', level='error']: these logs record no severity (the level of all 170 lines searched is empty or 'unknown'), so a level filter cannot find anything. This says nothing about errors. Search the message text instead, e.g. query='error' or query='exception'",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "8 matching lines; by svc/level {'emailservice/unknown': 8}; [emailservice/unknown] AttributeError: '_Server' object has no attribute 'Check'; [emailservice/unknown] AttributeError: '_Server' object has no attribute 'Check'; these logs record no severity (every line has level 'unknown'), so no line counts as a warning or error: a text match is a mention, it implicates nobody",
+      "source_ref": "logs.csv#L35200",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=631.34 (3156.7%); emailservice_latency-50 z=226.27 (1131.3%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_error z=20.0",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=socket]; largest is only emailservice_socket z=-2.1 (-10.5%)",
+      "source_ref": "simple_metrics.csv:emailservice_socket",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=cpu]; largest is only emailservice_cpu z=0.34 (4.2%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=mem]; largest is only emailservice_mem z=-0.95 (-4.7%)",
+      "source_ref": "simple_metrics.csv:emailservice_mem",
+      "implicates": []
+    },
+    {
+      "eid": "E10",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.14->0.17ms (1.17x), errors 0.0->0.0; inbound calls self-time p50 2.41->0.44ms (0.18x), errors 0.0->0.9928",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E11",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='unavailable']: no line contains that literal text (170 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 0.9,
+        "prompt_tokens": 592,
+        "completion_tokens": 89,
+        "max_tokens": 16000,
+        "answer_chars": 234,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00207,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 727,
+        "completion_tokens": 159,
+        "max_tokens": 16000,
+        "answer_chars": 435,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00304,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 points at emailservice latency, so I'll check traces for that service to get a second independent telemetry kind and separate its own latency from inbound latency.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.34
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 901,
+        "completion_tokens": 201,
+        "max_tokens": 16000,
+        "answer_chars": 545,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00381,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but I need to separate fault type (delay vs loss/socket) and confirm with logs as a third independent kind before finishing.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.14
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1039,
+        "completion_tokens": 200,
+        "max_tokens": 16000,
+        "answer_chars": 541,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00408,
+        "finish_reason": "stop"
+      },
+      "thought": "Logs are the missing independent telemetry kind for emailservice; search message text for errors/timeouts to confirm the service and discriminate delay vs socket/loss.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "error",
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1201,
+        "completion_tokens": 228,
+        "max_tokens": 16000,
+        "answer_chars": 602,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00468,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but the fault type is ambiguous between delay and socket/loss, so I need to see which services call it and whether other emailservice metrics (cpu, mem, network) deviate.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 4.2,
+        "prompt_tokens": 1297,
+        "completion_tokens": 521,
+        "max_tokens": 16000,
+        "answer_chars": 1387,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0078,
+        "finish_reason": "stop"
+      },
+      "thought": "Evidence already shows metrics (E1, E5) and traces (E2) pointing at emailservice with latency surge and inbound errors but low own self-time, consistent with delay injection; finishing with alternatives rejected.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E5"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend",
+              "why": "frontend_error is the only frontend deviation (E1) and is a downstream symptom of emailservice's failing inbound calls (E2: inbound errors 0.0->0.9928); nothing in the evidence shows frontend's own telemetry deviating."
+            },
+            {
+              "candidate": "emailservice cpu/mem",
+              "why": "own-span self-time barely changed (0.14->0.17ms, E2), which does not suggest CPU or memory saturation inside the service."
+            },
+            {
+              "candidate": "emailservice socket/loss",
+              "why": "No evidence of connection or packet-loss errors; the only log lines are a health-check AttributeError ('_Server' has no attribute 'Check', E4) with no severity, which implicates nobody. The latency-90/50 spikes of 3156%/1131% (E1, E5) fit delay better."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Investigate network/latency injection affecting emailservice and remove the delay source; restart the emailservice pod if the delay persists, and fix the health-check handler (missing 'Check' method) separately.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "delay (score 2) vs loss (3) for emailservice"
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: loss",
+      "thought": "Loss would show memory/socket pressure on emailservice, absent for a pure delay; a no-filter-free per-service metric query for emailservice resource metrics (mem, socket, cpu) separates the two.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "socket",
+          "top": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1291,
+        "completion_tokens": 160,
+        "max_tokens": 16000,
+        "answer_chars": 413,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00418,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: delay",
+      "thought": "Delay vs loss differ in resource and error profile: loss would show packet/connection errors in message text, while delay shows only latency; checking emailservice cpu/mem metrics confirms resources_f",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 1366,
+        "completion_tokens": 231,
+        "max_tokens": 16000,
+        "answer_chars": 685,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00504,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: loss",
+      "thought": "Loss signature requires memory or socket pressure; E7 checked socket only, so checking memory directly tests the conn_pressure clause. Delay would show no memory deviation, while loss may show a mem z",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1470,
+        "completion_tokens": 169,
+        "max_tokens": 16000,
+        "answer_chars": 451,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00463,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: delay",
+      "thought": "Delay and loss both show inbound errors, but delay should leave the service's own spans slow (or latency high) while loss shows caller-side failures with fast self-time; the service-specific trace loo",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 1545,
+        "completion_tokens": 230,
+        "max_tokens": 16000,
+        "answer_chars": 692,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00539,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.33
+    },
+    {
+      "step": 11,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "emailservice: loss",
+      "thought": "Loss would show up as failed connections or refused calls in emailservice's own logs, whereas delay would show timeouts or slow handling, so a text search for connection and unavailability errors sepa",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "unavailable",
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1679,
+        "completion_tokens": 183,
+        "max_tokens": 16000,
+        "answer_chars": 522,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00519,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 12,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "emailservice: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'failing_only': True, 'limit': 10, 'service': 'emailservice'}) alr; the heuristic had no test left",
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 1746,
+        "completion_tokens": 187,
+        "max_tokens": 16000,
+        "answer_chars": 553,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00536,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T1 delay (score 2) vs loss (3) for emailservice",
+    "suspect": "emailservice",
+    "rival": "frontend",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "emailservice",
+        "fault_type": "loss",
+        "reason": "top fault types for emailservice by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=631.34",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=-0.95",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=0.34",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.993",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "socket",
+              "top": 10
+            },
+            "depth": 1,
+            "predicted": "emailservice socket/mem metrics show z>=5 deviation while cpu z<3, supporting loss over delay",
+            "rationale": "Loss would show memory/socket pressure on emailservice, absent for a pure delay; a no-filter-free per-service metric query for emailservice resource metrics (mem, socket, cpu) separates the two.",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "emailservice_mem shows a significant deviation (z>=5) alongside the latency spike, while cpu stays flat; under delay, mem would be flat",
+            "rationale": "Loss signature requires memory or socket pressure; E7 checked socket only, so checking memory directly tests the conn_pressure clause. Delay would show no memory deviation, while loss may show a mem z",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "log_search",
+            "args": {
+              "query": "unavailable",
+              "service": "emailservice",
+              "limit": 10
+            },
+            "depth": 3,
+            "predicted": "Lines mentioning connection failures or UNAVAILABLE/refused/reset in emailservice or its callers, with no deadline-exceeded or timeout lines, consistent with loss rather than delay.",
+            "rationale": "Loss would show up as failed connections or refused calls in emailservice's own logs, whereas delay would show timeouts or slow handling, so a text search for connection and unavailability errors sepa",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "emailservice",
+        "fault_type": "delay",
+        "reason": "top fault types for emailservice by metric signature (score 2)",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=631.34",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.34",
+            "eid": "E5",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "span error rate +0.993",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "emailservice",
+              "metric": "cpu"
+            },
+            "depth": 1,
+            "predicted": "No significant cpu deviation (z<5), consistent with a delay fault injected at network level and resources flat; the same would be expected for loss, but absence of cpu/mem change rules out resource fa",
+            "rationale": "Delay vs loss differ in resource and error profile: loss would show packet/connection errors in message text, while delay shows only latency; checking emailservice cpu/mem metrics confirms resources_f",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "emailservice",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Worst emailservice paths show inbound calls with long total duration (seconds-scale latency) rather than fast-failing drops, with the slowness coming from the emailservice hop itself, consistent with ",
+            "rationale": "Delay and loss both show inbound errors, but delay should leave the service's own spans slow (or latency high) while loss shows caller-side failures with fast self-time; the service-specific trace loo",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "emailservice",
+        "fault_type": "disk",
+        "reason": "top fault types for emailservice by metric signature (score -1)",
+        "status": "pruned",
+        "close_reason": "score -1 (at most -1 if every untested signal held) is 4+ below the best (3)",
+        "score": -1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E5",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=-0.95",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=0.34",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=-2.1",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 4+ below the best (3)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E6",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.19",
+            "eid": "E6",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.04",
+            "eid": "E6",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=-1.32",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ],
+      "B4": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 12,
+    "model_seconds": 29.4,
+    "tool_seconds": 1.0,
+    "prompt_tokens": 14854,
+    "completion_tokens": 2558,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 30.4,
+    "cost_usd": 0.05528799999999999
+  }
+}

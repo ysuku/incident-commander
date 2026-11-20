@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 7185,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice latency-90 rose from 0.0047 to 0.1454 (z=+602) and latency-50 rose 13x, while its CPU, memory and workload did not increase (workload fell 85%), which points to added delay rather than resource exhaustion. checkoutservice, the only emailservice caller, logs 125 'failed to send order confirmation ... Unavailable' errors, and emailservice logs a TypeError in add_HealthServicer_to_server(), which probably explains the 'no healthy upstream' health-check failures.",
+  "proposed_fix": {
+    "description": "Inspect the emailservice pods and network path for injected or real latency, fix the health-servicer registration bug (add_HealthServicer_to_server called without the server argument), then restart or redeploy emailservice and verify checkoutservice order-confirmation errors stop.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.7,
+    "prompt_tokens": 3237,
+    "completion_tokens": 326,
+    "tool_seconds": 0.6,
+    "wall_seconds": 4.3,
+    "cost_usd": 0.009734
+  }
+}

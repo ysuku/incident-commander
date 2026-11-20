@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 4217,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "adservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "adservice is the only service with its own error series (adservice_error 0 -> 0.0222, z=+20) and a socket jump (+38.1%, z=+7.63), while frontend logs 2128 'failed to retrieve ads' lines pointing at it as the failing callee. The paymentservice UnacceptedCreditCard errors are an application-level rejection of visa_electron cards and not an infrastructure fault; adservice_mem (+25%) is secondary, and the socket signal is the strongest resource anomaly.",
+  "proposed_fix": {
+    "description": "Inspect adservice connection handling (open sockets/connection leaks, listener backlog, and connection limits), then restart or scale out the adservice pods if sockets are exhausted, and verify that frontend ad retrieval errors stop.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.6,
+    "prompt_tokens": 2157,
+    "completion_tokens": 309,
+    "tool_seconds": 0.6,
+    "wall_seconds": 4.2,
+    "cost_usd": 0.007404
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 7006,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice has by far the largest anomaly: latency-90 rose about 19x (z=+372) and latency-50 about 10x, while its cpu, mem, socket and workload all fell, so it is not resource saturation. checkoutservice's 126 'failed to send order confirmation ... Unavailable / no healthy upstream' errors point at emailservice as the failing callee, and emailservice logged 'AttributeError: _Server object has no attribute Check' errors.",
+  "proposed_fix": {
+    "description": "Investigate and restart/redeploy the emailservice pods, and check the network path (latency injection or sidecar issues) between checkoutservice and emailservice. Also verify that the gRPC health check handler is registered, since the 'Check' AttributeError suggests it is missing.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.4,
+    "prompt_tokens": 3169,
+    "completion_tokens": 306,
+    "tool_seconds": 0.6,
+    "wall_seconds": 4.0,
+    "cost_usd": 0.009398
+  }
+}

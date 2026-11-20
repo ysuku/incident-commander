@@ -1,0 +1,539 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "downstream",
+        "fault_type": "cpu",
+        "score": 0,
+        "status": "open",
+        "kinds": [],
+        "summary": "no signal measured yet",
+        "evidence": [
+          "E4",
+          "E6",
+          "E8"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "downstream: cpu (score 0, open; confirmed none)",
+    "frontend: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [
+    "step 2: metric_query({}) was already called; its result is E1. Choose a different query.",
+    "tot root: metric signature of the rival: metric_query(service='downstream') failed: unknown service 'downstream'; metric services are ['adservice', 'cartservice', 'checkoutservice', 'currencyservice', 'emailservice', 'frontend', 'frontend-external', 'paymentservice', 'productcatalogservice', 'recommendationservice', 'redis', 'shippingservice']"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=20.0; frontend-external_error z=20.0",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontend->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_error z=20.0; frontend-external_error z=20.0",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "traces",
+      "summary": "4832 traces after alert; worst: frontend -> checkoutservice -> productcatalogservice -> paymentservice 29.8ms errors=4; frontend -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 122.4ms errors=1; frontend -> checkoutservice -> productcatalogservice -> paymentservice -> emailservice -> recommendationservice -> currencyservice 116.3ms errors=1",
+      "source_ref": "traces.csv:traceID=d60cd0f952b41c53beda2fc7ac2c8d9b",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "no metric series in scope [service=frontend, metric=diskio]",
+      "source_ref": "simple_metrics.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=checkoutservice, metric=cpu]; largest is only checkoutservice_cpu z=0.34 (7.9%)",
+      "source_ref": "simple_metrics.csv:checkoutservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "traces",
+      "summary": "traces for frontend: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 2.87->2.87ms (1.0x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=frontend",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=productcatalogservice, metric=cpu]; largest is only productcatalogservice_cpu z=-0.16 (-1.6%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_cpu",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 0.9,
+        "prompt_tokens": 592,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 651,
+        "completion_tokens": 97,
+        "max_tokens": 16000,
+        "answer_chars": 273,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00227,
+        "finish_reason": "stop"
+      },
+      "thought": "Start with the unfiltered metric_query as instructed to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "repeated_call",
+      "detail": "same as E1"
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 745,
+        "completion_tokens": 103,
+        "max_tokens": 16000,
+        "answer_chars": 305,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00252,
+        "finish_reason": "stop"
+      },
+      "thought": "Frontend errors are likely propagated from a downstream service, so I need the call graph to identify which dependencies to examine.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.21
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "downstream: cpu",
+      "thought": "Hypothesis says a downstream service has a CPU spike with slow spans; trace_lookup on the frontend's failing paths will show whether the slowness sits in a downstream child span (supports cpu downstre",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E4",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 978,
+        "completion_tokens": 215,
+        "max_tokens": 16000,
+        "answer_chars": 603,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00411,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.14
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "frontend: disk",
+      "thought": "Querying frontend's own metrics shows whether diskio and mem rise along with cpu, which the disk hypothesis requires and the downstream-cpu rival does not predict.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "frontend",
+          "metric": "diskio"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1204,
+        "completion_tokens": 147,
+        "max_tokens": 16000,
+        "answer_chars": 398,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00388,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "downstream: cpu",
+      "thought": "To separate a downstream CPU fault from a frontend disk fault, check whether any downstream service shows a CPU spike and slow own/inbound spans; frontend has no diskio series, so the CPU metric on a ",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "checkoutservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 1239,
+        "completion_tokens": 189,
+        "max_tokens": 16000,
+        "answer_chars": 522,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00437,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "frontend: disk",
+      "thought": "The hypothesis requires frontend's own spans to slow down along with cpu and mem rises; trace_lookup on frontend shows whether its own and inbound latency changed after the alert, which a downstream C",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "frontend",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 1344,
+        "completion_tokens": 193,
+        "max_tokens": 16000,
+        "answer_chars": 564,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00462,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.42
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "downstream: cpu",
+      "thought": "Frontend errors are high but its own spans are unchanged, so the fault is likely downstream; checking the CPU of productcatalogservice, which sits deepest on the failing traces, tests the cpu signatur",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1420,
+        "completion_tokens": 174,
+        "max_tokens": 16000,
+        "answer_chars": 475,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00458,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.0
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "frontend",
+    "rival": "downstream",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B2",
+        "service": "downstream",
+        "fault_type": "cpu",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E4",
+            "tool": "trace_lookup",
+            "args": {
+              "failing_only": true,
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "Failing requests show slow or erroring child spans in a downstream service (e.g. productcatalogservice, currencyservice, or checkoutservice) while frontend's own spans are not the slowest part; the do",
+            "rationale": "Hypothesis says a downstream service has a CPU spike with slow spans; trace_lookup on the frontend's failing paths will show whether the slowness sits in a downstream child span (supports cpu downstre",
+            "by": "model"
+          },
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "checkoutservice",
+              "metric": "cpu"
+            },
+            "depth": 2,
+            "predicted": "checkoutservice (or another downstream service) shows cpu z >= 3 with memory and socket not saturated, while frontend shows no disk signal",
+            "rationale": "To separate a downstream CPU fault from a frontend disk fault, check whether any downstream service shows a CPU spike and slow own/inbound spans; frontend has no diskio series, so the CPU metric on a ",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "productcatalogservice",
+              "metric": "cpu"
+            },
+            "depth": 3,
+            "predicted": "productcatalogservice_cpu shows z>=3 after the alert, with no memory or socket saturation, consistent with a CPU fault in a downstream service.",
+            "rationale": "Frontend errors are high but its own spans are unchanged, so the fault is likely downstream; checking the CPU of productcatalogservice, which sits deepest on the failing traces, tests the cpu signatur",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B1",
+        "service": "frontend",
+        "fault_type": "disk",
+        "reason": "top fault types for frontend by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -3 if every untested signal held) is 3+ below the best (0)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.15",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.23",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=1.04",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E7",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "frontend",
+              "metric": "diskio"
+            },
+            "depth": 1,
+            "predicted": "frontend diskio shows a significant rise after the alert, together with elevated mem and cpu, while socket stays unsaturated",
+            "rationale": "Querying frontend's own metrics shows whether diskio and mem rise along with cpu, which the disk hypothesis requires and the downstream-cpu rival does not predict.",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "frontend",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "frontend's own and inbound spans are markedly slower and more error-prone after the alert than before, with the slowdown at frontend itself rather than in downstream child spans.",
+            "rationale": "The hypothesis requires frontend's own spans to slow down along with cpu and mem rises; trace_lookup on frontend shows whether its own and inbound latency changed after the alert, which a downstream C",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 5,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B1": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 16.5,
+    "tool_seconds": 0.8,
+    "prompt_tokens": 8173,
+    "completion_tokens": 1195,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 17.4,
+    "cost_usd": 0.028296
+  }
+}

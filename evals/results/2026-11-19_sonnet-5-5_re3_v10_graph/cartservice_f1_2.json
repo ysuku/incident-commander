@@ -1,0 +1,674 @@
+{
+  "root_cause": {
+    "service": "cartservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=20.0; cartservice_socket z=7.46 (37.3%); frontend-external_error z=6.52 (4475.3%); cartservice_mem z=4.7 (23.5%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "cartservice",
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=cartservice]: cartservice_socket z=7.46 (37.3%); cartservice_mem z=4.7 (23.5%); cartservice_cpu z=3.69 (61.0%)",
+      "source_ref": "simple_metrics.csv:cartservice_socket",
+      "implicates": [
+        "cartservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for cartservice: SIGNIFICANT change; inbound calls self-time p50 4.0->4.08ms (1.02x), errors 0.0->0.1275",
+      "source_ref": "traces.csv:serviceName=cartservice",
+      "implicates": [
+        "cartservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "cartservice: disk",
+      "why": "scored 4 vs 5"
+    },
+    {
+      "candidate": "cartservice: mem",
+      "why": "score 1 (at most 1 if every untested signal held) is 4+ below the best (5); contradicted: latency_up latency z=1.74 (E5)"
+    },
+    {
+      "candidate": "frontend: socket",
+      "why": "score 0 (at most 1 if every untested signal held) is 4+ below the best (5)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Confirm cartservice is behaving erratically, then raise the CPU limit on the cartservice container only, with human approval and a ready rollback.",
+    "steps": [
+      "Check whether cartservice is behaving normally and whether CPU throttling (CPUThrottlingHigh) is actually firing for the container, per R1.",
+      "Compare cartservice CPU requests and limits against observed usage (E5 shows CPU +61%) and check the node kernel version, per R1.",
+      "Check for a recent deploy, traffic increase, or connection leak that explains the socket (z=7.46) and memory (z=4.7) growth in E5.",
+      "If the throttling and erratic behavior are confirmed, request approval to raise the CPU limit on the cartservice container only, in a modest increment, leaving requests unchanged.",
+      "After rollout, watch cartservice CPU, socket count, memory, trace error rate (E2) and frontend_error (E1) for recovery.",
+      "If errors persist after CPU headroom is added, escalate to investigate the socket and memory growth as the likely root cause rather than raising limits further."
+    ],
+    "preconditions": [
+      "Another alert (e.g. frontend_error from E1) is firing in the same namespace, which R1 requires before raising limits.",
+      "CPU throttling on the cartservice container is confirmed, not just high CPU usage.",
+      "The node has spare allocatable CPU for the increased limit.",
+      "A human on-call engineer has approved the change."
+    ],
+    "rollback": "Revert the cartservice CPU limit to its previous value by re-applying the prior deployment manifest or running a rollout undo, then confirm the pod restarts cleanly and metrics return to the pre-change baseline.",
+    "runbook_refs": [
+      "runbooks/kubernetes/CPUThrottlingHigh.md#action"
+    ],
+    "contradictions": [],
+    "model_labeled_destructive": true,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 592,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 696,
+        "completion_tokens": 137,
+        "max_tokens": 16000,
+        "answer_chars": 365,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00276,
+        "finish_reason": "stop"
+      },
+      "thought": "Cartservice shows socket and mem deviations; check its traces to see if caller-observed latency/errors point at it, a second independent telemetry kind.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "cartservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.34
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 852,
+        "completion_tokens": 138,
+        "max_tokens": 16000,
+        "answer_chars": 376,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00308,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at cartservice; check logs for a third independent kind of confirmation and to separate socket from mem.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "cartservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.11
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 962,
+        "completion_tokens": 137,
+        "max_tokens": 16000,
+        "answer_chars": 375,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00329,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces already point at cartservice; I need a log-based confirmation by searching message text for errors in cartservice.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "error",
+          "service": "cartservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.03
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 4.8,
+        "prompt_tokens": 1158,
+        "completion_tokens": 604,
+        "max_tokens": 16000,
+        "answer_chars": 1575,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00836,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (cartservice_socket z=7.46) and traces (cartservice inbound errors 0->12.75%) both point at cartservice, and logs show gRPC error status lines only from cartservice; I have enough to finish, with socket as the fault type since it has the highest deviation and latency is not elevated, which fits a socket-level fault rather than cpu or delay.",
+      "action": {
+        "finish": {
+          "root_cause_service": "cartservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E4"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend: symptom only",
+              "why": "frontend_error z=20 in E1 is the downstream symptom; cartservice inbound errors rose 0->0.1275 (E2) while its self-time stayed flat (1.02x), so the failure originates at cartservice, not frontend."
+            },
+            {
+              "candidate": "cartservice: mem pressure",
+              "why": "cartservice_mem z=4.7 (23.5%) is weaker than cartservice_socket z=7.46 (37.3%) in E1, and nothing in E2 or E4 shows memory-specific behavior such as slowdowns or OOM; the log lines are gRPC error status codes, which fit connection failures better."
+            },
+            {
+              "candidate": "cartservice: cpu/delay",
+              "why": "E2 shows self-time p50 essentially unchanged (4.0->4.08ms), so there is no latency or CPU saturation signature; the failure presents as errors, not slowness."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Restart or reschedule the affected cartservice pod(s) to reset the broken socket/connection state, then check connection limits and the network path between frontend and cartservice. Do this as a rolling restart with one pod at a time.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "socket (score 1) vs cpu (5), disk (4), mem (1) for cartservice"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: frontend_error z=20.0; cartservice_socket z=7.46 (37.3%); frontend-external_error z=6.52 (4475.3%); cartservice_mem z=4.7 (23.5%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "cartservice",
+        "frontend",
+        "frontend-external"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for cartservice: SIGNIFICANT change; inbound calls self-time p50 4.0->4.08ms (1.02x), errors 0.0->0.1275",
+      "source_ref": "traces.csv:serviceName=cartservice",
+      "implicates": [
+        "cartservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "NOT checked [service='cartservice', level='error']: these logs record no severity (the level of all 7460 lines searched is empty or 'unknown'), so a level filter cannot find anything. This says nothing about errors. Search the message text instead, e.g. query='error' or query='exception'",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "417 matching lines; by svc/level {'cartservice/unknown': 417}; [cartservice/unknown] info: Grpc.AspNetCore.Server.ServerCallHandler[7]\n      Error status code 'Faile; [cartservice/unknown] info: Grpc.AspNetCore.Server.ServerCallHandler[7]\n      Error status code 'Faile; these logs record no severity (every line has level 'unknown'), so no line counts as a warning or error: a text match is a mention, it implicates nobody",
+      "source_ref": "logs.csv#L36579",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=cartservice]: cartservice_socket z=7.46 (37.3%); cartservice_mem z=4.7 (23.5%); cartservice_cpu z=3.69 (61.0%)",
+      "source_ref": "simple_metrics.csv:cartservice_socket",
+      "implicates": [
+        "cartservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=frontend]: frontend_error z=20.0; frontend-external_error z=6.52 (4475.3%); frontend_socket z=3.73 (21.7%)",
+      "source_ref": "simple_metrics.csv:frontend_error",
+      "implicates": [
+        "frontend",
+        "frontend-external"
+      ]
+    }
+  ],
+  "decided_by": "tot",
+  "tot": {
+    "status": "selected",
+    "trigger": "T1 socket (score 1) vs cpu (5), disk (4), mem (1) for cartservice",
+    "suspect": "cartservice",
+    "rival": "frontend",
+    "selected": {
+      "branch_id": "B1",
+      "service": "cartservice",
+      "fault_type": "cpu",
+      "reason": "top fault types for cartservice by metric signature (score 5)",
+      "status": "open",
+      "close_reason": "",
+      "score": 5,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "cpu_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=3.69",
+          "eid": "E1",
+          "must": true,
+          "expect": "cpu z >= 3"
+        },
+        {
+          "signal": "mem_not_saturated",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "mem z=4.7",
+          "eid": "E1",
+          "must": false,
+          "expect": "mem z < 15"
+        },
+        {
+          "signal": "socket_not_saturated",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=7.46",
+          "eid": "E1",
+          "must": false,
+          "expect": "socket z < 25"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E2",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        }
+      ],
+      "tests": []
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "cartservice",
+        "fault_type": "cpu",
+        "reason": "top fault types for cartservice by metric signature (score 5)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=3.69",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=4.7",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=7.46",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B2",
+        "service": "cartservice",
+        "fault_type": "disk",
+        "reason": "top fault types for cartservice by metric signature (score 4)",
+        "status": "open",
+        "close_reason": "",
+        "score": 4,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E5",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=4.7",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=3.69",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=7.46",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "cartservice",
+        "fault_type": "mem",
+        "reason": "top fault types for cartservice by metric signature (score 1)",
+        "status": "pruned",
+        "close_reason": "score 1 (at most 1 if every untested signal held) is 4+ below the best (5)",
+        "score": 1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "mem z=4.7",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "latency z=1.74",
+            "eid": "E5",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=7.46",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "frontend",
+        "fault_type": "socket",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 1 if every untested signal held) is 4+ below the best (5)",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=3.73",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 0,
+    "generator_calls": 0,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "fix_advisor": {
+    "query": "cartservice CPU at its limit and throttled, latency rising",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "CPUThrottlingHigh",
+        "kind": "action",
+        "distance": 0.54,
+        "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#action"
+      },
+      {
+        "id": "R2",
+        "alert": "NodeClockSkewDetected",
+        "kind": "action",
+        "distance": 0.631,
+        "source_ref": "runbooks/node/NodeClockSkewDetected.md#action"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "symptom",
+        "distance": 0.624,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom"
+      },
+      {
+        "id": "R4",
+        "alert": "KubeJobCompletion",
+        "kind": "symptom",
+        "distance": 0.647,
+        "source_ref": "runbooks/kubernetes/KubeJobCompletion.md#symptom"
+      }
+    ],
+    "tool_seconds": 0.02,
+    "model_call": {
+      "seconds": 5.3,
+      "prompt_tokens": 1437,
+      "completion_tokens": 681,
+      "max_tokens": 16000,
+      "answer_chars": 1952,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.00968,
+      "finish_reason": "stop"
+    },
+    "contradictions": [],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Confirm cartservice is behaving erratically, then raise the CPU limit on the cartservice container only, with human approval and a ready rollback.",
+      "steps": [
+        "Check whether cartservice is behaving normally and whether CPU throttling (CPUThrottlingHigh) is actually firing for the container, per R1.",
+        "Compare cartservice CPU requests and limits against observed usage (E5 shows CPU +61%) and check the node kernel version, per R1.",
+        "Check for a recent deploy, traffic increase, or connection leak that explains the socket (z=7.46) and memory (z=4.7) growth in E5.",
+        "If the throttling and erratic behavior are confirmed, request approval to raise the CPU limit on the cartservice container only, in a modest increment, leaving requests unchanged.",
+        "After rollout, watch cartservice CPU, socket count, memory, trace error rate (E2) and frontend_error (E1) for recovery.",
+        "If errors persist after CPU headroom is added, escalate to investigate the socket and memory growth as the likely root cause rather than raising limits further."
+      ],
+      "preconditions": [
+        "Another alert (e.g. frontend_error from E1) is firing in the same namespace, which R1 requires before raising limits.",
+        "CPU throttling on the cartservice container is confirmed, not just high CPU usage.",
+        "The node has spare allocatable CPU for the increased limit.",
+        "A human on-call engineer has approved the change."
+      ],
+      "rollback": "Revert the cartservice CPU limit to its previous value by re-applying the prior deployment manifest or running a rollout undo, then confirm the pod restarts cleanly and metrics return to the pre-change baseline."
+    },
+    "rationale": "cartservice CPU is up 61% (E5) alongside rising socket and memory use and a 12.75% trace error rate (E2), so a gated, reversible CPU limit increase on the cartservice container is the only runbook-supported action (R1), and only because other alerts are firing; R2-R4 do not apply.",
+    "runbook_refs": [
+      "R1"
+    ],
+    "commander_draft": "Raise the CPU limit (keep the request) or scale out cartservice, after confirming the app is not looping"
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 0,
+    "review_required": false
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 6,
+    "model_seconds": 19.3,
+    "tool_seconds": 0.5,
+    "prompt_tokens": 5697,
+    "completion_tokens": 1774,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 19.8,
+    "cost_usd": 0.029134
+  }
+}

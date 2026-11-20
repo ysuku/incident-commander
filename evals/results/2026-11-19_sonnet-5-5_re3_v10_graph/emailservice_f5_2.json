@@ -1,0 +1,369 @@
+{
+  "status": "escalated",
+  "reason": "step budget (8) exhausted",
+  "escalation": {
+    "code": "budget_exhausted",
+    "reason": "step budget (8) exhausted",
+    "hypotheses": [
+      {
+        "service": "emailservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "loss",
+        "score": 3,
+        "evidence": [
+          "E1",
+          "E2",
+          "E8"
+        ],
+        "summary": "confirmed latency_up (latency z=642.44), cpu_not_up (cpu z=-1.47), trace_slow (traces implicate the service), errors_up (span error rate +1.000); contradicted conn_pressure (mem z=-1.49)"
+      },
+      {
+        "service": "emailservice",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "fault_type": "delay",
+        "score": 2,
+        "evidence": [
+          "E1",
+          "E2",
+          "E8"
+        ],
+        "summary": "confirmed latency_up (latency z=642.44), resources_flat (max resource cpu z=-1.47), trace_slow (traces implicate the service); contradicted no_errors (span error rate +1.000)"
+      },
+      {
+        "service": "checkoutservice",
+        "kinds": [],
+        "fault_type": null,
+        "score": null,
+        "evidence": [],
+        "summary": "named by the model; nothing on the board implicates it; no fault type has a confirmed signal"
+      }
+    ],
+    "note": "no diagnosis passed the citation gate within the step budget; hypotheses are ranked in code from the evidence already on the board (no new tool calls): a fault type is listed only where one of its signals is confirmed"
+  },
+  "candidates": [
+    "emailservice: socket fault (fast-failing requests, errors=1.0, self-time drop E2)",
+    "emailservice: delay fault (latency spike E1)",
+    "checkoutservice: caller-side victim of emailservice"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=642.44 (3212.2%); emailservice_latency-50 z=421.13 (2105.7%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; inbound calls self-time p50 4.02->0.42ms (0.1x), errors 0.0->1.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "NOT checked [service='emailservice', level='error']: these logs record no severity (the level of all 184 lines searched is empty or 'unknown'), so a level filter cannot find anything. This says nothing about errors. Search the message text instead, e.g. query='error' or query='exception'",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='error']: no line contains that literal text (184 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='failed']: no line contains that literal text (184 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='connection']: no line contains that literal text (184 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "184 matching lines; by svc/level {'emailservice/unknown': 184}; [emailservice/unknown] starting the email service in dummy mode.; [emailservice/unknown] Profiler disabled.; these logs record no severity (every line has level 'unknown'), so no line counts as a warning or error: a text match is a mention, it implicates nobody",
+      "source_ref": "logs.csv#L35963",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=642.44 (3212.2%); emailservice_latency-50 z=421.13 (2105.7%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 592,
+        "completion_tokens": 96,
+        "max_tokens": 16000,
+        "answer_chars": 257,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00214,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 723,
+        "completion_tokens": 161,
+        "max_tokens": 16000,
+        "answer_chars": 409,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00306,
+        "finish_reason": "stop"
+      },
+      "thought": "E1 shows emailservice latency as the top deviation, so I'll check its own and inbound traces to find a second telemetry kind pointing at it.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.36
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 857,
+        "completion_tokens": 213,
+        "max_tokens": 16000,
+        "answer_chars": 559,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00384,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but I need to distinguish fault type (delay vs loss/socket) and get a third signal from logs, so I'll search emailservice logs for errors.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.13
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 994,
+        "completion_tokens": 185,
+        "max_tokens": 16000,
+        "answer_chars": 504,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00384,
+        "finish_reason": "stop"
+      },
+      "thought": "Logs have not yet been checked by message text; searching for error text in emailservice gives the second independent telemetry kind and helps discriminate delay vs loss/socket.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "error",
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 1053,
+        "completion_tokens": 184,
+        "max_tokens": 16000,
+        "answer_chars": 497,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00395,
+        "finish_reason": "stop"
+      },
+      "thought": "Logs have no severity, so search emailservice message text for connection/timeout failures to get a second independent telemetry kind and distinguish delay from socket/loss.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "query": "failed",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1132,
+        "completion_tokens": 182,
+        "max_tokens": 16000,
+        "answer_chars": 499,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00408,
+        "finish_reason": "stop"
+      },
+      "thought": "Logs have not yielded anything for emailservice; searching for connection-related text may give a second independent telemetry kind to distinguish socket from delay fault.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "connection",
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1211,
+        "completion_tokens": 181,
+        "max_tokens": 16000,
+        "answer_chars": 501,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00423,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces already point at emailservice; I need to see the service's own log content and the call graph to separate delay from socket and to confirm the downstream/upstream relationships.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 20
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.05
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 2.9,
+        "prompt_tokens": 1349,
+        "completion_tokens": 179,
+        "max_tokens": 16000,
+        "answer_chars": 495,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00449,
+        "finish_reason": "stop"
+      },
+      "thought": "Need to distinguish fault type for emailservice and find a second independent telemetry kind; check the service map and inbound caller-observed trace latency/errors rather than more empty log searches.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E8",
+      "tool_seconds": 0.01
+    }
+  ],
+  "proposed_fix": null,
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 18.3,
+    "tool_seconds": 0.7,
+    "prompt_tokens": 7911,
+    "completion_tokens": 1381,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 18.9,
+    "cost_usd": 0.029632
+  }
+}

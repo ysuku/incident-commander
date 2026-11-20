@@ -1,0 +1,26 @@
+{
+  "architecture": "baseline-plain",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 9152,
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice latency-90/50 jump by +3212%/+2105% (z=+642/+421) while its workload (-91.6%) and socket count (-56.5%) collapse, and checkoutservice logs show 'failed to send order confirmation ... Unavailable / no healthy upstream' errors from calling it. The emailservice tracebacks ('non-dummy mode not implemented yet') are a startup crash loop that explains the missing upstream, but the digest does not disambiguate among socket, delay or loss faults, so socket is chosen because of the connection/reset errors and dropped socket metric.",
+  "proposed_fix": {
+    "description": "Restart or reschedule the emailservice pod, verify it starts in dummy mode (the config shows start(dummy_mode=False) raising an exception), and check its network/socket connectivity; no data deletion is needed.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 4.0,
+    "prompt_tokens": 4044,
+    "completion_tokens": 330,
+    "tool_seconds": 0.6,
+    "wall_seconds": 4.6,
+    "cost_usd": 0.011388
+  }
+}
