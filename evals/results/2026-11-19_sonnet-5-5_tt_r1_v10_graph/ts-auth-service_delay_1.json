@@ -1,0 +1,674 @@
+{
+  "root_cause": {
+    "service": "ts-auth-service",
+    "fault_type": "loss"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-auth-service_latency-50 z=62.02 (310.1%); ts-auth-service_latency-90 z=23.01 (266.6%); ts-inside-payment-service_error z=20.0; ts-ui-dashboard_latency-50 z=18.0 (90.0%)",
+      "source_ref": "simple_metrics.csv:ts-auth-service_latency-50",
+      "implicates": [
+        "ts-admin-basic-info-service",
+        "ts-auth-mongo",
+        "ts-auth-service",
+        "ts-food-map-service",
+        "ts-inside-payment-service",
+        "ts-route-service",
+        "ts-ui-dashboard"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-auth-service]: ts-auth-service_latency-50 z=62.02 (310.1%); ts-auth-service_latency-90 z=23.01 (266.6%); ts-auth-service_socket z=6.01 (30.1%)",
+      "source_ref": "simple_metrics.csv:ts-auth-service_latency-50",
+      "implicates": [
+        "ts-auth-service"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for ts-auth-service: SIGNIFICANT change; own spans self-time p50 1.19->201.15ms (169.46x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-auth-service",
+      "implicates": [
+        "ts-auth-service"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "ts-auth-service: socket",
+      "why": "score 1 (at most 1 if every untested signal held) is 4+ below the best (5)"
+    },
+    {
+      "candidate": "ts-auth-service: disk",
+      "why": "score -1 (at most -1 if every untested signal held) is 6+ below the best (5); contradicted: mem_up mem z=0 (E4); cpu_up cpu z=-0.81 (E4)"
+    },
+    {
+      "candidate": "ts-inside-payment-service: disk",
+      "why": "score -3 (at most -1 if every untested signal held) is 6+ below the best (5); contradicted: mem_up mem z=0.02 (E5); cpu_up cpu z=-0.53 (E5)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Confirm whether the ts-auth-service slowdown and packet loss come from its node or pod networking or from resource pressure, then mitigate with gated, reversible actions such as restarting or rescheduling a single replica.",
+    "steps": [
+      "Compare ts-auth-service pod and node metrics (CPU throttling, memory, network drops/retransmits, conntrack usage) against the time of the latency rise seen in E1/E4.",
+      "Inspect the elevated socket count (E4, +30%) on ts-auth-service for connection buildup, such as many TIME_WAIT or retransmitting connections.",
+      "Check whether the latency is confined to pods on one node; if so, cordon that node (reversible with uncordon) after human approval.",
+      "If one replica is degraded, delete that single pod so it reschedules on another node, only after confirming other replicas are healthy and serving.",
+      "If conntrack usage on the node is near its limit, move some pods off the node as a gated step; only consider raising the limit after approval and with a documented rollback.",
+      "After each action, watch ts-auth-service latency-50/90 and the downstream ts-inside-payment-service errors and ts-ui-dashboard latency (E1) for recovery."
+    ],
+    "preconditions": [
+      "Confirm that ts-auth-service has more than one healthy replica and that a pod disruption budget or capacity allows removing one.",
+      "Verify the node's conntrack, packet drop and CPU/memory numbers to establish that the node is the likely cause before cordoning or moving anything.",
+      "Get on-call approval before any cordon, pod deletion or node setting change.",
+      "Record current replica placement and node sysctl values so they can be restored."
+    ],
+    "rollback": "Uncordon the node, restore the original conntrack limit and any other node settings from the recorded values, and scale or reschedule pods back to their original placement if the change did not help or made things worse.",
+    "runbook_refs": [
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action",
+      "runbooks/node/NodeNetworkReceiveErrs.md#action"
+    ],
+    "contradictions": [],
+    "model_labeled_destructive": true,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 727,
+        "completion_tokens": 181,
+        "max_tokens": 16000,
+        "answer_chars": 484,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00326,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at ts-auth-service latency; I need a second independent telemetry kind, so check traces for that service's own and inbound latency before vs after the alert.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-auth-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 3.09
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 917,
+        "completion_tokens": 186,
+        "max_tokens": 16000,
+        "answer_chars": 503,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00369,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at ts-auth-service with a self-time jump; I need to check logs as an independent confirmation of delay vs other fault types and to rule out payment as root cause.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "ts-auth-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.84
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 3.5,
+        "prompt_tokens": 1142,
+        "completion_tokens": 374,
+        "max_tokens": 16000,
+        "answer_chars": 975,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00602,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1) and traces (E2) both point at ts-auth-service with self-time inflation and no errors, which fits a delay fault. I have enough independent telemetry to finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "ts-auth-service",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "ts-inside-payment-service",
+              "why": "Its error metric in E1 is a downstream symptom; the evidence shows no own-span anomaly there, while E2 shows auth's own self-time rose 169x with no errors."
+            },
+            {
+              "candidate": "ts-ui-dashboard",
+              "why": "Its latency rise (90%, E1) is much smaller than auth's 310% and is inherited from callees; E2 localizes the slowdown to auth's own spans."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Investigate and remove the source of injected delay in ts-auth-service (e.g. check for network/latency fault or slow code path), then restart the service if needed and monitor latency.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "delay has a contradicted must-have signal for ts-auth-service"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-auth-service_latency-50 z=62.02 (310.1%); ts-auth-service_latency-90 z=23.01 (266.6%); ts-inside-payment-service_error z=20.0; ts-ui-dashboard_latency-50 z=18.0 (90.0%)",
+      "source_ref": "simple_metrics.csv:ts-auth-service_latency-50",
+      "implicates": [
+        "ts-admin-basic-info-service",
+        "ts-auth-mongo",
+        "ts-auth-service",
+        "ts-food-map-service",
+        "ts-inside-payment-service",
+        "ts-route-service",
+        "ts-ui-dashboard"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for ts-auth-service: SIGNIFICANT change; own spans self-time p50 1.19->201.15ms (169.46x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-auth-service",
+      "implicates": [
+        "ts-auth-service"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "7799 matching lines; by svc/level {'ts-auth-service/unknown': 7799}; [ts-auth-service/unknown] 2024-01-22 11:11:05.190  INFO 1 --- [io-12340-exec-9] auth.service.impl.TokenSer; [ts-auth-service/unknown] 2024-01-22 11:11:05.191  INFO 1 --- [io-12340-exec-9] auth.service.impl.TokenSer; these logs record no severity (every line has level 'unknown'), so no line counts as a warning or error: a text match is a mention, it implicates nobody",
+      "source_ref": "logs.csv#L135580",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-auth-service]: ts-auth-service_latency-50 z=62.02 (310.1%); ts-auth-service_latency-90 z=23.01 (266.6%); ts-auth-service_socket z=6.01 (30.1%)",
+      "source_ref": "simple_metrics.csv:ts-auth-service_latency-50",
+      "implicates": [
+        "ts-auth-service"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-inside-payment-service]: ts-inside-payment-service_error z=20.0",
+      "source_ref": "simple_metrics.csv:ts-inside-payment-service_error",
+      "implicates": [
+        "ts-inside-payment-service"
+      ]
+    }
+  ],
+  "decided_by": "tot",
+  "tot": {
+    "status": "selected",
+    "trigger": "T1 delay has a contradicted must-have signal for ts-auth-service",
+    "suspect": "ts-auth-service",
+    "rival": "ts-inside-payment-service",
+    "selected": {
+      "branch_id": "B1",
+      "service": "ts-auth-service",
+      "fault_type": "loss",
+      "reason": "top fault types for ts-auth-service by metric signature (score 5)",
+      "status": "open",
+      "close_reason": "",
+      "score": 5,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "latency_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "latency z=62.02",
+          "eid": "E1",
+          "must": true,
+          "expect": "latency z >= 3"
+        },
+        {
+          "signal": "conn_pressure",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=6.01",
+          "eid": "E1",
+          "must": false,
+          "expect": "mem or socket z >= 5"
+        },
+        {
+          "signal": "cpu_not_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=-0.81",
+          "eid": "E4",
+          "must": false,
+          "expect": "cpu z < 3"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E2",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        },
+        {
+          "signal": "errors_up",
+          "kind": "traces",
+          "verdict": "inconclusive",
+          "observed": "span error rate +0.000",
+          "eid": "E2",
+          "must": false,
+          "expect": "span error rate rises >= 0.05"
+        }
+      ],
+      "tests": []
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "ts-auth-service",
+        "fault_type": "loss",
+        "reason": "top fault types for ts-auth-service by metric signature (score 5)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=62.02",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.01",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-0.81",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B2",
+        "service": "ts-auth-service",
+        "fault_type": "socket",
+        "reason": "top fault types for ts-auth-service by metric signature (score 1)",
+        "status": "pruned",
+        "close_reason": "score 1 (at most 1 if every untested signal held) is 4+ below the best (5)",
+        "score": 1,
+        "kinds": [
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=6.01",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "ts-auth-service",
+        "fault_type": "disk",
+        "reason": "top fault types for ts-auth-service by metric signature (score -1)",
+        "status": "pruned",
+        "close_reason": "score -1 (at most -1 if every untested signal held) is 6+ below the best (5)",
+        "score": -1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.81",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.01",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "ts-inside-payment-service",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 6+ below the best (5)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E5",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.02",
+            "eid": "E5",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.53",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=-1.3",
+            "eid": "E5",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 0,
+    "generator_calls": 0,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ],
+      "B4": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "fix_advisor": {
+    "query": "ts-auth-service packet loss on its pod network, retries and connections held open",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "action",
+        "distance": 0.453,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+      },
+      {
+        "id": "R2",
+        "alert": "KubeClientErrors",
+        "kind": "symptom",
+        "distance": 0.532,
+        "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom"
+      },
+      {
+        "id": "R3",
+        "alert": "KubePodNotReady",
+        "kind": "symptom",
+        "distance": 0.485,
+        "source_ref": "runbooks/kubernetes/KubePodNotReady.md#symptom"
+      },
+      {
+        "id": "R4",
+        "alert": "NodeNetworkReceiveErrs",
+        "kind": "action",
+        "distance": 0.537,
+        "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#action"
+      }
+    ],
+    "tool_seconds": 0.48,
+    "model_call": {
+      "seconds": 7.0,
+      "prompt_tokens": 1606,
+      "completion_tokens": 761,
+      "max_tokens": 16000,
+      "answer_chars": 2275,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.01082,
+      "finish_reason": "stop"
+    },
+    "contradictions": [],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Confirm whether the ts-auth-service slowdown and packet loss come from its node or pod networking or from resource pressure, then mitigate with gated, reversible actions such as restarting or rescheduling a single replica.",
+      "steps": [
+        "Compare ts-auth-service pod and node metrics (CPU throttling, memory, network drops/retransmits, conntrack usage) against the time of the latency rise seen in E1/E4.",
+        "Inspect the elevated socket count (E4, +30%) on ts-auth-service for connection buildup, such as many TIME_WAIT or retransmitting connections.",
+        "Check whether the latency is confined to pods on one node; if so, cordon that node (reversible with uncordon) after human approval.",
+        "If one replica is degraded, delete that single pod so it reschedules on another node, only after confirming other replicas are healthy and serving.",
+        "If conntrack usage on the node is near its limit, move some pods off the node as a gated step; only consider raising the limit after approval and with a documented rollback.",
+        "After each action, watch ts-auth-service latency-50/90 and the downstream ts-inside-payment-service errors and ts-ui-dashboard latency (E1) for recovery."
+      ],
+      "preconditions": [
+        "Confirm that ts-auth-service has more than one healthy replica and that a pod disruption budget or capacity allows removing one.",
+        "Verify the node's conntrack, packet drop and CPU/memory numbers to establish that the node is the likely cause before cordoning or moving anything.",
+        "Get on-call approval before any cordon, pod deletion or node setting change.",
+        "Record current replica placement and node sysctl values so they can be restored."
+      ],
+      "rollback": "Uncordon the node, restore the original conntrack limit and any other node settings from the recorded values, and scale or reschedule pods back to their original placement if the change did not help or made things worse."
+    },
+    "rationale": "The evidence shows ts-auth-service latency up about 3x with own-span self-time rising from 1.19ms to 201ms and no errors, which does not match any retrieved runbook symptom (conntrack exhaustion, client errors, pod not ready, NIC receive errors), so the fix is based mainly on the evidence with the r",
+    "runbook_refs": [
+      "R1",
+      "R4"
+    ],
+    "commander_draft": "Inspect ts-auth-service's pod network for packet loss (tc/netem, NIC errors); fix before retrying"
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 0,
+    "review_required": false
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 16.0,
+    "tool_seconds": 4.6,
+    "prompt_tokens": 4981,
+    "completion_tokens": 1579,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 20.5,
+    "cost_usd": 0.025751999999999997
+  }
+}

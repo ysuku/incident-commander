@@ -1,0 +1,842 @@
+{
+  "root_cause": {
+    "service": "ts-route-service",
+    "fault_type": "loss"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-route-service_latency-50 z=1273.16 (6365.8%); ts-route-service_latency-90 z=1058.83 (5294.1%); ts-admin-travel-service_latency-50 z=383.23 (1916.1%); ts-travel-service_latency-50 z=295.83 (1479.1%)",
+      "source_ref": "simple_metrics.csv:ts-route-service_latency-50",
+      "implicates": [
+        "ts-admin-travel-service",
+        "ts-basic-service",
+        "ts-food-service",
+        "ts-route-service",
+        "ts-seat-service",
+        "ts-travel-service",
+        "ts-travel2-service"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-route-service]: ts-route-service_latency-50 z=1273.16 (6365.8%); ts-route-service_latency-90 z=1058.83 (5294.1%); ts-route-service_socket z=11.8 (64.3%)",
+      "source_ref": "simple_metrics.csv:ts-route-service_latency-50",
+      "implicates": [
+        "ts-route-service"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-route-service]: ts-route-service_latency-50 z=1273.16 (6365.8%); ts-route-service_latency-90 z=1058.83 (5294.1%); ts-route-service_socket z=11.8 (64.3%)",
+      "source_ref": "simple_metrics.csv:ts-route-service_latency-50",
+      "implicates": [
+        "ts-route-service"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for ts-route-service: SIGNIFICANT change; own spans self-time p50 1.15->1.9ms (1.65x), errors 0.0->0.0; inbound calls self-time p50 2.04->202.2ms (98.88x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-route-service",
+      "implicates": [
+        "ts-route-service"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "ts-travel-service: delay",
+      "why": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5); contradicted: trace_slow traces flat (E7)"
+    },
+    {
+      "candidate": "ts-route-service: socket",
+      "why": "score 1 (at most 1 if every untested signal held) is 4+ below the best (5)"
+    },
+    {
+      "candidate": "ts-route-service: disk",
+      "why": "score -1 (at most -1 if every untested signal held) is 6+ below the best (5); contradicted: mem_up mem z=0.02 (E3); cpu_up cpu z=-1.45 (E3)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Confirm network-level packet loss affecting the ts-route-service pod/node, then mitigate by gated, reversible moves such as rescheduling the pod, while checking interface errors and conntrack before any node change.",
+    "steps": [
+      "Check the node hosting ts-route-service for interface TX/RX errors, drops, and retransmits (e.g. node_network_transmit_errs_total, netstat/ip -s link) to confirm loss at the node level.",
+      "Check the node's conntrack usage (nf_conntrack_count vs nf_conntrack_max) to see whether table exhaustion could be causing drops.",
+      "Inspect ts-route-service socket growth (socket z=11.8) and connection states to see whether connections are piling up or stalling.",
+      "Compare latency on ts-route-service replicas/pods on different nodes to determine whether the problem is node-local.",
+      "If the problem is node-local, with approval, cordon the node and delete/reschedule the ts-route-service pod onto a healthy node, one replica at a time.",
+      "If conntrack is near its limit, with approval, raise the limit on the node as a temporary change, noting the previous value.",
+      "Watch ts-route-service latency-50/90 and the upstream ts-travel-service / ts-admin-travel-service latencies for recovery after each step."
+    ],
+    "preconditions": [
+      "Confirm node-level evidence (interface errors/drops or conntrack pressure) exists before touching the node; current telemetry shows latency and socket deviation only, not direct transmit errors.",
+      "Verify other replicas or capacity exist so rescheduling ts-route-service does not cause an outage.",
+      "Record current conntrack limit and pod placement before changes.",
+      "Obtain human approval for each mutating step."
+    ],
+    "rollback": "Uncordon the node, restore the previous conntrack limit value, and, if the new placement is worse, reschedule the pod back or scale replicas to the prior configuration.",
+    "runbook_refs": [
+      "runbooks/node/NodeNetworkTransmitErrs.md#action",
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+    ],
+    "contradictions": [],
+    "model_labeled_destructive": true,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 8,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 737,
+        "completion_tokens": 154,
+        "max_tokens": 16000,
+        "answer_chars": 402,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00301,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at ts-route-service latency; check its own and inbound trace latency to get an independent telemetry kind.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-route-service"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 2.22
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.3,
+        "prompt_tokens": 958,
+        "completion_tokens": 180,
+        "max_tokens": 16000,
+        "answer_chars": 470,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00372,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at ts-route-service, but I need to separate delay from cpu, so I'll look at ts-route-service's own metrics for cpu, memory, and network deviations.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-route-service",
+          "top": 15
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 1085,
+        "completion_tokens": 171,
+        "max_tokens": 16000,
+        "answer_chars": 452,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00388,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at ts-route-service, but the fault type is still unclear (delay vs socket vs cpu), so check its CPU, memory and socket metrics and any other deviations.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-route-service"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.03
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1207,
+        "completion_tokens": 162,
+        "max_tokens": 16000,
+        "answer_chars": 432,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "Need a second independent telemetry kind (logs) pointing at ts-route-service, and to check whether the socket deviation or the delay is the real fault.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "ts-route-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 1.41
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 4.7,
+        "prompt_tokens": 1423,
+        "completion_tokens": 471,
+        "max_tokens": 16000,
+        "answer_chars": 1261,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00756,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E3) and traces (E2) both point at ts-route-service, with inbound latency up 98x while its own self-time barely moves, which is consistent with a delay fault. I'll finish now, noting that the logs carry no severity and so don't count as evidence.",
+      "action": {
+        "finish": {
+          "root_cause_service": "ts-route-service",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "ts-travel-service: downstream victim",
+              "why": "Its latency rise (E1) is smaller than route-service's, and route-service's inbound latency jumps 98x (E2), so travel-service looks like a caller that inherits the delay."
+            },
+            {
+              "candidate": "ts-route-service: socket issue",
+              "why": "The socket deviation is modest (z=11.8, E3) next to latency z=1273, so it is more likely a side effect than the cause."
+            },
+            {
+              "candidate": "ts-route-service: cpu saturation",
+              "why": "Own-span self-time rose only 1.15->1.9ms (E2), so there is no sign of compute saturation."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Inspect and remove the injected network/processing delay on ts-route-service, for example by checking its network qdisc or latency rules and restarting the affected pod if needed. This is non-destructive.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "finish_ambiguous",
+      "detail": "delay has a contradicted must-have signal for ts-route-service"
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-route-service: loss",
+      "thought": "service_map shows whether ts-travel-service calls ts-route-service (making travel a downstream victim) and whether route-service has other callers, which separates the two hypotheses; trace_lookup on ",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-travel-service"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 1495,
+        "completion_tokens": 197,
+        "max_tokens": 16000,
+        "answer_chars": 597,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00496,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 2.24
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "ts-travel-service: delay",
+      "thought": "If ts-travel-service is the delayed root, the service map should show whether it calls ts-route-service (making it a downstream victim) or is called by it, which separates the two hypotheses; trace ev",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.0,
+        "prompt_tokens": 1616,
+        "completion_tokens": 202,
+        "max_tokens": 16000,
+        "answer_chars": 603,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00525,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 1.05
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-route-service_latency-50 z=1273.16 (6365.8%); ts-route-service_latency-90 z=1058.83 (5294.1%); ts-admin-travel-service_latency-50 z=383.23 (1916.1%); ts-travel-service_latency-50 z=295.83 (1479.1%)",
+      "source_ref": "simple_metrics.csv:ts-route-service_latency-50",
+      "implicates": [
+        "ts-admin-travel-service",
+        "ts-basic-service",
+        "ts-food-service",
+        "ts-route-service",
+        "ts-seat-service",
+        "ts-travel-service",
+        "ts-travel2-service"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for ts-route-service: SIGNIFICANT change; own spans self-time p50 1.15->1.9ms (1.65x), errors 0.0->0.0; inbound calls self-time p50 2.04->202.2ms (98.88x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-route-service",
+      "implicates": [
+        "ts-route-service"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-route-service]: ts-route-service_latency-50 z=1273.16 (6365.8%); ts-route-service_latency-90 z=1058.83 (5294.1%); ts-route-service_socket z=11.8 (64.3%)",
+      "source_ref": "simple_metrics.csv:ts-route-service_latency-50",
+      "implicates": [
+        "ts-route-service"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-route-service]: ts-route-service_latency-50 z=1273.16 (6365.8%); ts-route-service_latency-90 z=1058.83 (5294.1%); ts-route-service_socket z=11.8 (64.3%)",
+      "source_ref": "simple_metrics.csv:ts-route-service_latency-50",
+      "implicates": [
+        "ts-route-service"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "20890 matching lines; by svc/level {'ts-route-service/unknown': 20890}; [ts-route-service/unknown] 2024-01-22 16:06:51.040  INFO 1 --- [io-11178-exec-7] route.controller.RouteCont; [ts-route-service/unknown] 2024-01-22 16:06:51.055  INFO 1 --- [io-11178-exec-2] route.controller.RouteCont; these logs record no severity (every line has level 'unknown'), so no line counts as a warning or error: a text match is a mention, it implicates nobody",
+      "source_ref": "logs.csv#L139147",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-travel-service]: ts-travel-service_latency-50 z=295.83 (1479.1%); ts-travel-service_latency-90 z=18.21 (842.6%); ts-travel-service_socket z=3.48 (35.5%)",
+      "source_ref": "simple_metrics.csv:ts-travel-service_latency-50",
+      "implicates": [
+        "ts-travel-service"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "traces",
+      "summary": "traces for ts-travel-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.96->2.15ms (1.1x), errors 0.0->0.0; inbound calls self-time p50 2.23->2.27ms (1.02x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-travel-service",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "map",
+      "summary": "dependencies: ts-admin-basic-info-service->ts-config-service,ts-price-service; ts-admin-travel-service->ts-travel-service,ts-travel2-service; ts-basic-service->ts-price-service,ts-route-service,ts-station-service,ts-train-service; ts-consign-service->ts-consign-price-service; ts-food-service->ts-food-map-service,ts-station-service,ts-travel-service; ts-inside-payment-service->ts-order-other-service,ts-order-service,ts-payment-service; ts-order-other-service->ts-station-service; ts-order-service->ts-station-service; ts-preserve-other-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-other-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel2-service,ts-user-service; ts-preserve-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel-service,ts-user-service; ts-seat-service->ts-config-service,ts-order-other-service,ts-order-service,ts-travel-service,ts-travel2-service; ts-security-service->ts-order-other-service,ts-order-service; ts-ticketinfo-service->ts-basic-service; ts-travel-service->ts-order-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service; ts-travel2-service->ts-order-other-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    }
+  ],
+  "decided_by": "tot",
+  "tot": {
+    "status": "selected",
+    "trigger": "T1 delay has a contradicted must-have signal for ts-route-service",
+    "suspect": "ts-route-service",
+    "rival": "ts-travel-service",
+    "selected": {
+      "branch_id": "B1",
+      "service": "ts-route-service",
+      "fault_type": "loss",
+      "reason": "top fault types for ts-route-service by metric signature (score 5)",
+      "status": "open",
+      "close_reason": "",
+      "score": 5,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "latency_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "latency z=1273.16",
+          "eid": "E1",
+          "must": true,
+          "expect": "latency z >= 3"
+        },
+        {
+          "signal": "conn_pressure",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=11.8",
+          "eid": "E3",
+          "must": false,
+          "expect": "mem or socket z >= 5"
+        },
+        {
+          "signal": "cpu_not_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=-1.45",
+          "eid": "E3",
+          "must": false,
+          "expect": "cpu z < 3"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E2",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        },
+        {
+          "signal": "errors_up",
+          "kind": "traces",
+          "verdict": "inconclusive",
+          "observed": "span error rate +0.000",
+          "eid": "E2",
+          "must": false,
+          "expect": "span error rate rises >= 0.05"
+        }
+      ],
+      "tests": [
+        {
+          "eid": "E7",
+          "tool": "trace_lookup",
+          "args": {
+            "service": "ts-travel-service"
+          },
+          "depth": 1,
+          "predicted": "ts-travel-service's own span self-time is roughly unchanged while its inbound latency rises only because it waits on ts-route-service; there are no errors, which is consistent with route-service being",
+          "rationale": "service_map shows whether ts-travel-service calls ts-route-service (making travel a downstream victim) and whether route-service has other callers, which separates the two hypotheses; trace_lookup on ",
+          "by": "model"
+        }
+      ]
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "ts-route-service",
+        "fault_type": "loss",
+        "reason": "top fault types for ts-route-service by metric signature (score 5)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=1273.16",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=11.8",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-1.45",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E2",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "ts-travel-service"
+            },
+            "depth": 1,
+            "predicted": "ts-travel-service's own span self-time is roughly unchanged while its inbound latency rises only because it waits on ts-route-service; there are no errors, which is consistent with route-service being",
+            "rationale": "service_map shows whether ts-travel-service calls ts-route-service (making travel a downstream victim) and whether route-service has other callers, which separates the two hypotheses; trace_lookup on ",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "ts-travel-service",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=295.83",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource socket z=3.48",
+            "eid": "E6",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E7",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E7",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E8",
+            "tool": "service_map",
+            "args": {},
+            "depth": 1,
+            "predicted": "ts-travel-service calls ts-route-service, so its latency metric is inherited from route; the travel-service delay is not primary. If my hypothesis held, travel would sit downstream of route with no in",
+            "rationale": "If ts-travel-service is the delayed root, the service map should show whether it calls ts-route-service (making it a downstream victim) or is called by it, which separates the two hypotheses; trace ev",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "ts-route-service",
+        "fault_type": "socket",
+        "reason": "top fault types for ts-route-service by metric signature (score 1)",
+        "status": "pruned",
+        "close_reason": "score 1 (at most 1 if every untested signal held) is 4+ below the best (5)",
+        "score": 1,
+        "kinds": [
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=11.8",
+            "eid": "E3",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "ts-route-service",
+        "fault_type": "disk",
+        "reason": "top fault types for ts-route-service by metric signature (score -1)",
+        "status": "pruned",
+        "close_reason": "score -1 (at most -1 if every untested signal held) is 6+ below the best (5)",
+        "score": -1,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.02",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-1.45",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=11.8",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 2,
+    "generator_calls": 2,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "fix_advisor": {
+    "query": "ts-route-service packet loss on its pod network, retries and connections held open",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "NodeNetworkTransmitErrs",
+        "kind": "action",
+        "distance": 0.448,
+        "source_ref": "runbooks/node/NodeNetworkTransmitErrs.md#action"
+      },
+      {
+        "id": "R2",
+        "alert": "KubePodNotReady",
+        "kind": "symptom",
+        "distance": 0.467,
+        "source_ref": "runbooks/kubernetes/KubePodNotReady.md#symptom"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "action",
+        "distance": 0.483,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "NodeNetworkTransmitErrs",
+        "kind": "symptom",
+        "distance": 0.533,
+        "source_ref": "runbooks/node/NodeNetworkTransmitErrs.md#symptom"
+      }
+    ],
+    "tool_seconds": 0.02,
+    "model_call": {
+      "seconds": 7.5,
+      "prompt_tokens": 1784,
+      "completion_tokens": 769,
+      "max_tokens": 16000,
+      "answer_chars": 2235,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.01126,
+      "finish_reason": "stop"
+    },
+    "contradictions": [],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Confirm network-level packet loss affecting the ts-route-service pod/node, then mitigate by gated, reversible moves such as rescheduling the pod, while checking interface errors and conntrack before any node change.",
+      "steps": [
+        "Check the node hosting ts-route-service for interface TX/RX errors, drops, and retransmits (e.g. node_network_transmit_errs_total, netstat/ip -s link) to confirm loss at the node level.",
+        "Check the node's conntrack usage (nf_conntrack_count vs nf_conntrack_max) to see whether table exhaustion could be causing drops.",
+        "Inspect ts-route-service socket growth (socket z=11.8) and connection states to see whether connections are piling up or stalling.",
+        "Compare latency on ts-route-service replicas/pods on different nodes to determine whether the problem is node-local.",
+        "If the problem is node-local, with approval, cordon the node and delete/reschedule the ts-route-service pod onto a healthy node, one replica at a time.",
+        "If conntrack is near its limit, with approval, raise the limit on the node as a temporary change, noting the previous value.",
+        "Watch ts-route-service latency-50/90 and the upstream ts-travel-service / ts-admin-travel-service latencies for recovery after each step."
+      ],
+      "preconditions": [
+        "Confirm node-level evidence (interface errors/drops or conntrack pressure) exists before touching the node; current telemetry shows latency and socket deviation only, not direct transmit errors.",
+        "Verify other replicas or capacity exist so rescheduling ts-route-service does not cause an outage.",
+        "Record current conntrack limit and pod placement before changes.",
+        "Obtain human approval for each mutating step."
+      ],
+      "rollback": "Uncordon the node, restore the previous conntrack limit value, and, if the new placement is worse, reschedule the pod back or scale replicas to the prior configuration."
+    },
+    "rationale": "ts-route-service shows a large latency spike (p50 z=1273) with inbound-call self-time up ~99x but zero errors, consistent with network loss/retransmission delay on this service; the retrieved runbooks are node-level network/conntrack/pod-readiness guides that only loosely match, so the fix is gated ",
+    "runbook_refs": [
+      "R1",
+      "R3"
+    ],
+    "commander_draft": "Inspect ts-route-service's pod network for packet loss (tc/netem, NIC errors); fix before retrying"
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 0,
+    "review_required": false
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "gate",
+    "tot",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 28.3,
+    "tool_seconds": 7.1,
+    "prompt_tokens": 10894,
+    "completion_tokens": 2383,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 35.5,
+    "cost_usd": 0.045618000000000006
+  }
+}

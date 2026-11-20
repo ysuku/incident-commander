@@ -1,0 +1,565 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "ts-auth-service",
+        "fault_type": "cpu",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed cpu_up (cpu z=30.79), mem_not_saturated (mem z=0.35), socket_not_saturated (socket z=4.14); inconclusive trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E6",
+          "E7",
+          "E8"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "ts-auth-service: cpu (score 3, open; confirmed cpu_up, mem_not_saturated, socket_not_saturated)",
+    "ts-auth-service: disk (score 0, pruned; confirmed cpu_up, socket_not_saturated)",
+    "ts-auth-service: socket (score 0, pruned; confirmed none)",
+    "ts-seat-service: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-auth-service_cpu z=30.79 (360.3%); ts-auth-service_latency-50 z=20.25 (101.2%); ts-seat-service_error z=20.0; ts-travel-service_error z=20.0",
+      "source_ref": "simple_metrics.csv:ts-auth-service_cpu",
+      "implicates": [
+        "ts-auth-service",
+        "ts-order-service",
+        "ts-route-service",
+        "ts-seat-service",
+        "ts-travel-service",
+        "ts-ui-dashboard"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for ts-auth-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.19->1.21ms (1.01x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-auth-service",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "NOT checked [service='ts-auth-service', level='error']: these logs record no severity (the level of all 8020 lines searched is empty or 'unknown'), so a level filter cannot find anything. This says nothing about errors. Search the message text instead, e.g. query='error' or query='exception'",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-auth-service]: ts-auth-service_cpu z=30.79 (360.3%); ts-auth-service_latency-50 z=20.25 (101.2%); ts-auth-service_latency-90 z=8.0 (122.6%); ts-auth-service_socket z=4.14 (20.7%)",
+      "source_ref": "simple_metrics.csv:ts-auth-service_cpu",
+      "implicates": [
+        "ts-auth-service"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-seat-service]: ts-seat-service_error z=20.0",
+      "source_ref": "simple_metrics.csv:ts-seat-service_error",
+      "implicates": [
+        "ts-seat-service"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "map",
+      "summary": "dependencies: ts-admin-basic-info-service->ts-config-service,ts-price-service; ts-admin-travel-service->ts-travel-service,ts-travel2-service; ts-basic-service->ts-price-service,ts-route-service,ts-station-service,ts-train-service; ts-consign-service->ts-consign-price-service; ts-food-service->ts-food-map-service,ts-station-service,ts-travel-service; ts-inside-payment-service->ts-order-other-service,ts-order-service,ts-payment-service; ts-order-other-service->ts-station-service; ts-order-service->ts-station-service; ts-preserve-other-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-other-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel2-service,ts-user-service; ts-preserve-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel-service,ts-user-service; ts-seat-service->ts-config-service,ts-order-other-service,ts-order-service,ts-travel-service,ts-travel2-service; ts-security-service->ts-order-other-service,ts-order-service; ts-ticketinfo-service->ts-basic-service; ts-travel-service->ts-order-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service; ts-travel2-service->ts-order-other-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='ts-auth-service', query='timeout']: no line contains that literal text (8020 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "traces",
+      "summary": "traces for ts-auth-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.19->1.21ms (1.01x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-auth-service",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 589,
+        "completion_tokens": 75,
+        "max_tokens": 16000,
+        "answer_chars": 198,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00193,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; instructed to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.29
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 708,
+        "completion_tokens": 157,
+        "max_tokens": 16000,
+        "answer_chars": 396,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00299,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at ts-auth-service CPU; I need an independent kind (traces) to corroborate by looking at its own and inbound latency/errors.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-auth-service"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 3.22
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 893,
+        "completion_tokens": 167,
+        "max_tokens": 16000,
+        "answer_chars": 435,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00346,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at ts-auth-service CPU but traces show no change there, so I need a second independent telemetry kind; check logs for ts-auth-service.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "ts-auth-service",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 1.85
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-auth-service: cpu",
+      "thought": "Traces show no slowdown on ts-auth-service's own spans, so checking who calls it and whether its callers (seat/travel) are slow or erroring will test whether the CPU spike propagates; the service map ",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 1142,
+        "completion_tokens": 163,
+        "max_tokens": 16000,
+        "answer_chars": 453,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00391,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 1.53
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-auth-service: cpu",
+      "thought": "Traces show no slowdown in ts-auth-service's own spans, which conflicts with the trace_slow signature; searching log text for auth-service errors or timeouts will show whether its CPU burn actually af",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "timeout",
+          "service": "ts-auth-service",
+          "limit": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 1754,
+        "completion_tokens": 187,
+        "max_tokens": 16000,
+        "answer_chars": 503,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00538,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.64
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-auth-service: cpu",
+      "thought": "Traces show no slowdown in ts-auth-service's own spans, so I check its inbound caller-observed latency and errors to see whether the CPU spike actually affects requests, which the trace_slow signature",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-auth-service",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.7,
+        "prompt_tokens": 1838,
+        "completion_tokens": 207,
+        "max_tokens": 16000,
+        "answer_chars": 576,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00575,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 3.16
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "ts-auth-service",
+    "rival": "ts-seat-service",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "ts-auth-service",
+        "fault_type": "cpu",
+        "reason": "top fault types for ts-auth-service by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=30.79",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=0.35",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=4.14",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "service_map",
+            "args": {},
+            "depth": 1,
+            "predicted": "ts-seat-service and ts-travel-service (or their upstreams) call ts-auth-service, consistent with auth CPU saturation propagating latency/errors to the callers",
+            "rationale": "Traces show no slowdown on ts-auth-service's own spans, so checking who calls it and whether its callers (seat/travel) are slow or erroring will test whether the CPU spike propagates; the service map ",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "query": "timeout",
+              "service": "ts-auth-service",
+              "limit": 20
+            },
+            "depth": 2,
+            "predicted": "If cpu is the fault, ts-auth-service logs show timeouts, slow-request, or exception lines concentrated after 10:08Z.",
+            "rationale": "Traces show no slowdown in ts-auth-service's own spans, which conflicts with the trace_slow signature; searching log text for auth-service errors or timeouts will show whether its CPU burn actually af",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "ts-auth-service",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 3,
+            "predicted": "Inbound caller-observed latency to ts-auth-service rises after the alert, with callers' spans slower even though its own self-time is flat, supporting CPU contention. If inbound latency is also unchan",
+            "rationale": "Traces show no slowdown in ts-auth-service's own spans, so I check its inbound caller-observed latency and errors to see whether the CPU spike actually affects requests, which the trace_slow signature",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "ts-auth-service",
+        "fault_type": "disk",
+        "reason": "top fault types for ts-auth-service by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.35",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=30.79",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=4.14",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "ts-auth-service",
+        "fault_type": "socket",
+        "reason": "top fault types for ts-auth-service by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=4.14",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B4",
+        "service": "ts-seat-service",
+        "fault_type": "disk",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 4+ below the best (3)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E5",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0",
+            "eid": "E5",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.85",
+            "eid": "E5",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0.74",
+            "eid": "E5",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 3,
+    "generator_calls": 3,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ],
+      "B4": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 6,
+    "model_seconds": 13.0,
+    "tool_seconds": 10.7,
+    "prompt_tokens": 6924,
+    "completion_tokens": 956,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 23.8,
+    "cost_usd": 0.023408
+  }
+}

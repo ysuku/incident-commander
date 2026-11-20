@@ -1,0 +1,722 @@
+{
+  "root_cause": {
+    "service": "ts-order-service",
+    "fault_type": "loss"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-order-service_latency-50 z=435.59 (4206.9%); ts-security-service_latency-50 z=225.89 (1277.4%); ts-seat-service_latency-90 z=220.42 (1102.1%); ts-preserve-service_latency-50 z=148.0 (824.0%)",
+      "source_ref": "simple_metrics.csv:ts-order-service_latency-50",
+      "implicates": [
+        "ts-inside-payment-service",
+        "ts-order-service",
+        "ts-preserve-other-service",
+        "ts-preserve-service",
+        "ts-seat-service",
+        "ts-security-service",
+        "ts-ui-dashboard"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-order-service]: ts-order-service_latency-50 z=435.59 (4206.9%); ts-order-service_latency-90 z=10.38 (2400.5%); ts-order-service_socket z=6.34 (57.7%)",
+      "source_ref": "simple_metrics.csv:ts-order-service_latency-50",
+      "implicates": [
+        "ts-order-service"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "traces",
+      "summary": "traces for ts-order-service: SIGNIFICANT change; own spans self-time p50 2.31->202.1ms (87.49x), errors 0.0->0.0; inbound calls self-time p50 2.88->203.09ms (70.51x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-order-service",
+      "implicates": [
+        "ts-order-service"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "ts-security-service: delay",
+      "why": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5); contradicted: trace_slow traces flat (E6)"
+    },
+    {
+      "candidate": "ts-order-service: socket",
+      "why": "score 0 (at most 1 if every untested signal held) is 2+ below the best (3)"
+    },
+    {
+      "candidate": "ts-order-service: disk",
+      "why": "score -3 (at most -1 if every untested signal held) is 4+ below the best (3); contradicted: mem_up mem z=0.22 (E3); cpu_up cpu z=-0.35 (E3)"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Confirm whether packet loss/network degradation affects the ts-order-service pod or its node, and if confirmed, move the pod to a healthy node under human approval.",
+    "steps": [
+      "Inspect the node hosting ts-order-service pods for interface TX/RX errors, drops, and saturation (read-only, e.g. ip -s link, node network metrics).",
+      "Check CPU saturation and conntrack usage on that node (read-only) to separate node-level causes from pod-level ones.",
+      "Compare latency of ts-order-service pods across nodes to see if the slowdown is node-specific.",
+      "If the node shows transmit errors or drops, cordon it (reversible) and, with approval, delete one ts-order-service pod at a time so it reschedules onto a healthy node; verify latency-50 recovers before continuing.",
+      "If conntrack is near its limit on the node, consider migrating other pods away (R3 'Migrate some pods to another nodes') before any limit change; treat any limit bump as a separate, approved change.",
+      "If no node-level fault is found, check network policy/sidecar or chaos-injection configuration targeting ts-order-service and escalate to the service owner."
+    ],
+    "preconditions": [
+      "Confirm ts-order-service latency-50 is still elevated versus baseline (E1, E3).",
+      "Confirm the cluster has spare capacity on other nodes before cordoning or evicting pods.",
+      "Verify more than one replica of ts-order-service is running, or accept brief unavailability for a single replica.",
+      "Obtain on-call approval before cordon, pod deletion, or any node setting change."
+    ],
+    "rollback": "Uncordon the node (kubectl uncordon) and let the scheduler rebalance; if a conntrack or other node setting was changed, revert it to its prior recorded value.",
+    "runbook_refs": [
+      "runbooks/node/NodeNetworkTransmitErrs.md#action",
+      "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action",
+      "runbooks/node/NodeNetworkTransmitErrs.md#symptom"
+    ],
+    "contradictions": [],
+    "model_labeled_destructive": true,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 589,
+        "completion_tokens": 71,
+        "max_tokens": 16000,
+        "answer_chars": 184,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00189,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 732,
+        "completion_tokens": 147,
+        "max_tokens": 16000,
+        "answer_chars": 412,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00293,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics show latency spikes in order, security, seat, and preserve services; I need the call graph to see which is downstream and likely the origin.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.96
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1443,
+        "completion_tokens": 177,
+        "max_tokens": 16000,
+        "answer_chars": 489,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00466,
+        "finish_reason": "stop"
+      },
+      "thought": "ts-order-service has the largest latency deviation and many callers; I need to see its own resource metrics (cpu/mem/disk/socket) to determine fault type and get a second telemetry kind.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-order-service"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-order-service: loss",
+      "thought": "Inspecting ts-order-service's own and inbound spans (latency and errors, before vs after the alert) separates a fault in order-service from a security-service delay, because security-service calls ord",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-order-service",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.9,
+        "prompt_tokens": 1614,
+        "completion_tokens": 211,
+        "max_tokens": 16000,
+        "answer_chars": 663,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00534,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 2.03
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "ts-security-service: delay",
+      "thought": "Security-service's own spans and inbound latency have not been checked; if its own self-time rose independently of order-service (which it calls), delay sits in security itself rather than being a dow",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-security-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1723,
+        "completion_tokens": 179,
+        "max_tokens": 16000,
+        "answer_chars": 565,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00524,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 1.98
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-order-service_latency-50 z=435.59 (4206.9%); ts-security-service_latency-50 z=225.89 (1277.4%); ts-seat-service_latency-90 z=220.42 (1102.1%); ts-preserve-service_latency-50 z=148.0 (824.0%)",
+      "source_ref": "simple_metrics.csv:ts-order-service_latency-50",
+      "implicates": [
+        "ts-inside-payment-service",
+        "ts-order-service",
+        "ts-preserve-other-service",
+        "ts-preserve-service",
+        "ts-seat-service",
+        "ts-security-service",
+        "ts-ui-dashboard"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: ts-admin-basic-info-service->ts-config-service,ts-price-service; ts-admin-travel-service->ts-travel-service,ts-travel2-service; ts-basic-service->ts-price-service,ts-route-service,ts-station-service,ts-train-service; ts-consign-service->ts-consign-price-service; ts-food-service->ts-food-map-service,ts-station-service,ts-travel-service; ts-inside-payment-service->ts-order-other-service,ts-order-service,ts-payment-service; ts-order-other-service->ts-station-service; ts-order-service->ts-station-service; ts-preserve-other-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-other-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel2-service,ts-user-service; ts-preserve-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel-service,ts-user-service; ts-seat-service->ts-config-service,ts-order-other-service,ts-order-service,ts-travel-service,ts-travel2-service; ts-security-service->ts-order-other-service,ts-order-service; ts-ticketinfo-service->ts-basic-service; ts-travel-service->ts-order-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service; ts-travel2-service->ts-order-other-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-order-service]: ts-order-service_latency-50 z=435.59 (4206.9%); ts-order-service_latency-90 z=10.38 (2400.5%); ts-order-service_socket z=6.34 (57.7%)",
+      "source_ref": "simple_metrics.csv:ts-order-service_latency-50",
+      "implicates": [
+        "ts-order-service"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-security-service]: ts-security-service_latency-50 z=225.89 (1277.4%); ts-security-service_latency-90 z=52.29 (1622.8%)",
+      "source_ref": "simple_metrics.csv:ts-security-service_latency-50",
+      "implicates": [
+        "ts-security-service"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "traces",
+      "summary": "traces for ts-order-service: SIGNIFICANT change; own spans self-time p50 2.31->202.1ms (87.49x), errors 0.0->0.0; inbound calls self-time p50 2.88->203.09ms (70.51x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-order-service",
+      "implicates": [
+        "ts-order-service"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for ts-security-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.6->1.87ms (1.17x), errors 0.0->0.0; inbound calls self-time p50 2.87->3.18ms (1.11x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-security-service",
+      "implicates": []
+    }
+  ],
+  "decided_by": "tot",
+  "tot": {
+    "status": "selected",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "ts-order-service",
+    "rival": "ts-security-service",
+    "selected": {
+      "branch_id": "B1",
+      "service": "ts-order-service",
+      "fault_type": "loss",
+      "reason": "top fault types for ts-order-service by metric signature (score 3)",
+      "status": "open",
+      "close_reason": "",
+      "score": 5,
+      "kinds": [
+        "metrics",
+        "traces"
+      ],
+      "verdicts": [
+        {
+          "signal": "latency_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "latency z=435.59",
+          "eid": "E1",
+          "must": true,
+          "expect": "latency z >= 3"
+        },
+        {
+          "signal": "conn_pressure",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "socket z=6.34",
+          "eid": "E3",
+          "must": false,
+          "expect": "mem or socket z >= 5"
+        },
+        {
+          "signal": "cpu_not_up",
+          "kind": "metrics",
+          "verdict": "confirmed",
+          "observed": "cpu z=-0.35",
+          "eid": "E3",
+          "must": false,
+          "expect": "cpu z < 3"
+        },
+        {
+          "signal": "trace_slow",
+          "kind": "traces",
+          "verdict": "confirmed",
+          "observed": "traces implicate the service",
+          "eid": "E5",
+          "must": false,
+          "expect": "service's own/inbound spans slow down"
+        },
+        {
+          "signal": "errors_up",
+          "kind": "traces",
+          "verdict": "inconclusive",
+          "observed": "span error rate +0.000",
+          "eid": "E5",
+          "must": false,
+          "expect": "span error rate rises >= 0.05"
+        }
+      ],
+      "tests": [
+        {
+          "eid": "E5",
+          "tool": "trace_lookup",
+          "args": {
+            "service": "ts-order-service",
+            "failing_only": false,
+            "limit": 10
+          },
+          "depth": 1,
+          "predicted": "Order-service's own and inbound spans show a large latency increase and a rise in error rate (>=0.05) after the alert, including calls from security-service, seat-service and preserve-service. That wo",
+          "rationale": "Inspecting ts-order-service's own and inbound spans (latency and errors, before vs after the alert) separates a fault in order-service from a security-service delay, because security-service calls ord",
+          "by": "model"
+        }
+      ]
+    },
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "ts-order-service",
+        "fault_type": "loss",
+        "reason": "top fault types for ts-order-service by metric signature (score 3)",
+        "status": "selected",
+        "close_reason": "best branch passed the gate",
+        "score": 5,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=435.59",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "conn_pressure",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.34",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem or socket z >= 5"
+          },
+          {
+            "signal": "cpu_not_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=-0.35",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z < 3"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "traces implicate the service",
+            "eid": "E5",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "errors_up",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "span error rate +0.000",
+            "eid": "E5",
+            "must": false,
+            "expect": "span error rate rises >= 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "ts-order-service",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "Order-service's own and inbound spans show a large latency increase and a rise in error rate (>=0.05) after the alert, including calls from security-service, seat-service and preserve-service. That wo",
+            "rationale": "Inspecting ts-order-service's own and inbound spans (latency and errors, before vs after the alert) separates a fault in order-service from a security-service delay, because security-service calls ord",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "ts-security-service",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "pruned",
+        "close_reason": "score 2 (at most 2 if every untested signal held) is 3+ below the best (5)",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=225.89",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource socket z=0.4",
+            "eid": "E4",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E6",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E6",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "ts-security-service",
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "ts-security-service own and inbound spans show a large self-time increase (p50 up by tens of times) with errors near 0, indicating the delay originates in security's own spans rather than only in its ",
+            "rationale": "Security-service's own spans and inbound latency have not been checked; if its own self-time rose independently of order-service (which it calls), delay sits in security itself rather than being a dow",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "ts-order-service",
+        "fault_type": "socket",
+        "reason": "top fault types for ts-order-service by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 1 if every untested signal held) is 2+ below the best (3)",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=6.34",
+            "eid": "E3",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "ts-order-service",
+        "fault_type": "disk",
+        "reason": "top fault types for ts-order-service by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -1 if every untested signal held) is 4+ below the best (3)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E3",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.22",
+            "eid": "E3",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=-0.35",
+            "eid": "E3",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=6.34",
+            "eid": "E3",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "untested",
+            "observed": "",
+            "eid": null,
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 2,
+    "generator_calls": 2,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B3": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "fix_advisor": {
+    "query": "ts-order-service packet loss on its pod network, retries and connections held open",
+    "runbooks": [
+      {
+        "id": "R1",
+        "alert": "NodeNetworkTransmitErrs",
+        "kind": "action",
+        "distance": 0.476,
+        "source_ref": "runbooks/node/NodeNetworkTransmitErrs.md#action"
+      },
+      {
+        "id": "R2",
+        "alert": "KubeContainerWaiting",
+        "kind": "symptom",
+        "distance": 0.512,
+        "source_ref": "runbooks/kubernetes/KubeContainerWaiting.md#symptom"
+      },
+      {
+        "id": "R3",
+        "alert": "NodeHighNumberConntrackEntriesUsed",
+        "kind": "action",
+        "distance": 0.51,
+        "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#action"
+      },
+      {
+        "id": "R4",
+        "alert": "NodeNetworkTransmitErrs",
+        "kind": "symptom",
+        "distance": 0.556,
+        "source_ref": "runbooks/node/NodeNetworkTransmitErrs.md#symptom"
+      }
+    ],
+    "tool_seconds": 0.03,
+    "model_call": {
+      "seconds": 6.3,
+      "prompt_tokens": 1521,
+      "completion_tokens": 736,
+      "max_tokens": 16000,
+      "answer_chars": 2102,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.0104,
+      "finish_reason": "stop"
+    },
+    "contradictions": [],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Confirm whether packet loss/network degradation affects the ts-order-service pod or its node, and if confirmed, move the pod to a healthy node under human approval.",
+      "steps": [
+        "Inspect the node hosting ts-order-service pods for interface TX/RX errors, drops, and saturation (read-only, e.g. ip -s link, node network metrics).",
+        "Check CPU saturation and conntrack usage on that node (read-only) to separate node-level causes from pod-level ones.",
+        "Compare latency of ts-order-service pods across nodes to see if the slowdown is node-specific.",
+        "If the node shows transmit errors or drops, cordon it (reversible) and, with approval, delete one ts-order-service pod at a time so it reschedules onto a healthy node; verify latency-50 recovers before continuing.",
+        "If conntrack is near its limit on the node, consider migrating other pods away (R3 'Migrate some pods to another nodes') before any limit change; treat any limit bump as a separate, approved change.",
+        "If no node-level fault is found, check network policy/sidecar or chaos-injection configuration targeting ts-order-service and escalate to the service owner."
+      ],
+      "preconditions": [
+        "Confirm ts-order-service latency-50 is still elevated versus baseline (E1, E3).",
+        "Confirm the cluster has spare capacity on other nodes before cordoning or evicting pods.",
+        "Verify more than one replica of ts-order-service is running, or accept brief unavailability for a single replica.",
+        "Obtain on-call approval before cordon, pod deletion, or any node setting change."
+      ],
+      "rollback": "Uncordon the node (kubectl uncordon) and let the scheduler rebalance; if a conntrack or other node setting was changed, revert it to its prior recorded value."
+    },
+    "rationale": "Evidence shows ts-order-service self-time rose about 87x (2.31->202.1ms) with zero errors and a socket metric deviation, consistent with packet loss/network degradation on this service; the retrieved runbooks are node-level network guides that only loosely match, so the fix is mostly evidence-based ",
+    "runbook_refs": [
+      "R1",
+      "R3",
+      "R4"
+    ],
+    "commander_draft": "Inspect ts-order-service's pod network for packet loss (tc/netem, NIC errors); fix before retrying"
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 0,
+    "review_required": false
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 6,
+    "model_seconds": 17.8,
+    "tool_seconds": 5.1,
+    "prompt_tokens": 7622,
+    "completion_tokens": 1521,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 22.9,
+    "cost_usd": 0.030454000000000002
+  }
+}

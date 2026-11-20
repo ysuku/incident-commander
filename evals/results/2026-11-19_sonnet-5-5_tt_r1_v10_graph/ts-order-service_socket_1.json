@@ -1,0 +1,447 @@
+{
+  "root_cause": {
+    "service": "ts-order-service",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-order-service_latency-50 z=86.33 (886.6%); ts-preserve-service_latency-90 z=43.93 (219.7%); ts-preserve-service_latency-50 z=31.63 (158.2%); ts-security-service_latency-90 z=29.59 (549.6%)",
+      "source_ref": "simple_metrics.csv:ts-order-service_latency-50",
+      "implicates": [
+        "ts-order-service",
+        "ts-preserve-service",
+        "ts-seat-service",
+        "ts-security-service",
+        "ts-travel-service",
+        "ts-ui-dashboard"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for ts-order-service: SIGNIFICANT change; own spans self-time p50 2.36->3.23ms (1.37x), errors 0.0->0.0; inbound calls self-time p50 2.93->16.44ms (5.61x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-order-service",
+      "implicates": [
+        "ts-order-service"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-order-service]: ts-order-service_latency-50 z=86.33 (886.6%); ts-order-service_cpu z=17.02 (906.1%); ts-order-service_socket z=12.99 (122.2%); ts-order-service_latency-90 z=4.15 (802.7%)",
+      "source_ref": "simple_metrics.csv:ts-order-service_latency-50",
+      "implicates": [
+        "ts-order-service"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "ts-station-service: downstream delay",
+      "why": "E5 shows no significant change in its own or inbound latency (1.04x/1.01x) and no errors, so it is not slowing ts-order-service."
+    },
+    {
+      "candidate": "ts-preserve-service / ts-security-service: upstream callers with elevated latency",
+      "why": "E2 shows both depend on ts-order-service, and E1 shows their latency rising after ts-order-service's, which fits propagation from it; ts-order-service has the largest deviation (z=86.33) and E3 shows inbound slowdown of 5.61x."
+    },
+    {
+      "candidate": "ts-order-service: delay fault (injected network delay)",
+      "why": "E6 shows a CPU deviation of 906% (z=17.02) while own-span self-time rose only 1.37x (E3), which fits CPU contention better than injected delay; the logs (E4) carry no severity and implicate nobody."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Relieve CPU pressure on ts-order-service by first confirming where the CPU is going, then adding capacity (gated, reversible), and only with human approval.",
+    "steps": [
+      "Capture a CPU profile or thread dump from one ts-order-service pod to identify hot code paths (read-only).",
+      "Compare the start of the CPU/latency rise against recent deploys, config changes, or traffic shifts for ts-order-service.",
+      "Check the CPU requests and limits and any throttling on the pods, to see whether the limit is too low for the current load.",
+      "If CPU is saturated and load is legitimate, scale ts-order-service out by a small increment (e.g. +1 or +2 replicas) after human approval, and watch latency-50 and CPU for several minutes.",
+      "If a recent deploy or config change correlates with the onset, propose rolling that change back as a separate, human-approved action.",
+      "Check the downstream services that also show elevated latency (ts-preserve-service, ts-security-service, per E1) after the order-service change, to confirm they recover and were only affected as callers."
+    ],
+    "preconditions": [
+      "Confirm that the cluster has spare capacity for additional replicas.",
+      "Confirm that ts-order-service's current replica count and autoscaler settings are known and recorded, so they can be restored.",
+      "Confirm the CPU rise is not caused by an expected load event such as a batch job or load test.",
+      "Get on-call approval before any scaling or rollback is executed."
+    ],
+    "rollback": "Scale ts-order-service back to the originally recorded replica count (and restore the original autoscaler or resource settings if they were changed); if a deploy rollback was performed, redeploy the previous version. Diagnostic captures need no rollback.",
+    "runbook_refs": [],
+    "contradictions": [],
+    "model_labeled_destructive": false,
+    "requires_approval": true,
+    "advised_by": "model"
+  },
+  "status": "diagnosed",
+  "steps": 8,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 730,
+        "completion_tokens": 134,
+        "max_tokens": 16000,
+        "answer_chars": 392,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0028,
+        "finish_reason": "stop"
+      },
+      "thought": "Latency deviations are concentrated on order, preserve and security services, so I need the call graph to see which one is downstream and likely the origin.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.54
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.3,
+        "prompt_tokens": 1427,
+        "completion_tokens": 159,
+        "max_tokens": 16000,
+        "answer_chars": 456,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00444,
+        "finish_reason": "stop"
+      },
+      "thought": "ts-order-service has the largest latency deviation and is downstream of security, preserve and others; I need an independent trace view of it to confirm it as the source.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-order-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 3.48
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 1550,
+        "completion_tokens": 170,
+        "max_tokens": 16000,
+        "answer_chars": 486,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0048,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at ts-order-service, but I need to check whether its own latency is intrinsic or comes from its dependency ts-station-service, so I'll look at logs for order-service.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "ts-order-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 1.73
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1766,
+        "completion_tokens": 155,
+        "max_tokens": 16000,
+        "answer_chars": 439,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00508,
+        "finish_reason": "stop"
+      },
+      "thought": "Order-service shows metrics and trace evidence, but I need to separate delay from cpu/mem and rule out station-service by checking its own metrics and traces.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-station-service"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 3.68
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 4.0,
+        "prompt_tokens": 1899,
+        "completion_tokens": 367,
+        "max_tokens": 16000,
+        "answer_chars": 416,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00747,
+        "finish_reason": "stop"
+      },
+      "thought": "Before finishing, check whether ts-order-service shows CPU, memory, or network metric deviations that would separate a delay fault from a resource fault.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-order-service",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.03
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 2044,
+        "completion_tokens": 185,
+        "max_tokens": 16000,
+        "answer_chars": 470,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00594,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E6) and traces (E3) both point at ts-order-service, with CPU up 906% and inbound latency 5.6x while its own span time is barely changed; I'll check the CPU vs delay distinction via logs on ts-order-service before finishing.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-order-service",
+          "top": 10
+        }
+      },
+      "outcome": "repeated_call",
+      "detail": "same as E6"
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 4.7,
+        "prompt_tokens": 2095,
+        "completion_tokens": 551,
+        "max_tokens": 16000,
+        "answer_chars": 1418,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0097,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1, E6) and traces (E3) both point at ts-order-service, with a CPU jump of 906% alongside the latency; finish with cpu as the fault type, rejecting station-service via E5 and the log evidence as non-implicating via E4.",
+      "action": {
+        "finish": {
+          "root_cause_service": "ts-order-service",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E3",
+            "E6"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "ts-station-service: downstream delay",
+              "why": "E5 shows no significant change in its own or inbound latency (1.04x/1.01x) and no errors, so it is not slowing ts-order-service."
+            },
+            {
+              "candidate": "ts-preserve-service / ts-security-service: upstream callers with elevated latency",
+              "why": "E2 shows both depend on ts-order-service, and E1 shows their latency rising after ts-order-service's, which fits propagation from it; ts-order-service has the largest deviation (z=86.33) and E3 shows inbound slowdown of 5.61x."
+            },
+            {
+              "candidate": "ts-order-service: delay fault (injected network delay)",
+              "why": "E6 shows a CPU deviation of 906% (z=17.02) while own-span self-time rose only 1.37x (E3), which fits CPU contention better than injected delay; the logs (E4) carry no severity and implicate nobody."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Relieve CPU pressure on ts-order-service: inspect for a runaway process, scale out or raise its CPU limit, and restart the affected pod if needed.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-order-service_latency-50 z=86.33 (886.6%); ts-preserve-service_latency-90 z=43.93 (219.7%); ts-preserve-service_latency-50 z=31.63 (158.2%); ts-security-service_latency-90 z=29.59 (549.6%)",
+      "source_ref": "simple_metrics.csv:ts-order-service_latency-50",
+      "implicates": [
+        "ts-order-service",
+        "ts-preserve-service",
+        "ts-seat-service",
+        "ts-security-service",
+        "ts-travel-service",
+        "ts-ui-dashboard"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: ts-admin-basic-info-service->ts-config-service,ts-price-service; ts-admin-travel-service->ts-travel-service,ts-travel2-service; ts-basic-service->ts-price-service,ts-route-service,ts-station-service,ts-train-service; ts-consign-service->ts-consign-price-service; ts-food-service->ts-food-map-service,ts-station-service,ts-travel-service; ts-inside-payment-service->ts-order-other-service,ts-order-service,ts-payment-service; ts-order-other-service->ts-station-service; ts-order-service->ts-station-service; ts-preserve-other-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-other-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel2-service,ts-user-service; ts-preserve-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel-service,ts-user-service; ts-seat-service->ts-config-service,ts-order-other-service,ts-order-service,ts-travel-service,ts-travel2-service; ts-security-service->ts-order-other-service,ts-order-service; ts-ticketinfo-service->ts-basic-service; ts-travel-service->ts-order-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service; ts-travel2-service->ts-order-other-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for ts-order-service: SIGNIFICANT change; own spans self-time p50 2.36->3.23ms (1.37x), errors 0.0->0.0; inbound calls self-time p50 2.93->16.44ms (5.61x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-order-service",
+      "implicates": [
+        "ts-order-service"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "8141 matching lines; by svc/level {'ts-order-service/unknown': 8141}; [ts-order-service/unknown] 2024-01-23 05:12:52.021  INFO 1 --- [io-12031-exec-1] order.controller.OrderCont; [ts-order-service/unknown] 2024-01-23 05:12:52.022  INFO 1 --- [io-12031-exec-1] order.controller.OrderCont; these logs record no severity (every line has level 'unknown'), so no line counts as a warning or error: a text match is a mention, it implicates nobody",
+      "source_ref": "logs.csv#L136610",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "traces",
+      "summary": "traces for ts-station-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.57->0.59ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 2.02->2.04ms (1.01x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-station-service",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-order-service]: ts-order-service_latency-50 z=86.33 (886.6%); ts-order-service_cpu z=17.02 (906.1%); ts-order-service_socket z=12.99 (122.2%); ts-order-service_latency-90 z=4.15 (802.7%)",
+      "source_ref": "simple_metrics.csv:ts-order-service_latency-50",
+      "implicates": [
+        "ts-order-service"
+      ]
+    }
+  ],
+  "fix_advisor": {
+    "query": "ts-order-service CPU at its limit and throttled, latency rising",
+    "runbooks": [],
+    "tool_seconds": 0.03,
+    "model_call": {
+      "seconds": 6.9,
+      "prompt_tokens": 894,
+      "completion_tokens": 707,
+      "max_tokens": 16000,
+      "answer_chars": 2104,
+      "effort": "medium",
+      "served_by": "claude-sonnet-5-5",
+      "cost_usd": 0.00886,
+      "finish_reason": "stop"
+    },
+    "contradictions": [],
+    "dropped": [],
+    "by": "model",
+    "fix": {
+      "summary": "Relieve CPU pressure on ts-order-service by first confirming where the CPU is going, then adding capacity (gated, reversible), and only with human approval.",
+      "steps": [
+        "Capture a CPU profile or thread dump from one ts-order-service pod to identify hot code paths (read-only).",
+        "Compare the start of the CPU/latency rise against recent deploys, config changes, or traffic shifts for ts-order-service.",
+        "Check the CPU requests and limits and any throttling on the pods, to see whether the limit is too low for the current load.",
+        "If CPU is saturated and load is legitimate, scale ts-order-service out by a small increment (e.g. +1 or +2 replicas) after human approval, and watch latency-50 and CPU for several minutes.",
+        "If a recent deploy or config change correlates with the onset, propose rolling that change back as a separate, human-approved action.",
+        "Check the downstream services that also show elevated latency (ts-preserve-service, ts-security-service, per E1) after the order-service change, to confirm they recover and were only affected as callers."
+      ],
+      "preconditions": [
+        "Confirm that the cluster has spare capacity for additional replicas.",
+        "Confirm that ts-order-service's current replica count and autoscaler settings are known and recorded, so they can be restored.",
+        "Confirm the CPU rise is not caused by an expected load event such as a batch job or load test.",
+        "Get on-call approval before any scaling or rollback is executed."
+      ],
+      "rollback": "Scale ts-order-service back to the originally recorded replica count (and restore the original autoscaler or resource settings if they were changed); if a deploy rollback was performed, redeploy the previous version. Diagnostic captures need no rollback."
+    },
+    "rationale": "No runbook matched, so the fix is based on the evidence alone: ts-order-service CPU is up about 906% (E6) alongside a 886% rise in p50 latency (E1, E6) and a 5.6x increase in inbound-call self-time (E3), which points to CPU saturation in the service. Errors are flat at 0 (E3), so the service is degr",
+    "runbook_refs": [],
+    "commander_draft": "Relieve CPU pressure on ts-order-service: inspect for a runaway process, scale out or raise its CPU limit, and restart the affected pod if needed."
+  },
+  "approval": {
+    "state": "pending",
+    "approver": "human",
+    "policy": "every proposed fix waits for explicit approval (v1)",
+    "flags_for_reviewer": 0,
+    "review_required": false
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "commander",
+    "gate",
+    "fix_advisor",
+    "human_approval"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 27.4,
+    "tool_seconds": 10.6,
+    "prompt_tokens": 12994,
+    "completion_tokens": 2505,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 38.0,
+    "cost_usd": 0.051038
+  }
+}

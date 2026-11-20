@@ -1,0 +1,714 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "ts-train-service",
+        "fault_type": "cpu",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed cpu_up (cpu z=70.71), mem_not_saturated (mem z=0.36), socket_not_saturated (socket z=4.61); inconclusive trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E6",
+          "E8",
+          "E10"
+        ]
+      },
+      {
+        "service": "ts-basic-service",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=12.83), resources_flat (max resource socket z=0.2), no_errors (span error rate +0.000); contradicted trace_slow (traces flat)",
+        "evidence": [
+          "E5",
+          "E6",
+          "E7",
+          "E9",
+          "E11"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "ts-train-service: cpu (score 3, open; confirmed cpu_up, mem_not_saturated, socket_not_saturated)",
+    "ts-basic-service: delay (score 2, open; confirmed latency_up, resources_flat, no_errors)",
+    "ts-train-service: disk (score 0, pruned; confirmed cpu_up, socket_not_saturated)",
+    "ts-train-service: socket (score 0, pruned; confirmed none)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-train-service_latency-90 z=132.08 (660.4%); ts-train-service_cpu z=70.71 (1094.7%); ts-admin-travel-service_latency-50 z=23.15 (115.8%); ts-basic-service_error z=20.0",
+      "source_ref": "simple_metrics.csv:ts-train-service_latency-90",
+      "implicates": [
+        "ts-admin-travel-service",
+        "ts-basic-service",
+        "ts-seat-service",
+        "ts-ticketinfo-service",
+        "ts-train-service",
+        "ts-travel-service",
+        "ts-travel2-service",
+        "ts-ui-dashboard"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for ts-train-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.89->0.95ms (1.07x), errors 0.0->0.0; inbound calls self-time p50 2.15->2.27ms (1.06x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-train-service",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "2 matching lines; by svc/level {'ts-train-service/unknown': 2}; [ts-train-service/unknown] 2024-01-22 16:59:19.483  INFO 1 --- [io-14567-exec-9] org.mongodb.driver.connect; [ts-train-service/unknown] 2024-01-22 16:59:31.684  INFO 1 --- [o-14567-exec-10] org.mongodb.driver.connect; these logs record no severity (every line has level 'unknown'), so no line counts as a warning or error: a text match is a mention, it implicates nobody",
+      "source_ref": "logs.csv#L169361",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-train-service]: ts-train-service_latency-90 z=132.08 (660.4%); ts-train-service_cpu z=70.71 (1094.7%); ts-train-service_latency-50 z=10.28 (51.4%); ts-train-service_socket z=4.61 (34.2%)",
+      "source_ref": "simple_metrics.csv:ts-train-service_latency-90",
+      "implicates": [
+        "ts-train-service"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-basic-service]: ts-basic-service_error z=20.0; ts-basic-service_latency-90 z=12.83 (64.2%)",
+      "source_ref": "simple_metrics.csv:ts-basic-service_error",
+      "implicates": [
+        "ts-basic-service"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for ts-basic-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 2.15->2.16ms (1.0x), errors 0.0->0.0; inbound calls self-time p50 2.02->1.99ms (0.99x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-basic-service",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "map",
+      "summary": "dependencies: ts-admin-basic-info-service->ts-config-service,ts-price-service; ts-admin-travel-service->ts-travel-service,ts-travel2-service; ts-basic-service->ts-price-service,ts-route-service,ts-station-service,ts-train-service; ts-consign-service->ts-consign-price-service; ts-food-service->ts-food-map-service,ts-station-service,ts-travel-service; ts-inside-payment-service->ts-order-other-service,ts-order-service,ts-payment-service; ts-order-other-service->ts-station-service; ts-order-service->ts-station-service; ts-preserve-other-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-other-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel2-service,ts-user-service; ts-preserve-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel-service,ts-user-service; ts-seat-service->ts-config-service,ts-order-other-service,ts-order-service,ts-travel-service,ts-travel2-service; ts-security-service->ts-order-other-service,ts-order-service; ts-ticketinfo-service->ts-basic-service; ts-travel-service->ts-order-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service; ts-travel2-service->ts-order-other-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=ts-train-service, metric=memory]; largest is only ts-train-service_mem z=0.36 (1.8%)",
+      "source_ref": "simple_metrics.csv:ts-train-service_mem",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=ts-basic-service, metric=latency-50]; largest is only ts-basic-service_latency-50 z=-0.18 (-0.9%)",
+      "source_ref": "simple_metrics.csv:ts-basic-service_latency-50",
+      "implicates": []
+    },
+    {
+      "eid": "E10",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-travel-service]: ts-travel-service_error z=20.0",
+      "source_ref": "simple_metrics.csv:ts-travel-service_error",
+      "implicates": [
+        "ts-travel-service"
+      ]
+    },
+    {
+      "eid": "E11",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=ts-basic-service, metric=cpu]; largest is only ts-basic-service_cpu z=-0.41 (-4.7%)",
+      "source_ref": "simple_metrics.csv:ts-basic-service_cpu",
+      "implicates": []
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 720,
+        "completion_tokens": 148,
+        "max_tokens": 16000,
+        "answer_chars": 399,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00292,
+        "finish_reason": "stop"
+      },
+      "thought": "ts-train-service shows huge latency and CPU deviations; check traces for that service to get a second independent telemetry kind.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-train-service"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 3.09
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.9,
+        "prompt_tokens": 942,
+        "completion_tokens": 158,
+        "max_tokens": 16000,
+        "answer_chars": 423,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00346,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at ts-train-service CPU, but traces show no change for it; I need a second independent kind, so check logs for ts-train-service.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "ts-train-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 1.87
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-train-service: cpu",
+      "thought": "Checking ts-basic-service's own and inbound traces will show whether its latency is a delay originating there or just a victim of calling ts-train-service; the rival predicts its own spans slow, mine ",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-basic-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 1325,
+        "completion_tokens": 212,
+        "max_tokens": 16000,
+        "answer_chars": 595,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00477,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 3.02
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "ts-basic-service: delay",
+      "thought": "service_map shows whether ts-basic-service calls ts-train-service (so its latency/error is a downstream victim of train-service CPU) or is independent; this separates a basic-service delay from a trai",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 1464,
+        "completion_tokens": 188,
+        "max_tokens": 16000,
+        "answer_chars": 544,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00481,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 1.44
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-train-service: cpu",
+      "thought": "Memory and socket metrics for ts-train-service must stay unsaturated for the cpu signature to hold, and the CPU z-score should sit far above any other resource; a filtered metric query for ts-train-se",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-train-service",
+          "metric": "memory"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 2072,
+        "completion_tokens": 203,
+        "max_tokens": 16000,
+        "answer_chars": 565,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00617,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.03
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "ts-basic-service: delay",
+      "thought": "ts-basic-service calls ts-train-service, so if basic-service is the delay source its own latency-50/90 metrics should rise while CPU, memory and socket stay flat, whereas a train-service CPU fault wou",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-basic-service",
+          "metric": "latency-50"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 2169,
+        "completion_tokens": 247,
+        "max_tokens": 16000,
+        "answer_chars": 695,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00681,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.03
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-train-service: cpu",
+      "thought": "Trace data for ts-train-service shows no slowdown, so I need to check whether callers of ts-train-service (ts-travel-service, ts-travel2-service) show latency or CPU deviations that would indicate tra",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-travel-service"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E10",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.0,
+        "prompt_tokens": 2270,
+        "completion_tokens": 208,
+        "max_tokens": 16000,
+        "answer_chars": 558,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00662,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.03
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "ts-basic-service: delay",
+      "thought": "Checking ts-basic-service's CPU, memory and socket metrics shows whether its resources stay flat (consistent with injected delay) or whether it merely inherits latency from ts-train-service, the rival",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-basic-service",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E11",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 2342,
+        "completion_tokens": 195,
+        "max_tokens": 16000,
+        "answer_chars": 529,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00663,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.02
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "ts-train-service",
+    "rival": "ts-basic-service",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "ts-train-service",
+        "fault_type": "cpu",
+        "reason": "top fault types for ts-train-service by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=70.71",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=0.36",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=4.61",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "ts-basic-service",
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "ts-basic-service own-span self-time is unchanged, and any slowdown appears only in its outbound/inbound waits tied to ts-train-service, so its delay is not the source; ts-train-service CPU remains the",
+            "rationale": "Checking ts-basic-service's own and inbound traces will show whether its latency is a delay originating there or just a victim of calling ts-train-service; the rival predicts its own spans slow, mine ",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-train-service",
+              "metric": "memory"
+            },
+            "depth": 2,
+            "predicted": "ts-train-service memory z is small (<15), so memory is not saturated, while cpu stays at z~70. This fits cpu saturation and not a delay fault in ts-basic-service.",
+            "rationale": "Memory and socket metrics for ts-train-service must stay unsaturated for the cpu signature to hold, and the CPU z-score should sit far above any other resource; a filtered metric query for ts-train-se",
+            "by": "model"
+          },
+          {
+            "eid": "E10",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-travel-service"
+            },
+            "depth": 3,
+            "predicted": "ts-travel-service (a caller of ts-train-service) shows latency elevation while its own CPU stays normal, consistent with a ts-train-service CPU bottleneck; ts-basic-service shows no latency-50 change.",
+            "rationale": "Trace data for ts-train-service shows no slowdown, so I need to check whether callers of ts-train-service (ts-travel-service, ts-travel2-service) show latency or CPU deviations that would indicate tra",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "ts-basic-service",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=12.83",
+            "eid": "E5",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource socket z=0.2",
+            "eid": "E5",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E6",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E6",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "service_map",
+            "args": {},
+            "depth": 1,
+            "predicted": "ts-basic-service is called by or calls ts-train-service in a way that doesn't make it the upstream source; if my hypothesis holds, ts-basic-service would be a downstream dependency of ts-admin-travel-",
+            "rationale": "service_map shows whether ts-basic-service calls ts-train-service (so its latency/error is a downstream victim of train-service CPU) or is independent; this separates a basic-service delay from a trai",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-basic-service",
+              "metric": "latency-50"
+            },
+            "depth": 2,
+            "predicted": "ts-basic-service latency-50 shows a significant rise (z>=3) while its cpu, mem and socket stay flat (z<5), consistent with an injected delay in basic-service rather than CPU saturation",
+            "rationale": "ts-basic-service calls ts-train-service, so if basic-service is the delay source its own latency-50/90 metrics should rise while CPU, memory and socket stay flat, whereas a train-service CPU fault wou",
+            "by": "model"
+          },
+          {
+            "eid": "E11",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-basic-service",
+              "metric": "cpu"
+            },
+            "depth": 3,
+            "predicted": "ts-basic-service cpu shows no significant deviation (z<5), so resources stay flat while its latency-90 is elevated, consistent with a delay fault rather than CPU saturation.",
+            "rationale": "Checking ts-basic-service's CPU, memory and socket metrics shows whether its resources stay flat (consistent with injected delay) or whether it merely inherits latency from ts-train-service, the rival",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "ts-train-service",
+        "fault_type": "disk",
+        "reason": "top fault types for ts-train-service by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.36",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=70.71",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=4.61",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "ts-train-service",
+        "fault_type": "socket",
+        "reason": "top fault types for ts-train-service by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=4.61",
+            "eid": "E4",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 6,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 22.2,
+    "tool_seconds": 9.7,
+    "prompt_tokens": 13893,
+    "completion_tokens": 1636,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 31.9,
+    "cost_usd": 0.044146
+  }
+}

@@ -1,0 +1,848 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate; leaders level: ts-train-service: mem or ts-train-service: disk (score 3, 1 telemetry kind(s) each)",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate; leaders level: ts-train-service: mem or ts-train-service: disk (score 3, 1 telemetry kind(s) each)",
+    "hypotheses": [
+      {
+        "service": "ts-train-service",
+        "fault_type": "mem",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed mem_up (mem z=48.34), latency_up (latency z=29.84), socket_not_saturated (socket z=3.37); inconclusive trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E5",
+          "E7"
+        ]
+      },
+      {
+        "service": "ts-train-service",
+        "fault_type": "disk",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "unobservable diskio_up (diskio missing or unusable (z 0/NaN/1e12+ in every fault type)); confirmed mem_up (mem z=48.34), cpu_up (cpu z=61.05), socket_not_saturated (socket z=3.37); inconclusive trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E6",
+          "E8",
+          "E9"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "ts-train-service: mem (score 3, open; confirmed mem_up, latency_up, socket_not_saturated)",
+    "ts-train-service: disk (score 3, open; confirmed mem_up, cpu_up, socket_not_saturated)",
+    "ts-train-service: cpu (score 0, pruned; confirmed cpu_up, socket_not_saturated)"
+  ],
+  "notes": [
+    "step 3: bad args for log_search: no log lines from 'ts-train-service' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['ts-admin-basic-info-service', 'ts-admin-travel-service', 'ts-assurance-mongo', 'ts-assurance-service', 'ts-auth-mongo', 'ts-auth-service', 'ts-basic-ser"
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-train-service_diskio z=10185.43 (3578594.2%); ts-train-service_cpu z=61.05 (912.6%); ts-train-service_mem z=48.34 (241.7%); ts-train-service_latency-90 z=29.84 (558.8%)",
+      "source_ref": "simple_metrics.csv:ts-train-service_diskio",
+      "implicates": [
+        "ts-admin-basic-info-service",
+        "ts-admin-travel-service",
+        "ts-route-service",
+        "ts-train-service"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for ts-train-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 0.77->0.82ms (1.06x), errors 0.0->0.0; inbound calls self-time p50 1.78->1.91ms (1.08x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-train-service",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "no failing traces among 3323 after the alert; showing the slowest instead (being on a slow path implicates nobody): ts-auth-service 1399.9ms errors=0; ts-travel-service -> ts-ticketinfo-service -> ts-basic-service -> ts-station-service -> ts-route-service -> ts-train-service -> ts-price-service -> ts-order-service -> ts-seat-service -> ts-config-service 1339.8ms errors=0; ts-auth-service 1303.4ms errors=0",
+      "source_ref": "traces.csv:traceID=081d6f87ac4da48694eeb3d648ce948f",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-train-service]: ts-train-service_diskio z=10185.43 (3578594.2%); ts-train-service_cpu z=61.05 (912.6%); ts-train-service_mem z=48.34 (241.7%); ts-train-service_latency-90 z=29.84 (558.8%)",
+      "source_ref": "simple_metrics.csv:ts-train-service_diskio",
+      "implicates": [
+        "ts-train-service"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-train-service]: ts-train-service_diskio z=10185.43 (3578594.2%); ts-train-service_cpu z=61.05 (912.6%); ts-train-service_mem z=48.34 (241.7%); ts-train-service_latency-90 z=29.84 (558.8%)",
+      "source_ref": "simple_metrics.csv:ts-train-service_diskio",
+      "implicates": [
+        "ts-train-service"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-train-service, metric=diskio]: ts-train-service_diskio z=10185.43 (3578594.2%)",
+      "source_ref": "simple_metrics.csv:ts-train-service_diskio",
+      "implicates": [
+        "ts-train-service"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-train-service, metric=mem]: ts-train-service_mem z=48.34 (241.7%)",
+      "source_ref": "simple_metrics.csv:ts-train-service_mem",
+      "implicates": [
+        "ts-train-service"
+      ]
+    },
+    {
+      "eid": "E8",
+      "kind": "map",
+      "summary": "dependencies: ts-admin-basic-info-service->ts-config-service,ts-price-service; ts-admin-travel-service->ts-travel-service,ts-travel2-service; ts-basic-service->ts-price-service,ts-route-service,ts-station-service,ts-train-service; ts-consign-service->ts-consign-price-service; ts-food-service->ts-food-map-service,ts-station-service,ts-travel-service; ts-inside-payment-service->ts-order-other-service,ts-order-service,ts-payment-service; ts-order-other-service->ts-station-service; ts-order-service->ts-station-service; ts-preserve-other-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-other-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel2-service,ts-user-service; ts-preserve-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel-service,ts-user-service; ts-seat-service->ts-config-service,ts-order-other-service,ts-order-service,ts-travel-service,ts-travel2-service; ts-security-service->ts-order-other-service,ts-order-service; ts-ticketinfo-service->ts-basic-service; ts-travel-service->ts-order-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service; ts-travel2-service->ts-order-other-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-train-service, metric=cpu]: ts-train-service_cpu z=61.05 (912.6%)",
+      "source_ref": "simple_metrics.csv:ts-train-service_cpu",
+      "implicates": [
+        "ts-train-service"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 721,
+        "completion_tokens": 140,
+        "max_tokens": 16000,
+        "answer_chars": 352,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00284,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at ts-train-service; I need an independent telemetry kind (traces) to corroborate before concluding, and to see inbound latency.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-train-service"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 2.28
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 927,
+        "completion_tokens": 142,
+        "max_tokens": 16000,
+        "answer_chars": 371,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00327,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point strongly at ts-train-service but traces show no change; I need a second independent telemetry kind, so I'll check logs for that service.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "ts-train-service",
+          "limit": 10
+        }
+      },
+      "outcome": "bad_args",
+      "detail": "no log lines from 'ts-train-service' in this case (it is a known service: it may not log, or it went silent); services with logs in this case are ['ts-admin-basic-info-service', 'ts-admin-travel-service', 'ts-assurance-mongo', 'ts-assurance-service', 'ts-auth-mongo', 'ts-auth-service', 'ts-basic-ser"
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1075,
+        "completion_tokens": 164,
+        "max_tokens": 16000,
+        "answer_chars": 447,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00379,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point strongly at ts-train-service but traces show no change and it has no logs, so I need a second independent telemetry kind; check the service map for callers and then look at the logs of dependents or traces more broadly.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "failing_only": true,
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.56
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-train-service: mem",
+      "thought": "Memory z=48 already meets the mem_up threshold, but disk, cpu and mem all moved together, so I need to see whether mem is the distinctive signal. A metric_query restricted to ts-train-service memory a",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-train-service",
+          "top": 20
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E5",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.7,
+        "prompt_tokens": 1356,
+        "completion_tokens": 241,
+        "max_tokens": 16000,
+        "answer_chars": 652,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00512,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "ts-train-service: disk",
+      "thought": "Mem z=48 and diskio z=10185 both rise, so to separate disk from mem I need the specific diskio/mem metric detail (read vs write, time-of-onset ordering) for ts-train-service, which a filtered metric_q",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-train-service",
+          "metric": "diskio",
+          "top": 5
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.8,
+        "prompt_tokens": 1515,
+        "completion_tokens": 214,
+        "max_tokens": 16000,
+        "answer_chars": 580,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00517,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.03
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-train-service: mem",
+      "thought": "To separate memory from disk, check the memory metric for ts-train-service against socket and other memory-related metrics; mem z=48 meets the signature, but the disk IO z is far larger, so querying t",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-train-service",
+          "metric": "mem"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.5,
+        "prompt_tokens": 1586,
+        "completion_tokens": 196,
+        "max_tokens": 16000,
+        "answer_chars": 548,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00513,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "ts-train-service: disk",
+      "thought": "Metrics already show diskio, cpu and mem all deviating on ts-train-service, so I need to separate disk from mem by looking at the other services: a disk fault should show up as a diskio-specific signa",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 4.1,
+        "prompt_tokens": 1679,
+        "completion_tokens": 283,
+        "max_tokens": 16000,
+        "answer_chars": 789,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00619,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.99
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-train-service: mem",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: metric_query({'service': 'ts-train-service', 'top': 20}) already on the board; the heuristic had no test left",
+      "model_call": {
+        "seconds": 2.6,
+        "prompt_tokens": 2277,
+        "completion_tokens": 254,
+        "max_tokens": 16000,
+        "answer_chars": 716,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00709,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 10,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "ts-train-service: disk",
+      "thought": "Both disk and mem deviate on ts-train-service; a time-resolved look at the diskio and mem series (onset order and shape) separates a disk fault (diskio jumps first, mem tracks page cache) from a memor",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-train-service",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.7,
+        "prompt_tokens": 2291,
+        "completion_tokens": 277,
+        "max_tokens": 16000,
+        "answer_chars": 730,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00735,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.03
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 4 steps",
+    "suspect": "ts-train-service",
+    "rival": null,
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "ts-train-service",
+        "fault_type": "mem",
+        "reason": "top fault types for ts-train-service by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=48.34",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=29.84",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=3.37",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-train-service",
+              "top": 20
+            },
+            "depth": 1,
+            "predicted": "mem z stays >=15 (about 48) with latency-90 up, socket z <25 (not saturated); the full metric list shows memory rising steadily as expected for a memory fault, rather than only diskio spiking.",
+            "rationale": "Memory z=48 already meets the mem_up threshold, but disk, cpu and mem all moved together, so I need to see whether mem is the distinctive signal. A metric_query restricted to ts-train-service memory a",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-train-service",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "ts-train-service_mem z>=15 (about 48, +241%) with socket z<25, confirming a large memory rise that satisfies the signature alongside the disk deviation",
+            "rationale": "To separate memory from disk, check the memory metric for ts-train-service against socket and other memory-related metrics; mem z=48 meets the signature, but the disk IO z is far larger, so querying t",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "ts-train-service",
+        "fault_type": "disk",
+        "reason": "top fault types for ts-train-service by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=48.34",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=61.05",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=3.37",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-train-service",
+              "metric": "diskio",
+              "top": 5
+            },
+            "depth": 1,
+            "predicted": "diskio shows a massive, sustained step-up beginning at the alert time, far larger than the mem rise (mem growth modest and tracking disk page cache), consistent with disk being primary rather than mem",
+            "rationale": "Mem z=48 and diskio z=10185 both rise, so to separate disk from mem I need the specific diskio/mem metric detail (read vs write, time-of-onset ordering) for ts-train-service, which a filtered metric_q",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "service_map",
+            "args": {},
+            "depth": 2,
+            "predicted": "ts-train-service depends on a mongo store; with disk fault, diskio is the dominant deviation (z~10000 vs mem z~48), and the mem rise is a secondary page-cache effect rather than a leak, so the diskio-",
+            "rationale": "Metrics already show diskio, cpu and mem all deviating on ts-train-service, so I need to separate disk from mem by looking at the other services: a disk fault should show up as a diskio-specific signa",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-train-service",
+              "metric": "cpu"
+            },
+            "depth": 3,
+            "predicted": "cpu rises moderately (z>=3) alongside a huge diskio spike and mem rise consistent with IO-wait/page-cache growth, not a mem-led pattern; the diskio magnitude (z~10000 vs mem z~48) indicates disk is pr",
+            "rationale": "Both disk and mem deviate on ts-train-service; a time-resolved look at the diskio and mem series (onset order and shape) separates a disk fault (diskio jumps first, mem tracks page cache) from a memor",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B3",
+        "service": "ts-train-service",
+        "fault_type": "cpu",
+        "reason": "top fault types for ts-train-service by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=61.05",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=48.34",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=3.37",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 5,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [
+      {
+        "branch_id": "B1",
+        "service": "ts-train-service",
+        "fault_type": "mem",
+        "reason": "top fault types for ts-train-service by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=48.34",
+            "eid": "E1",
+            "must": true,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=29.84",
+            "eid": "E1",
+            "must": false,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=3.37",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E5",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-train-service",
+              "top": 20
+            },
+            "depth": 1,
+            "predicted": "mem z stays >=15 (about 48) with latency-90 up, socket z <25 (not saturated); the full metric list shows memory rising steadily as expected for a memory fault, rather than only diskio spiking.",
+            "rationale": "Memory z=48 already meets the mem_up threshold, but disk, cpu and mem all moved together, so I need to see whether mem is the distinctive signal. A metric_query restricted to ts-train-service memory a",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-train-service",
+              "metric": "mem"
+            },
+            "depth": 2,
+            "predicted": "ts-train-service_mem z>=15 (about 48, +241%) with socket z<25, confirming a large memory rise that satisfies the signature alongside the disk deviation",
+            "rationale": "To separate memory from disk, check the memory metric for ts-train-service against socket and other memory-related metrics; mem z=48 meets the signature, but the disk IO z is far larger, so querying t",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "ts-train-service",
+        "fault_type": "disk",
+        "reason": "top fault types for ts-train-service by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=48.34",
+            "eid": "E1",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=61.05",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=3.37",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-train-service",
+              "metric": "diskio",
+              "top": 5
+            },
+            "depth": 1,
+            "predicted": "diskio shows a massive, sustained step-up beginning at the alert time, far larger than the mem rise (mem growth modest and tracking disk page cache), consistent with disk being primary rather than mem",
+            "rationale": "Mem z=48 and diskio z=10185 both rise, so to separate disk from mem I need the specific diskio/mem metric detail (read vs write, time-of-onset ordering) for ts-train-service, which a filtered metric_q",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "service_map",
+            "args": {},
+            "depth": 2,
+            "predicted": "ts-train-service depends on a mongo store; with disk fault, diskio is the dominant deviation (z~10000 vs mem z~48), and the mem rise is a secondary page-cache effect rather than a leak, so the diskio-",
+            "rationale": "Metrics already show diskio, cpu and mem all deviating on ts-train-service, so I need to separate disk from mem by looking at the other services: a disk fault should show up as a diskio-specific signa",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-train-service",
+              "metric": "cpu"
+            },
+            "depth": 3,
+            "predicted": "cpu rises moderately (z>=3) alongside a huge diskio spike and mem rise consistent with IO-wait/page-cache growth, not a mem-led pattern; the diskio magnitude (z~10000 vs mem z~48) indicates disk is pr",
+            "rationale": "Both disk and mem deviate on ts-train-service; a time-resolved look at the diskio and mem series (onset order and shape) separates a disk fault (diskio jumps first, mem tracks page cache) from a memor",
+            "by": "model"
+          }
+        ]
+      }
+    ],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 10,
+    "model_seconds": 28.4,
+    "tool_seconds": 4.1,
+    "prompt_tokens": 14016,
+    "completion_tokens": 1988,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 33.9,
+    "cost_usd": 0.047911999999999996
+  }
+}

@@ -1,0 +1,654 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "ts-travel-service",
+        "fault_type": "cpu",
+        "score": 3,
+        "status": "open",
+        "kinds": [
+          "metrics"
+        ],
+        "summary": "confirmed cpu_up (cpu z=112.92), mem_not_saturated (mem z=0.65), socket_not_saturated (socket z=11.28); inconclusive trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E2",
+          "E4",
+          "E6",
+          "E8",
+          "E9"
+        ]
+      },
+      {
+        "service": "ts-admin-travel-service",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=41.57), resources_flat (max resource cpu z=0.55), no_errors (span error rate +0.000); contradicted trace_slow (traces flat)",
+        "evidence": [
+          "E1",
+          "E5",
+          "E7"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "ts-travel-service: cpu (score 3, open; confirmed cpu_up, mem_not_saturated, socket_not_saturated)",
+    "ts-admin-travel-service: delay (score 2, open; confirmed latency_up, resources_flat, no_errors)",
+    "ts-travel-service: disk (score 0, pruned; confirmed cpu_up, socket_not_saturated)",
+    "ts-travel-service: socket (score 0, pruned; confirmed none)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-travel-service_cpu z=112.92 (3649.5%); ts-travel-service_latency-90 z=77.7 (388.5%); ts-admin-travel-service_latency-90 z=41.57 (207.9%); ts-admin-travel-service_latency-50 z=34.78 (173.9%)",
+      "source_ref": "simple_metrics.csv:ts-travel-service_cpu",
+      "implicates": [
+        "ts-admin-basic-info-service",
+        "ts-admin-travel-service",
+        "ts-food-service",
+        "ts-travel-service",
+        "ts-travel2-service",
+        "ts-ui-dashboard"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for ts-travel-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.72->2.19ms (1.27x), errors 0.0->0.0; inbound calls self-time p50 2.32->2.75ms (1.18x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-travel-service",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "11430 matching lines; by svc/level {'ts-travel-service/unknown': 11430}; [ts-travel-service/unknown] 2024-01-25 01:32:04.225  INFO 1 --- [io-12346-exec-5] travel.controller.TravelCo; [ts-travel-service/unknown] 2024-01-25 01:32:04.239  INFO 1 --- [io-12346-exec-5] travel.service.TravelServi; these logs record no severity (every line has level 'unknown'), so no line counts as a warning or error: a text match is a mention, it implicates nobody",
+      "source_ref": "logs.csv#L28970",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-travel-service]: ts-travel-service_cpu z=112.92 (3649.5%); ts-travel-service_latency-90 z=77.7 (388.5%); ts-travel-service_latency-50 z=24.7 (325.2%); ts-travel-service_socket z=11.28 (105.9%)",
+      "source_ref": "simple_metrics.csv:ts-travel-service_cpu",
+      "implicates": [
+        "ts-travel-service"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-admin-travel-service]: ts-admin-travel-service_latency-90 z=41.57 (207.9%); ts-admin-travel-service_latency-50 z=34.78 (173.9%)",
+      "source_ref": "simple_metrics.csv:ts-admin-travel-service_latency-90",
+      "implicates": [
+        "ts-admin-travel-service"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "map",
+      "summary": "dependencies: ts-admin-basic-info-service->ts-config-service,ts-price-service; ts-admin-travel-service->ts-travel-service,ts-travel2-service; ts-basic-service->ts-station-service; ts-consign-service->ts-consign-price-service; ts-food-service->ts-food-map-service,ts-station-service,ts-travel-service; ts-inside-payment-service->ts-order-other-service,ts-order-service; ts-order-other-service->ts-station-service; ts-order-service->ts-station-service; ts-ticketinfo-service->ts-basic-service; ts-travel-service->ts-route-service,ts-ticketinfo-service,ts-train-service; ts-travel2-service->ts-route-service,ts-ticketinfo-service,ts-train-service",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "traces",
+      "summary": "traces for ts-admin-travel-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 3.45->3.64ms (1.05x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-admin-travel-service",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-food-service]: ts-food-service_latency-50 z=27.65 (138.3%); ts-food-service_latency-90 z=9.67 (257.4%)",
+      "source_ref": "simple_metrics.csv:ts-food-service_latency-50",
+      "implicates": [
+        "ts-food-service"
+      ]
+    },
+    {
+      "eid": "E9",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-travel-service, metric=cpu]: ts-travel-service_cpu z=112.92 (3649.5%)",
+      "source_ref": "simple_metrics.csv:ts-travel-service_cpu",
+      "implicates": [
+        "ts-travel-service"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 589,
+        "completion_tokens": 71,
+        "max_tokens": 16000,
+        "answer_chars": 185,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00189,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with the unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.3,
+        "prompt_tokens": 735,
+        "completion_tokens": 146,
+        "max_tokens": 16000,
+        "answer_chars": 377,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00293,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point to ts-travel-service CPU; I need an independent telemetry kind (traces) for that service to corroborate before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-travel-service"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.42
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 948,
+        "completion_tokens": 157,
+        "max_tokens": 16000,
+        "answer_chars": 410,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00347,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at ts-travel-service CPU, but traces show no change for it, so I need a second independent telemetry kind; checking logs for ts-travel-service.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "ts-travel-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.2
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-travel-service: cpu",
+      "thought": "service_map shows whether ts-admin-travel-service calls ts-travel-service, which would make the admin latency a downstream effect of the travel-service CPU spike rather than an independent delay fault",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1367,
+        "completion_tokens": 168,
+        "max_tokens": 16000,
+        "answer_chars": 475,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00441,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.21
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "ts-admin-travel-service: delay",
+      "thought": "Viewing ts-admin-travel-service's own and inbound spans shows whether its latency rises in its own self-time (supporting delay there) or only in the child call to ts-travel-service (supporting the riv",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-admin-travel-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.2,
+        "prompt_tokens": 1666,
+        "completion_tokens": 217,
+        "max_tokens": 16000,
+        "answer_chars": 584,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0055,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.4
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-travel-service: cpu",
+      "thought": "If ts-travel-service CPU is the cause, the admin service's slowness is inherited from it; trace_lookup on ts-admin-travel-service would show whether its slowdown sits in its own spans or in its outbou",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-food-service"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.5,
+        "prompt_tokens": 1766,
+        "completion_tokens": 277,
+        "max_tokens": 16000,
+        "answer_chars": 771,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0063,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 7,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "ts-admin-travel-service: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: metric_query({'service': 'ts-admin-travel-service'}) already on the board; the heuristic had no test left",
+      "model_call": {
+        "seconds": 2.8,
+        "prompt_tokens": 1872,
+        "completion_tokens": 217,
+        "max_tokens": 16000,
+        "answer_chars": 578,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00591,
+        "finish_reason": "stop"
+      }
+    },
+    {
+      "step": 8,
+      "phase": "tot",
+      "branch": "B1",
+      "hypothesis": "ts-travel-service: cpu",
+      "thought": "Checking memory and socket metrics for ts-travel-service tests the non-saturation clauses of the signature, and the shared latency-90 and cpu series show whether cpu rose before the callers' latency d",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-travel-service",
+          "metric": "cpu"
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E9",
+      "generator": "model",
+      "model_call": {
+        "seconds": 2.9,
+        "prompt_tokens": 1868,
+        "completion_tokens": 202,
+        "max_tokens": 16000,
+        "answer_chars": 527,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00576,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.04
+    },
+    {
+      "step": 9,
+      "phase": "tot",
+      "branch": "B4",
+      "hypothesis": "ts-admin-travel-service: delay",
+      "outcome": "tot_no_test",
+      "generator": "model fallback: trace_lookup({'service': 'ts-admin-travel-service', 'limit': 10}) already on the; the heuristic had no test left",
+      "model_call": {
+        "seconds": 3.1,
+        "prompt_tokens": 1958,
+        "completion_tokens": 228,
+        "max_tokens": 16000,
+        "answer_chars": 609,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0062,
+        "finish_reason": "stop"
+      }
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "ts-travel-service",
+    "rival": "ts-admin-travel-service",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B1",
+        "service": "ts-travel-service",
+        "fault_type": "cpu",
+        "reason": "top fault types for ts-travel-service by metric signature (score 3)",
+        "status": "open",
+        "close_reason": "",
+        "score": 3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=112.92",
+            "eid": "E1",
+            "must": true,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "mem_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "mem z=0.65",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z < 15"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=11.28",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "service_map",
+            "args": {},
+            "depth": 1,
+            "predicted": "ts-admin-travel-service calls ts-travel-service (a downstream dependency), so its latency rise is explained by the ts-travel-service CPU saturation; ts-admin-travel-service has no other downstream cul",
+            "rationale": "service_map shows whether ts-admin-travel-service calls ts-travel-service, which would make the admin latency a downstream effect of the travel-service CPU spike rather than an independent delay fault",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-food-service"
+            },
+            "depth": 2,
+            "predicted": "ts-food-service latency rises after the alert, like ts-admin-travel-service, because both call the CPU-saturated ts-travel-service; this fits the ts-travel-service cpu hypothesis rather than an admin-",
+            "rationale": "If ts-travel-service CPU is the cause, the admin service's slowness is inherited from it; trace_lookup on ts-admin-travel-service would show whether its slowdown sits in its own spans or in its outbou",
+            "by": "model"
+          },
+          {
+            "eid": "E9",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-travel-service",
+              "metric": "cpu"
+            },
+            "depth": 3,
+            "predicted": "ts-travel-service cpu z>=3 (about 113, up about 3650%) with memory not saturated (z<15) and socket z about 11 (<25), so the cpu rise is isolated to ts-travel-service and its callers' latency follows f",
+            "rationale": "Checking memory and socket metrics for ts-travel-service tests the non-saturation clauses of the signature, and the shared latency-90 and cpu series show whether cpu rose before the callers' latency d",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B4",
+        "service": "ts-admin-travel-service",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=41.57",
+            "eid": "E1",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource cpu z=0.55",
+            "eid": "E5",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E7",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E7",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E7",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "ts-admin-travel-service",
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "ts-admin-travel-service own and inbound spans slow markedly (>2x) with no errors, while its slowdown is not matched by slower ts-travel-service spans (E2 flat), pointing to delay in the admin service ",
+            "rationale": "Viewing ts-admin-travel-service's own and inbound spans shows whether its latency rises in its own self-time (supporting delay there) or only in the child call to ts-travel-service (supporting the riv",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B2",
+        "service": "ts-travel-service",
+        "fault_type": "disk",
+        "reason": "top fault types for ts-travel-service by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E4",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.65",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "cpu z=112.92",
+            "eid": "E1",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=11.28",
+            "eid": "E1",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      },
+      {
+        "branch_id": "B3",
+        "service": "ts-travel-service",
+        "fault_type": "socket",
+        "reason": "top fault types for ts-travel-service by metric signature (score 0)",
+        "status": "pruned",
+        "close_reason": "score 0 (at most 0 if every untested signal held) is 3+ below the best (3)",
+        "score": 0,
+        "kinds": [],
+        "verdicts": [
+          {
+            "signal": "socket_up",
+            "kind": "metrics",
+            "verdict": "inconclusive",
+            "observed": "socket z=11.28",
+            "eid": "E1",
+            "must": true,
+            "expect": "socket z >= 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E2",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 4,
+    "generator_calls": 6,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B2": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 9,
+    "model_seconds": 21.9,
+    "tool_seconds": 1.4,
+    "prompt_tokens": 12769,
+    "completion_tokens": 1683,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 23.3,
+    "cost_usd": 0.042368
+  }
+}

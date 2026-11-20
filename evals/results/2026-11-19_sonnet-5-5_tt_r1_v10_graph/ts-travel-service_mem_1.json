@@ -1,0 +1,480 @@
+{
+  "status": "escalated",
+  "reason": "tot: no branch passed the two-kinds gate",
+  "escalation": {
+    "code": "tot_no_branch",
+    "reason": "tot: no branch passed the two-kinds gate",
+    "hypotheses": [
+      {
+        "service": "ts-route-service",
+        "fault_type": "delay",
+        "score": 2,
+        "status": "open",
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "summary": "confirmed latency_up (latency z=3.59), resources_flat (max resource socket z=0.23), no_errors (span error rate +0.000); contradicted trace_slow (traces flat)",
+        "evidence": [
+          "E5",
+          "E6",
+          "E7",
+          "E8"
+        ]
+      }
+    ],
+    "note": "no branch gathered two telemetry kinds that implicate its service; hypotheses are ToT's live branches, best first"
+  },
+  "candidates": [
+    "ts-route-service: delay (score 2, open; confirmed latency_up, resources_flat, no_errors)",
+    "ts-basic-service: disk (score -3, pruned; confirmed socket_not_saturated)"
+  ],
+  "notes": [],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: ts-basic-service_diskio z=75.15 (2251.7%); ts-route-service_diskio z=66.12 (2202.1%); ts-train-service_diskio z=64.02 (2182.4%); ts-user-service_diskio z=63.76 (1845.6%)",
+      "source_ref": "simple_metrics.csv:ts-basic-service_diskio",
+      "implicates": [
+        "ts-admin-basic-info-service",
+        "ts-admin-travel-service",
+        "ts-basic-service",
+        "ts-inside-payment-service",
+        "ts-order-service",
+        "ts-payment-service",
+        "ts-route-plan-service",
+        "ts-route-service",
+        "ts-train-service",
+        "ts-user-service"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "map",
+      "summary": "dependencies: ts-admin-basic-info-service->ts-config-service,ts-price-service; ts-admin-travel-service->ts-travel-service,ts-travel2-service; ts-basic-service->ts-price-service,ts-route-service,ts-station-service,ts-train-service; ts-consign-service->ts-consign-price-service; ts-food-service->ts-food-map-service,ts-station-service,ts-travel-service; ts-inside-payment-service->ts-order-other-service,ts-order-service,ts-payment-service; ts-order-other-service->ts-station-service; ts-order-service->ts-station-service; ts-preserve-other-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-other-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel2-service,ts-user-service; ts-preserve-service->ts-assurance-service,ts-contacts-service,ts-food-service,ts-order-service,ts-seat-service,ts-security-service,ts-station-service,ts-ticketinfo-service,ts-travel-service,ts-user-service; ts-seat-service->ts-config-service,ts-order-other-service,ts-order-service,ts-travel-service,ts-travel2-service; ts-security-service->ts-order-other-service,ts-order-service; ts-ticketinfo-service->ts-basic-service; ts-travel-service->ts-order-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service; ts-travel2-service->ts-order-other-service,ts-route-service,ts-seat-service,ts-ticketinfo-service,ts-train-service",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E3",
+      "kind": "traces",
+      "summary": "traces for ts-basic-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.88->1.94ms (1.03x), errors 0.0->0.0; inbound calls self-time p50 1.91->1.98ms (1.04x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-basic-service",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-basic-service]: ts-basic-service_diskio z=75.15 (2251.7%)",
+      "source_ref": "simple_metrics.csv:ts-basic-service_diskio",
+      "implicates": [
+        "ts-basic-service"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-route-service]: ts-route-service_diskio z=66.12 (2202.1%); ts-route-service_latency-90 z=3.59 (17.9%)",
+      "source_ref": "simple_metrics.csv:ts-route-service_diskio",
+      "implicates": [
+        "ts-route-service"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "traces",
+      "summary": "traces for ts-route-service: NO significant change (<2x latency, <0.05 error rise); own spans self-time p50 1.06->1.11ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 1.75->1.88ms (1.07x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=ts-route-service",
+      "implicates": []
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='ts-route-service', query='delay OR timeout OR slow']: no line contains that literal text (22562 lines searched, levels present ['unknown']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E8",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=ts-route-service, metric=latency]: ts-route-service_latency-90 z=3.59 (17.9%)",
+      "source_ref": "simple_metrics.csv:ts-route-service_latency-90",
+      "implicates": [
+        "ts-route-service"
+      ]
+    }
+  ],
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.07
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 723,
+        "completion_tokens": 144,
+        "max_tokens": 16000,
+        "answer_chars": 379,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00289,
+        "finish_reason": "stop"
+      },
+      "thought": "Diskio spikes across several services; I need the call graph to see which one is upstream/shared and whether the others are just victims or similarly affected.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 1.05
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1433,
+        "completion_tokens": 184,
+        "max_tokens": 16000,
+        "answer_chars": 465,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00471,
+        "finish_reason": "stop"
+      },
+      "thought": "Several services show disk I/O deviations, so I need trace evidence for the top candidate, ts-basic-service, which is the caller of route and train, to see whether it is the source or only a symptom.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-basic-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 2.29
+    },
+    {
+      "step": 4,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "ts-route-service: delay",
+      "thought": "To check the trace-level signature for ts-route-service (own and inbound spans slower, no errors), look at its before/after span latency and errors, which has not been queried yet.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "ts-route-service",
+          "failing_only": false,
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E6",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 1667,
+        "completion_tokens": 165,
+        "max_tokens": 16000,
+        "answer_chars": 458,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00498,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 2.35
+    },
+    {
+      "step": 5,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "ts-route-service: delay",
+      "thought": "Route-service shows latency-90 z=3.59 but traces show no slowdown; checking its logs for delay/timeout messages can show whether a delay fault is present that spans miss.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "query": "delay OR timeout OR slow",
+          "service": "ts-route-service",
+          "limit": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E7",
+      "generator": "model",
+      "model_call": {
+        "seconds": 3.4,
+        "prompt_tokens": 1800,
+        "completion_tokens": 175,
+        "max_tokens": 16000,
+        "answer_chars": 474,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00535,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 1.38
+    },
+    {
+      "step": 6,
+      "phase": "tot",
+      "branch": "B2",
+      "hypothesis": "ts-route-service: delay",
+      "thought": "Route-service latency-90 rose only slightly (z=3.59) and its traces show no slowdown; checking the latency metrics directly for ts-route-service, plus the callers, tests whether a real delay exists be",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "ts-route-service",
+          "metric": "latency",
+          "top": 10
+        }
+      },
+      "outcome": "tot_test",
+      "observed": "E8",
+      "generator": "model",
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 1891,
+        "completion_tokens": 195,
+        "max_tokens": 16000,
+        "answer_chars": 508,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00573,
+        "finish_reason": "stop"
+      },
+      "tool_seconds": 0.04
+    }
+  ],
+  "proposed_fix": null,
+  "tot": {
+    "status": "escalated",
+    "trigger": "T2 two-kinds rule unmet after 3 steps",
+    "suspect": "ts-basic-service",
+    "rival": "ts-route-service",
+    "selected": null,
+    "tied": [],
+    "ranked": [
+      {
+        "branch_id": "B2",
+        "service": "ts-route-service",
+        "fault_type": "delay",
+        "reason": "rival service from conflicting candidates",
+        "status": "open",
+        "close_reason": "",
+        "score": 2,
+        "kinds": [
+          "metrics",
+          "traces"
+        ],
+        "verdicts": [
+          {
+            "signal": "latency_up",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "latency z=3.59",
+            "eid": "E5",
+            "must": true,
+            "expect": "latency z >= 3"
+          },
+          {
+            "signal": "resources_flat",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "max resource socket z=0.23",
+            "eid": "E5",
+            "must": true,
+            "expect": "cpu, mem, socket all z < 5"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "contradicted",
+            "observed": "traces flat",
+            "eid": "E6",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          },
+          {
+            "signal": "no_errors",
+            "kind": "traces",
+            "verdict": "confirmed",
+            "observed": "span error rate +0.000",
+            "eid": "E6",
+            "must": false,
+            "expect": "span error rate rises < 0.05"
+          }
+        ],
+        "tests": [
+          {
+            "eid": "E6",
+            "tool": "trace_lookup",
+            "args": {
+              "service": "ts-route-service",
+              "failing_only": false,
+              "limit": 10
+            },
+            "depth": 1,
+            "predicted": "ts-route-service own/inbound span latency rises clearly (>2x) after the alert with error rate unchanged (<0.05), consistent with a delay fault.",
+            "rationale": "To check the trace-level signature for ts-route-service (own and inbound spans slower, no errors), look at its before/after span latency and errors, which has not been queried yet.",
+            "by": "model"
+          },
+          {
+            "eid": "E7",
+            "tool": "log_search",
+            "args": {
+              "query": "delay OR timeout OR slow",
+              "service": "ts-route-service",
+              "limit": 10
+            },
+            "depth": 2,
+            "predicted": "Log lines in ts-route-service mention delays or slow processing after the alert, with no error-level entries, consistent with a delay fault and flat CPU/mem.",
+            "rationale": "Route-service shows latency-90 z=3.59 but traces show no slowdown; checking its logs for delay/timeout messages can show whether a delay fault is present that spans miss.",
+            "by": "model"
+          },
+          {
+            "eid": "E8",
+            "tool": "metric_query",
+            "args": {
+              "service": "ts-route-service",
+              "metric": "latency",
+              "top": 10
+            },
+            "depth": 3,
+            "predicted": "ts-route-service latency metrics (latency-50/90/99) show z>=3 while cpu, mem and socket stay flat (z<5), consistent with a delay fault; no error increase.",
+            "rationale": "Route-service latency-90 rose only slightly (z=3.59) and its traces show no slowdown; checking the latency metrics directly for ts-route-service, plus the callers, tests whether a real delay exists be",
+            "by": "model"
+          }
+        ]
+      },
+      {
+        "branch_id": "B1",
+        "service": "ts-basic-service",
+        "fault_type": "disk",
+        "reason": "top fault types for ts-basic-service by metric signature (score -3)",
+        "status": "pruned",
+        "close_reason": "score -3 (at most -3 if every untested signal held) is 5+ below the best (2)",
+        "score": -3,
+        "kinds": [
+          "metrics"
+        ],
+        "verdicts": [
+          {
+            "signal": "diskio_up",
+            "kind": "metrics",
+            "verdict": "unobservable",
+            "observed": "diskio missing or unusable (z 0/NaN/1e12+ in every fault type)",
+            "eid": "E1",
+            "must": true,
+            "expect": "diskio rises"
+          },
+          {
+            "signal": "mem_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "mem z=0.01",
+            "eid": "E4",
+            "must": false,
+            "expect": "mem z >= 15"
+          },
+          {
+            "signal": "cpu_up",
+            "kind": "metrics",
+            "verdict": "contradicted",
+            "observed": "cpu z=0.13",
+            "eid": "E4",
+            "must": false,
+            "expect": "cpu z >= 3"
+          },
+          {
+            "signal": "socket_not_saturated",
+            "kind": "metrics",
+            "verdict": "confirmed",
+            "observed": "socket z=0.07",
+            "eid": "E4",
+            "must": false,
+            "expect": "socket z < 25"
+          },
+          {
+            "signal": "trace_slow",
+            "kind": "traces",
+            "verdict": "inconclusive",
+            "observed": "traces flat",
+            "eid": "E3",
+            "must": false,
+            "expect": "service's own/inbound spans slow down"
+          }
+        ],
+        "tests": []
+      }
+    ],
+    "expansions": 3,
+    "generator_calls": 3,
+    "unfamiliar": false,
+    "ruled_out": [],
+    "co_leaders": [],
+    "flags": {
+      "B1": [
+        "diskio_up: diskio missing or unusable (z 0/NaN/1e12+ in every fault type)"
+      ]
+    }
+  },
+  "architecture": "graph",
+  "path": [
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "commander",
+    "act",
+    "tot",
+    "escalate"
+  ],
+  "roles": {
+    "Commander": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Investigator": [
+      "metric_query",
+      "log_search",
+      "trace_lookup",
+      "service_map"
+    ],
+    "Fix Advisor": [
+      "runbook_lookup"
+    ]
+  },
+  "usage": {
+    "model_calls": 6,
+    "model_seconds": 12.2,
+    "tool_seconds": 7.2,
+    "prompt_tokens": 8103,
+    "completion_tokens": 940,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 19.5,
+    "cost_usd": 0.025606
+  }
+}
