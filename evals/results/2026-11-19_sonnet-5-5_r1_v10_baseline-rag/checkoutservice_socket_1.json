@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 4335,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.584
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.596
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeHpaMaxedOut.md#action",
+      "alert": "KubeHpaMaxedOut",
+      "distance": 0.628
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#action",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.592
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "checkoutservice has by far the largest anomaly: CPU rose from 0.39 to 5.07 (+1189%, z=+62), with sockets and memory also up (z=+28.8 and +16.7) and its own latency-90/50 elevated, while no other service shows a comparable shift. The slowest traces go through frontend/currency/productcatalog/recommendation rather than checkoutservice and no logs or error spans exist, so CPU as the primary fault (versus socket or mem) is inferred from the largest-magnitude metric, not directly confirmed.",
+  "proposed_fix": {
+    "description": "Inspect checkoutservice for the cause of the CPU spike (runaway work, connection leak driving sockets), and check its CPU requests/limits and throttling. Restart or scale out its replicas only after confirming it is safe, and do not change limits until the cause is understood.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.7,
+    "prompt_tokens": 2097,
+    "completion_tokens": 339,
+    "tool_seconds": 1.2,
+    "wall_seconds": 4.8,
+    "cost_usd": 0.007584
+  }
+}

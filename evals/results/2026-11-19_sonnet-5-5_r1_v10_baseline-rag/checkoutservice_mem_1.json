@@ -1,0 +1,43 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 3661,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.615
+    },
+    {
+      "source_ref": "runbooks/node/NodeHighNumberConntrackEntriesUsed.md#symptom",
+      "alert": "NodeHighNumberConntrackEntriesUsed",
+      "distance": 0.63
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.64
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "mem"
+  },
+  "confidence": "medium",
+  "rationale": "checkoutservice has the largest anomalies in the digest: memory up 1876% (z=+375) and CPU up 4411% (z=+220), with latency-90 up 764%, while its downstream callees (paymentservice, emailservice, currencyservice) show negligible change. Memory has the highest z-score, but CPU rose at the same time and the digest cannot cleanly separate the two (logs are empty, with no errors), so mem vs cpu is a judgment call.",
+  "proposed_fix": {
+    "description": "Restart or roll the checkoutservice pods to clear the memory growth, then inspect heap/profile data and the memory limits to find the leak or allocation source. Hold off on a restart if in-flight checkouts must be preserved, and drain traffic first.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.3,
+    "prompt_tokens": 1850,
+    "completion_tokens": 301,
+    "tool_seconds": 1.3,
+    "wall_seconds": 4.5,
+    "cost_usd": 0.00671
+  }
+}

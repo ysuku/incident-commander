@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 4790,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/node/NodeNetworkReceiveErrs.md#symptom",
+      "alert": "NodeNetworkReceiveErrs",
+      "distance": 0.563
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.632
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.564
+    },
+    {
+      "source_ref": "runbooks/node/NodeClockSkewDetected.md#action",
+      "alert": "NodeClockSkewDetected",
+      "distance": 0.647
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "socket"
+  },
+  "confidence": "medium",
+  "rationale": "checkoutservice latency-50/90 rose about 18-19x, and the worst traces are single-span checkoutservice errors of about 10 s, which looks like a timeout inside checkoutservice itself rather than in a callee. Of its callees, paymentservice and emailservice latency barely moved, while checkoutservice_socket rose 33% (z=+6.7) and its mem rose 31%, which points to a socket/connection problem local to checkoutservice. Mem is a possible alternative, but the 10 s timeouts fit socket exhaustion better.",
+  "proposed_fix": {
+    "description": "Inspect checkoutservice open connections and socket usage, and restart or roll the checkoutservice pod if connections are leaking. Then review its client connection and timeout settings.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 3.7,
+    "prompt_tokens": 2287,
+    "completion_tokens": 304,
+    "tool_seconds": 1.2,
+    "wall_seconds": 4.9,
+    "cost_usd": 0.007614
+  }
+}

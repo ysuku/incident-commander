@@ -1,0 +1,208 @@
+{
+  "root_cause": {
+    "service": "recommendationservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%); frontend_latency-50 z=5.89 (29.5%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.04->2.57ms (2.48x), errors 0.0->0.0; inbound calls self-time p50 3.88->5.43ms (1.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=productcatalogservice]; largest is only productcatalogservice_latency-50 z=0.41 (2.1%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-50",
+      "implicates": []
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "frontend",
+      "why": "Its latency-50 deviation is small (z=5.89) next to recommendationservice (z=155.9), consistent with a downstream effect of the recommendationservice slowdown (E1)."
+    },
+    {
+      "candidate": "productcatalogservice",
+      "why": "No significant deviation in any of its metrics; the largest is z=0.41 (E3), so it is not slowing recommendationservice."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Raise the CPU limit or add replicas for recommendationservice, and investigate the source of the CPU consumption. Do not restart it until the cause is understood.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 4,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 589,
+        "completion_tokens": 71,
+        "max_tokens": 16000,
+        "answer_chars": 184,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00189,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 721,
+        "completion_tokens": 180,
+        "max_tokens": 16000,
+        "answer_chars": 511,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00324,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at recommendationservice with CPU and latency spikes; I need an independent telemetry kind (traces) to confirm that service's own and inbound latency before finishing.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "recommendationservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.92
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 941,
+        "completion_tokens": 162,
+        "max_tokens": 16000,
+        "answer_chars": 475,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0035,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at recommendationservice; I need to check the service map to reject productcatalogservice as an upstream cause before finishing.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "productcatalogservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 3.6,
+        "prompt_tokens": 1036,
+        "completion_tokens": 371,
+        "max_tokens": 16000,
+        "answer_chars": 967,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00578,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1 cpu spike) and traces (E2 own-span slowdown) both point at recommendationservice, and E3 rules out productcatalogservice as a dependency cause, so the evidence is sufficient to finish.",
+      "action": {
+        "finish": {
+          "root_cause_service": "recommendationservice",
+          "fault_type": "cpu",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend",
+              "why": "Its latency-50 deviation is small (z=5.89) next to recommendationservice (z=155.9), consistent with a downstream effect of the recommendationservice slowdown (E1)."
+            },
+            {
+              "candidate": "productcatalogservice",
+              "why": "No significant deviation in any of its metrics; the largest is z=0.41 (E3), so it is not slowing recommendationservice."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Raise the CPU limit or add replicas for recommendationservice, and investigate the source of the CPU consumption. Do not restart it until the cause is understood.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: recommendationservice_latency-90 z=173.44 (867.2%); recommendationservice_latency-50 z=155.9 (779.5%); recommendationservice_cpu z=67.44 (655.6%); frontend_latency-50 z=5.89 (29.5%)",
+      "source_ref": "simple_metrics.csv:recommendationservice_latency-90",
+      "implicates": [
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for recommendationservice: SIGNIFICANT change; own spans self-time p50 1.04->2.57ms (2.48x), errors 0.0->0.0; inbound calls self-time p50 3.88->5.43ms (1.4x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=recommendationservice",
+      "implicates": [
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=productcatalogservice]; largest is only productcatalogservice_latency-50 z=0.41 (2.1%)",
+      "source_ref": "simple_metrics.csv:productcatalogservice_latency-50",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 4,
+    "model_seconds": 9.1,
+    "tool_seconds": 1.0,
+    "prompt_tokens": 3287,
+    "completion_tokens": 784,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 10.1,
+    "cost_usd": 0.014414
+  }
+}

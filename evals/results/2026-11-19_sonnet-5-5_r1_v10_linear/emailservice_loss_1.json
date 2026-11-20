@@ -1,0 +1,352 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "emailservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.2ms (1.06x), errors 0.0->0.0; inbound calls self-time p50 3.42->3.96ms (1.16x), errors 0.0->0.1093",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: mem fault",
+      "why": "mem z=19.48 is weaker than socket z=24.36 (E1) and mem growth can accompany socket buildup; no distinct evidence for mem alone"
+    },
+    {
+      "candidate": "emailservice: delay fault",
+      "why": "latency z=358.88 (E1) is the symptom; own-span self-time is flat 0.19->0.2ms (E2), so the delay is not in the service's own processing, which fits a socket/connection problem rather than injected delay"
+    },
+    {
+      "candidate": "checkoutservice (caller)",
+      "why": "E2 shows errors only on inbound calls to emailservice and E4 shows checkoutservice as just a caller; no deviations in E1 for it"
+    }
+  ],
+  "proposed_fix": {
+    "description": "Restart or recycle the emailservice pods to clear the exhausted sockets/connections, then investigate connection handling and limits. Non-destructive rolling restart.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 8,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 589,
+        "completion_tokens": 71,
+        "max_tokens": 16000,
+        "answer_chars": 184,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00189,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.5,
+        "prompt_tokens": 711,
+        "completion_tokens": 182,
+        "max_tokens": 16000,
+        "answer_chars": 462,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00324,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point to emailservice (latency plus socket and mem), so I need an independent telemetry kind, traces, to check whether the service's own and inbound latency rose after the alert.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.84
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 931,
+        "completion_tokens": 183,
+        "max_tokens": 16000,
+        "answer_chars": 473,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00369,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but I need log evidence and a way to separate socket from mem and delay before finishing, so I'll search emailservice logs for errors.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "level": "error",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.28
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 1010,
+        "completion_tokens": 165,
+        "max_tokens": 16000,
+        "answer_chars": 435,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00367,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but the fault type is ambiguous between socket, mem and delay, so I will check the service's callers and dependencies with service_map before choosing.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.47
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.6,
+        "prompt_tokens": 1121,
+        "completion_tokens": 179,
+        "max_tokens": 16000,
+        "answer_chars": 462,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00403,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but logs are empty at error level; I should check emailservice logs for unlabeled or info-level lines to separate socket from mem from delay.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.1
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1232,
+        "completion_tokens": 177,
+        "max_tokens": 16000,
+        "answer_chars": 443,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00423,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but the fault type is still ambiguous between socket, mem and delay, so I'll look at emailservice's own metrics in detail.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 1365,
+        "completion_tokens": 197,
+        "max_tokens": 16000,
+        "answer_chars": 521,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0047,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but the fault type is still ambiguous between socket, mem and delay. A trace lookup on its inbound errors will help, and a log search for socket-related lines may separate them.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "query": "connection",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E7",
+      "tool_seconds": 0.08
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 4.3,
+        "prompt_tokens": 1442,
+        "completion_tokens": 502,
+        "max_tokens": 16000,
+        "answer_chars": 1292,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.0079,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice (E1/E6 metrics, E2 inbound errors 0->10.9% and latency up), so two independent telemetry kinds are satisfied; socket z=24 is the strongest resource signal alongside latency, with mem a weaker secondary, so I will finish with socket.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E6"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: mem fault",
+              "why": "mem z=19.48 is weaker than socket z=24.36 (E1) and mem growth can accompany socket buildup; no distinct evidence for mem alone"
+            },
+            {
+              "candidate": "emailservice: delay fault",
+              "why": "latency z=358.88 (E1) is the symptom; own-span self-time is flat 0.19->0.2ms (E2), so the delay is not in the service's own processing, which fits a socket/connection problem rather than injected delay"
+            },
+            {
+              "candidate": "checkoutservice (caller)",
+              "why": "E2 shows errors only on inbound calls to emailservice and E4 shows checkoutservice as just a caller; no deviations in E1 for it"
+            }
+          ],
+          "proposed_fix": {
+            "description": "Restart or recycle the emailservice pods to clear the exhausted sockets/connections, then investigate connection handling and limits. Non-destructive rolling restart.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "emailservice",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.2ms (1.06x), errors 0.0->0.0; inbound calls self-time p50 3.42->3.96ms (1.16x), errors 0.0->0.1093",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "logs",
+      "summary": "checked [service='emailservice', level='error']: no log lines at that level (618 lines searched, levels present ['info']; 7 of them carry no level and were NOT checked); implicates nobody",
+      "source_ref": "logs.csv",
+      "implicates": []
+    },
+    {
+      "eid": "E4",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "logs",
+      "summary": "618 matching lines; by svc/level {'emailservice/info': 611}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L85523",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=358.88 (16752.5%); emailservice_latency-50 z=192.04 (978.9%); emailservice_socket z=24.36 (121.8%); emailservice_mem z=19.48 (97.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E7",
+      "kind": "logs",
+      "summary": "filter matched nothing [service='emailservice', query='connection']: no line contains that literal text (618 lines searched, levels present ['info']); a filter that misses is not a finding about any service",
+      "source_ref": "logs.csv",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 16.8,
+    "tool_seconds": 1.8,
+    "prompt_tokens": 8401,
+    "completion_tokens": 1656,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 18.7,
+    "cost_usd": 0.033361999999999996
+  }
+}

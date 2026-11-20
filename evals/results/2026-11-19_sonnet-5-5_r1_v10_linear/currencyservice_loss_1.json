@@ -1,0 +1,257 @@
+{
+  "root_cause": {
+    "service": "currencyservice",
+    "fault_type": "socket"
+  },
+  "confidence": "high",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_latency-90 z=931.09 (4655.5%); currencyservice_latency-50 z=462.58 (2312.9%); frontend_latency-90 z=153.98 (1641.9%); frontend_latency-50 z=145.82 (752.8%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-90",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.1->0.13ms (1.24x), errors 0.0->0.0; inbound calls self-time p50 65.29->286.4ms (4.39x), errors 0.0->0.1715",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-90 z=931.09 (4655.5%); currencyservice_latency-50 z=462.58 (2312.9%); currencyservice_socket z=143.11 (715.5%); currencyservice_mem z=30.47 (152.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-90",
+      "implicates": [
+        "currencyservice"
+      ]
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "frontend: downstream symptom",
+      "why": "frontend latency deviations (E1) are smaller than currencyservice's, and inbound calls to currencyservice slow 4.39x with errors (E2), so frontend is the caller observing the slowdown."
+    },
+    {
+      "candidate": "currencyservice: mem fault",
+      "why": "mem z=30 is much weaker than socket z=143 (E3), and own-span self-time is nearly unchanged (E2), which does not fit a resource-starved process."
+    },
+    {
+      "candidate": "currencyservice: delay fault",
+      "why": "own spans are unchanged (1.24x, E2) while inbound latency rises, and the socket metric is the stronger deviation (E3). Delay can't be fully excluded, but socket fits the evidence better."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Restart or reschedule the currencyservice pods to clear the stuck socket and connection state, then inspect connection limits and keepalive settings.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 5,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 720,
+        "completion_tokens": 135,
+        "max_tokens": 16000,
+        "answer_chars": 365,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00279,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at currencyservice latency; check its own and inbound trace latency to get an independent telemetry kind and see who calls it.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.67
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 2.1,
+        "prompt_tokens": 913,
+        "completion_tokens": 159,
+        "max_tokens": 16000,
+        "answer_chars": 439,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00342,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, but the fault type (delay vs cpu vs others) is still undetermined, so I need to check resource metrics for currencyservice.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "currencyservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1067,
+        "completion_tokens": 230,
+        "max_tokens": 16000,
+        "answer_chars": 624,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00443,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, but the fault type is unclear: socket z=143 and mem z=30 are elevated while its own span self-time barely changed. I'll check the logs for currencyservice to separate socket, delay, and cpu faults.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "currencyservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.24
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 4.2,
+        "prompt_tokens": 1193,
+        "completion_tokens": 463,
+        "max_tokens": 16000,
+        "answer_chars": 1250,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00702,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at currencyservice, and the logs show only routine info lines, so I'll finish with socket as the fault and reject the alternatives with cited evidence.",
+      "action": {
+        "finish": {
+          "root_cause_service": "currencyservice",
+          "fault_type": "socket",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "frontend: downstream symptom",
+              "why": "frontend latency deviations (E1) are smaller than currencyservice's, and inbound calls to currencyservice slow 4.39x with errors (E2), so frontend is the caller observing the slowdown."
+            },
+            {
+              "candidate": "currencyservice: mem fault",
+              "why": "mem z=30 is much weaker than socket z=143 (E3), and own-span self-time is nearly unchanged (E2), which does not fit a resource-starved process."
+            },
+            {
+              "candidate": "currencyservice: delay fault",
+              "why": "own spans are unchanged (1.24x, E2) while inbound latency rises, and the socket metric is the stronger deviation (E3). Delay can't be fully excluded, but socket fits the evidence better."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Restart or reschedule the currencyservice pods to clear the stuck socket and connection state, then inspect connection limits and keepalive settings.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: currencyservice_latency-90 z=931.09 (4655.5%); currencyservice_latency-50 z=462.58 (2312.9%); frontend_latency-90 z=153.98 (1641.9%); frontend_latency-50 z=145.82 (752.8%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-90",
+      "implicates": [
+        "cartservice",
+        "checkoutservice",
+        "currencyservice",
+        "frontend",
+        "recommendationservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for currencyservice: SIGNIFICANT change; own spans self-time p50 0.1->0.13ms (1.24x), errors 0.0->0.0; inbound calls self-time p50 65.29->286.4ms (4.39x), errors 0.0->0.1715",
+      "source_ref": "traces.csv:serviceName=currencyservice",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=currencyservice]: currencyservice_latency-90 z=931.09 (4655.5%); currencyservice_latency-50 z=462.58 (2312.9%); currencyservice_socket z=143.11 (715.5%); currencyservice_mem z=30.47 (152.4%)",
+      "source_ref": "simple_metrics.csv:currencyservice_latency-90",
+      "implicates": [
+        "currencyservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "38591 matching lines; by svc/level {'currencyservice/info': 38591}; [currencyservice/info] Getting supported currencies...; [currencyservice/info] conversion request successful",
+      "source_ref": "logs.csv#L86788",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 5,
+    "model_seconds": 12.2,
+    "tool_seconds": 0.9,
+    "prompt_tokens": 4482,
+    "completion_tokens": 1064,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 13.1,
+    "cost_usd": 0.019603999999999996
+  }
+}

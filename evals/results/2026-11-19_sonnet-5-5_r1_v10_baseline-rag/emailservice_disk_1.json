@@ -1,0 +1,38 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 2981,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.577
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeClientErrors.md#symptom",
+      "alert": "KubeClientErrors",
+      "distance": 0.63
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "emailservice_cpu rose from 0.28 to 17.73 (+6238%, z=+525), far larger than any other series, and its latency, memory and diskio also jumped, while every other service's metrics are flat (|z|<1). The worst traces (about 2 s) run frontendservice -> currencyservice -> productcatalogservice and never touch emailservice, with no errors or warnings in the logs, so the CPU signal is the only strong anomaly but its link to the slow traces is unexplained.",
+  "proposed_fix": {
+    "description": "Inspect the emailservice pod and its CPU limits and recent load, then restart it or raise its CPU limit if it is stuck in a busy loop. Separately check why the slow frontend traces through currencyservice show no matching metric change.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 2.6,
+    "prompt_tokens": 1584,
+    "completion_tokens": 304,
+    "tool_seconds": 1.2,
+    "wall_seconds": 3.7,
+    "cost_usd": 0.006208
+  }
+}

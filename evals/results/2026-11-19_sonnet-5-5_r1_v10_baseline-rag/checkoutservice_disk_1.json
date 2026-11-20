@@ -1,0 +1,48 @@
+{
+  "architecture": "baseline-rag",
+  "investigation": [],
+  "guardrails": "none: no citation gate, no critic, fix not forced to need approval",
+  "digest_chars": 4297,
+  "retrieved": [
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#action",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.602
+    },
+    {
+      "source_ref": "runbooks/kubernetes/CPUThrottlingHigh.md#symptom",
+      "alert": "CPUThrottlingHigh",
+      "distance": 0.612
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeHpaMaxedOut.md#action",
+      "alert": "KubeHpaMaxedOut",
+      "distance": 0.633
+    },
+    {
+      "source_ref": "runbooks/kubernetes/KubeCPUQuotaOvercommit.md#symptom",
+      "alert": "KubeCPUQuotaOvercommit",
+      "distance": 0.647
+    }
+  ],
+  "status": "diagnosed",
+  "root_cause": {
+    "service": "checkoutservice",
+    "fault_type": "cpu"
+  },
+  "confidence": "medium",
+  "rationale": "checkoutservice shows by far the largest anomalies: cpu +4268% (z=+231), mem +1156% (z=+231), diskio from 0 to 1.0e10, and socket +33%, while every other service's metrics stay flat (z<1). CPU has the highest z and is the most likely primary fault, but mem and diskio moved together with it, so the fault type is ambiguous. The worst traces run through frontend->currencyservice->productcatalogservice and never touch checkoutservice, and no error or warning logs exist, so the link between checkoutservice and the user-facing latency is not confirmed.",
+  "proposed_fix": {
+    "description": "Inspect checkoutservice for a runaway process or loop (profile CPU and memory, check what is generating the disk I/O), and restart or roll back the checkoutservice pod/deployment if a recent change is implicated. Do not raise CPU limits until the cause is understood, per the runbook.",
+    "destructive": false
+  },
+  "usage": {
+    "model_calls": 1,
+    "model_seconds": 5.2,
+    "prompt_tokens": 2081,
+    "completion_tokens": 360,
+    "tool_seconds": 1.2,
+    "wall_seconds": 6.4,
+    "cost_usd": 0.007762
+  }
+}

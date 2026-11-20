@@ -1,0 +1,337 @@
+{
+  "root_cause": {
+    "service": "emailservice",
+    "fault_type": "delay"
+  },
+  "confidence": "medium",
+  "supporting_evidence": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%); checkoutservice_latency-90 z=21.15 (105.7%); checkoutservice_latency-50 z=10.39 (195.5%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.53->203.82ms (57.79x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=cpu]; largest is only emailservice_cpu z=0.44 (3.9%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": []
+    }
+  ],
+  "telemetry_kinds": [
+    "metrics",
+    "traces"
+  ],
+  "alternatives_rejected": [
+    {
+      "candidate": "emailservice: cpu saturation",
+      "why": "No CPU deviation on emailservice (E5, z=0.44), while latency rose sharply (E3)."
+    },
+    {
+      "candidate": "checkoutservice: latency inherited from emailservice",
+      "why": "checkoutservice latency deviations (E1) are much smaller than emailservice's, and emailservice inbound calls slowed 57.79x with its own span self-time unchanged (E2); checkoutservice calls emailservice (E6), so it is a downstream victim."
+    }
+  ],
+  "proposed_fix": {
+    "description": "Investigate and remove the injected network/processing delay affecting emailservice (e.g. inspect network latency rules on its pod), then restart or reschedule the emailservice pod if needed and verify checkout latency recovers.",
+    "model_labeled_destructive": false,
+    "requires_approval": true
+  },
+  "status": "diagnosed",
+  "steps": 8,
+  "investigation": [
+    {
+      "step": 1,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 589,
+        "completion_tokens": 77,
+        "max_tokens": 16000,
+        "answer_chars": 208,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00195,
+        "finish_reason": "stop"
+      },
+      "thought": "No evidence yet; the instructions say to start with an unfiltered metric_query to rank all services and metrics by deviation.",
+      "action": {
+        "tool": "metric_query",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E1",
+      "tool_seconds": 0.02
+    },
+    {
+      "step": 2,
+      "model_call": {
+        "seconds": 1.7,
+        "prompt_tokens": 722,
+        "completion_tokens": 164,
+        "max_tokens": 16000,
+        "answer_chars": 460,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00308,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics point at emailservice latency; checkoutservice likely a downstream caller. I need trace evidence on emailservice to get a second independent telemetry kind and to check the direction of the dependency.",
+      "action": {
+        "tool": "trace_lookup",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E2",
+      "tool_seconds": 0.84
+    },
+    {
+      "step": 3,
+      "model_call": {
+        "seconds": 1.8,
+        "prompt_tokens": 923,
+        "completion_tokens": 153,
+        "max_tokens": 16000,
+        "answer_chars": 420,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00338,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice latency, but I need to distinguish delay from cpu/other resource faults, so I'll check emailservice's own resource metrics.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice"
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E3",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 4,
+      "model_call": {
+        "seconds": 2.4,
+        "prompt_tokens": 1019,
+        "completion_tokens": 160,
+        "max_tokens": 16000,
+        "answer_chars": 432,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00364,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but the fault type is unresolved: delay and cpu both fit, so I'm checking emailservice's resource metrics to separate them.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "top": 10
+        }
+      },
+      "outcome": "repeated_call",
+      "detail": "same as E3"
+    },
+    {
+      "step": 5,
+      "model_call": {
+        "seconds": 1.4,
+        "prompt_tokens": 1072,
+        "completion_tokens": 164,
+        "max_tokens": 16000,
+        "answer_chars": 449,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00378,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice, but I still need to separate delay from cpu, so I'll search emailservice logs for errors or timeouts that would confirm or rule out a cause.",
+      "action": {
+        "tool": "log_search",
+        "args": {
+          "service": "emailservice",
+          "limit": 10
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E4",
+      "tool_seconds": 0.23
+    },
+    {
+      "step": 6,
+      "model_call": {
+        "seconds": 2.0,
+        "prompt_tokens": 1183,
+        "completion_tokens": 178,
+        "max_tokens": 16000,
+        "answer_chars": 470,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00415,
+        "finish_reason": "stop"
+      },
+      "thought": "Emailservice shows metric and trace evidence of latency, but I need to distinguish delay from cpu, so I'll check emailservice cpu/mem/network metrics specifically and see whether they deviate.",
+      "action": {
+        "tool": "metric_query",
+        "args": {
+          "service": "emailservice",
+          "metric": "cpu",
+          "top": 5
+        }
+      },
+      "outcome": "tool_call",
+      "observed": "E5",
+      "tool_seconds": 0.01
+    },
+    {
+      "step": 7,
+      "model_call": {
+        "seconds": 2.2,
+        "prompt_tokens": 1273,
+        "completion_tokens": 168,
+        "max_tokens": 16000,
+        "answer_chars": 473,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00423,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics and traces both point at emailservice latency with no CPU change; I'll check the service map to confirm checkoutservice is a downstream caller and its latency is inherited, which would rule out checkoutservice as the cause.",
+      "action": {
+        "tool": "service_map",
+        "args": {}
+      },
+      "outcome": "tool_call",
+      "observed": "E6",
+      "tool_seconds": 0.5
+    },
+    {
+      "step": 8,
+      "model_call": {
+        "seconds": 4.1,
+        "prompt_tokens": 1392,
+        "completion_tokens": 414,
+        "max_tokens": 16000,
+        "answer_chars": 1081,
+        "effort": "medium",
+        "served_by": "claude-sonnet-5-5",
+        "cost_usd": 0.00692,
+        "finish_reason": "stop"
+      },
+      "thought": "Metrics (E1,E3) and traces (E2) both point at emailservice with CPU ruled out (E5), so I have two independent telemetry kinds and can finish with a delay fault.",
+      "action": {
+        "finish": {
+          "root_cause_service": "emailservice",
+          "fault_type": "delay",
+          "supporting_evidence": [
+            "E1",
+            "E2",
+            "E3",
+            "E5"
+          ],
+          "alternatives_rejected": [
+            {
+              "candidate": "emailservice: cpu saturation",
+              "why": "No CPU deviation on emailservice (E5, z=0.44), while latency rose sharply (E3)."
+            },
+            {
+              "candidate": "checkoutservice: latency inherited from emailservice",
+              "why": "checkoutservice latency deviations (E1) are much smaller than emailservice's, and emailservice inbound calls slowed 57.79x with its own span self-time unchanged (E2); checkoutservice calls emailservice (E6), so it is a downstream victim."
+            }
+          ],
+          "proposed_fix": {
+            "description": "Investigate and remove the injected network/processing delay affecting emailservice (e.g. inspect network latency rules on its pod), then restart or reschedule the emailservice pod if needed and verify checkout latency recovers.",
+            "destructive": false
+          }
+        }
+      },
+      "outcome": "diagnosed"
+    }
+  ],
+  "evidence_board": [
+    {
+      "eid": "E1",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [all services]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%); checkoutservice_latency-90 z=21.15 (105.7%); checkoutservice_latency-50 z=10.39 (195.5%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "checkoutservice",
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E2",
+      "kind": "traces",
+      "summary": "traces for emailservice: SIGNIFICANT change; own spans self-time p50 0.19->0.19ms (1.04x), errors 0.0->0.0; inbound calls self-time p50 3.53->203.82ms (57.79x), errors 0.0->0.0",
+      "source_ref": "traces.csv:serviceName=emailservice",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E3",
+      "kind": "metrics",
+      "summary": "significant deviations in scope [service=emailservice]: emailservice_latency-90 z=899.74 (4498.7%); emailservice_latency-50 z=266.87 (1334.4%)",
+      "source_ref": "simple_metrics.csv:emailservice_latency-90",
+      "implicates": [
+        "emailservice"
+      ]
+    },
+    {
+      "eid": "E4",
+      "kind": "logs",
+      "summary": "664 matching lines; by svc/level {'emailservice/info': 664}; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei; [emailservice/INFO] A request to send order confirmation email to someone@example.com has been recei",
+      "source_ref": "logs.csv#L88067",
+      "implicates": []
+    },
+    {
+      "eid": "E5",
+      "kind": "metrics",
+      "summary": "NO significant deviation (|z|>=3) in scope [service=emailservice, metric=cpu]; largest is only emailservice_cpu z=0.44 (3.9%)",
+      "source_ref": "simple_metrics.csv:emailservice_cpu",
+      "implicates": []
+    },
+    {
+      "eid": "E6",
+      "kind": "map",
+      "summary": "dependencies: checkoutservice->currencyservice,emailservice,paymentservice,productcatalogservice; frontendservice->checkoutservice,currencyservice,productcatalogservice,recommendationservice; recommendationservice->productcatalogservice",
+      "source_ref": "traces.csv (parent->child span pairs)",
+      "implicates": []
+    }
+  ],
+  "usage": {
+    "model_calls": 8,
+    "model_seconds": 17.3,
+    "tool_seconds": 1.6,
+    "prompt_tokens": 8173,
+    "completion_tokens": 1478,
+    "replies_hit_token_limit": 0,
+    "wall_seconds": 18.9,
+    "cost_usd": 0.031126
+  }
+}
